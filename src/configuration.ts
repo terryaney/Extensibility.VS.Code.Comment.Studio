@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { CommentStudioConfig, RenderingMode, LeftBorderMode, CodeLensPosition, PopupStyle } from './types';
+import { CommentStudioConfig, RenderingMode, LeftBorderMode, CodeLensPosition } from './types';
 
 const SECTION = 'kat-comment-studio';
 
@@ -38,7 +38,6 @@ export function getConfiguration(): CommentStudioConfig {
     leftBorder: config.get<LeftBorderMode>('leftBorder', 'off'),
     codeLensPosition: config.get<CodeLensPosition>('codeLensPosition', 'inline'),
     codeLensMaxLength: config.get<number>('codeLensMaxLength', 100),
-    popupStyle: config.get<PopupStyle>('popupStyle', 'hover'),
 
     // Color overrides
     colors: {

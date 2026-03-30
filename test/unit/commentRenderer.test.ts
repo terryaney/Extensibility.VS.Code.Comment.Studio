@@ -299,5 +299,50 @@ Use <c>MyMethod</c> for processing.
       expect(md).toContain('[#42]');
       expect(md).toContain('https://github.com');
     });
+    it('should render paramref as backticked code in markdown', () => {
+      const md = renderToMarkdownString(makeBlock('<summary>Use <paramref name="count"/> wisely.</summary>'));
+      expect(md).toContain('`count`');
+    });
+
+    it('should render typeparamref as backticked code in markdown', () => {
+      const md = renderToMarkdownString(makeBlock('<summary>The <typeparamref name="TResult"/> type.</summary>'));
+      expect(md).toContain('`TResult`');
+    });
+  });
+
+  // --- Inline Reference SegmentType Tests ---
+  describe('inline reference segment types', () => {
+    it('should create ParamRef segment for <paramref/>', () => {
+      const result = renderXmlContent('<summary>Use <paramref name="value"/> here.</summary>');
+      const allSegments = result.sections.find(s => s.type === CommentSectionType.Summary)!.lines.flatMap(l => l.segments);
+      const paramRef = allSegments.find(s => s.type === SegmentType.ParamRef);
+      expect(paramRef).toBeDefined();
+      expect(paramRef!.text).toBe('value');
+    });
+
+    it('should create TypeParamRef segment for <typeparamref/>', () => {
+      const result = renderXmlContent('<summary>The type <typeparamref name="T"/> must implement IDisposable.</summary>');
+      const allSegments = result.sections.find(s => s.type === CommentSectionType.Summary)!.lines.flatMap(l => l.segments);
+      const typeParamRef = allSegments.find(s => s.type === SegmentType.TypeParamRef);
+      expect(typeParamRef).toBeDefined();
+      expect(typeParamRef!.text).toBe('T');
+    });
+
+    it('should create TypeRef segment for <see cref="T:..."/>', () => {
+      const result = renderXmlContent('<summary>Returns a <see cref="T:System.String"/>.</summary>');
+      const allSegments = result.sections.find(s => s.type === CommentSectionType.Summary)!.lines.flatMap(l => l.segments);
+      const typeRef = allSegments.find(s => s.type === SegmentType.TypeRef);
+      expect(typeRef).toBeDefined();
+      expect(typeRef!.text).toBe('String');
+    });
+
+    it('should keep Code segment for non-type <see cref/>', () => {
+      const result = renderXmlContent('<summary>See <see cref="M:MyClass.DoWork"/>.</summary>');
+      const allSegments = result.sections.find(s => s.type === CommentSectionType.Summary)!.lines.flatMap(l => l.segments);
+      const codeRef = allSegments.find(s => s.type === SegmentType.Code && s.text === 'DoWork');
+      expect(codeRef).toBeDefined();
+      // Should NOT be TypeRef
+      expect(allSegments.find(s => s.type === SegmentType.TypeRef)).toBeUndefined();
+    });
   });
 });

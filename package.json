@@ -402,19 +402,6 @@
           ],
           "description": "Show a subtle vertical line on the left edge of rendered comments"
         },
-        "kat-comment-studio.popupStyle": {
-          "type": "string",
-          "default": "hover",
-          "enum": [
-            "hover",
-            "overlay"
-          ],
-          "enumDescriptions": [
-            "Show documentation as a rich hover tooltip in the editor (default)",
-            "Show documentation in the Code Anchors panel overlay"
-          ],
-          "description": "How clicking the summary CodeLens displays documentation content"
-        },
         "kat-comment-studio.codeLensPosition": {
           "type": "string",
           "default": "inline",
@@ -648,6 +635,24 @@
           "dark": "#3794FF",
           "light": "#006AB1",
           "highContrast": "#3794FF"
+        }
+      },
+      {
+        "id": "katCommentStudio.parameterName",
+        "description": "Parameter name color in rendered XML doc comments",
+        "defaults": {
+          "dark": "#7BD88F",
+          "light": "#7BD88F",
+          "highContrast": "#7BD88F"
+        }
+      },
+      {
+        "id": "katCommentStudio.typeName",
+        "description": "Type/class name color in rendered XML doc comments",
+        "defaults": {
+          "dark": "#5AD4E6",
+          "light": "#5AD4E6",
+          "highContrast": "#5AD4E6"
         }
       },
       {

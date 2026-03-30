@@ -1,7 +1,6 @@
 import * as vscode from 'vscode';
 import { DecorationManager } from './rendering/decorationManager';
 import { CommentCodeLensProvider } from './rendering/commentCodeLensProvider';
-import { renderToHtmlFragment } from './rendering/commentRenderer';
 import { getCachedCommentBlocks } from './parsing/commentParser';
 import { CommentHoverProvider } from './rendering/commentHoverProvider';
 
@@ -164,27 +163,11 @@ export function activate(context: vscode.ExtensionContext): void {
       const editor = vscode.window.activeTextEditor;
       if (!editor || editor.document.uri.toString() !== uri.toString()) return;
 
-      const currentConfig = getConfiguration();
-      if (currentConfig.popupStyle === 'hover' && commentHoverProvider) {
-        // Arm the hover provider and trigger VS Code's hover at the comment location
+      if (commentHoverProvider) {
         commentHoverProvider.setPendingHover(uri, startLine);
         decorationManager?.suppressNextAutoExpand();
         editor.selection = new vscode.Selection(startLine, 0, startLine, 0);
         await vscode.commands.executeCommand('editor.action.showHover');
-      } else {
-        // Overlay mode: show in anchors grid panel
-        const lines = editor.document.getText().split(/\r?\n/);
-        const blocks = getCachedCommentBlocks(
-          editor.document.uri.toString(),
-          editor.document.version,
-          lines,
-          editor.document.languageId,
-        );
-        const block = blocks?.find(b => b.startLine === startLine);
-        if (!block) return;
-        const html = renderToHtmlFragment(block);
-        await vscode.commands.executeCommand('kat-comment-studio.anchorsGrid.focus');
-        anchorsGridProvider?.showDocOverlay(html);
       }
     }),
   );
@@ -416,13 +399,6 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(AnchorsGridProvider.viewType, anchorsGridProvider),
-  );
-
-  // Dismiss the doc overlay when the user clicks back into any editor
-  context.subscriptions.push(
-    vscode.window.onDidChangeTextEditorSelection(() => {
-      anchorsGridProvider.hideOverlay();
-    }),
   );
 
   function getCurrentAnchorFilterContext(): AnchorFilterContext {

@@ -23,22 +23,10 @@ try {
   // Running in test environment without vscode
 }
 
-// Static color lookup for anchor tags — used to colorize TODO:, HACK:, etc. in rendered HTML
+// Static color lookup for anchor tags — used to colorize TODO:, HACK:, etc. in rendered output
 const ANCHOR_TAG_COLORS: ReadonlyMap<string, string> = new Map(
   [...BUILTIN_ANCHOR_TYPES.entries()].map(([tag, type]) => [tag, type.color]),
 );
-
-function colorizeAnchorTags(html: string): string {
-  // Match anchor tags at word boundaries: TODO:, HACK:, NOTE:, BUG:, etc.
-  // The html parameter is already HTML-escaped text, so no tags to worry about.
-  const tagPattern = [...ANCHOR_TAG_COLORS.keys()].join('|');
-  const regex = new RegExp(`\\b(${tagPattern}):`, 'g');
-  return html.replace(regex, (match, tag) => {
-    const color = ANCHOR_TAG_COLORS.get(tag);
-    if (!color) return match;
-    return `<span style="color:${color};font-weight:600">${match}</span>`;
-  });
-}
 
 /**
  * Colorizes anchor tags in plain text for MarkdownString output.
@@ -218,7 +206,7 @@ export function renderToMarkdown(block: XmlDocCommentBlock, repoInfo?: GitReposi
 
       case CommentSectionType.Exception: {
         const excName = section.name || 'Exception';
-        md.appendMarkdown(sectionHeadingMarkdown(`$(warning) Throws \`${excName}\``));
+        md.appendMarkdown(`<span style="color:var(--vscode-editorCodeLens-foreground);">**$(warning) Throws**</span> <span style="color:var(--vscode-katCommentStudio-typeName);">\`${excName}\`</span>\n\n`);
         md.appendMarkdown(sectionLinesToMarkdownRich(section));
         break;
       }
@@ -263,7 +251,7 @@ function renderParamTableMarkdown(sections: RenderedCommentSection[]): string {
       .filter(l => !isBlankLine(l))
       .map(l => l.segments.map(seg => segmentToMarkdownRich(seg)).join(''))
       .join(' ');
-    parts.push(`| <span style="color:var(--vscode-symbolIcon-fieldForeground);">\`${name}\`</span> | ${desc} |\n`);
+    parts.push(`| <span style="color:var(--vscode-katCommentStudio-parameterName);">\`${name}\`</span> | ${desc} |\n`);
   }
   return parts.join('');
 }
@@ -355,11 +343,22 @@ function segmentToMarkdownRich(segment: RenderedSegment): string {
     case SegmentType.Code:
       return `\`${segment.text}\``;
     case SegmentType.ParamRef:
+      return `<span style="color:var(--vscode-katCommentStudio-parameterName);">\`${segment.text}\`</span>`;
     case SegmentType.TypeParamRef:
-      return `<span style="color:var(--vscode-symbolIcon-fieldForeground);">\`${segment.text}\`</span>`;
-    case SegmentType.Link:
+    case SegmentType.TypeRef:
+      return `<span style="color:var(--vscode-katCommentStudio-typeName);">\`${segment.text}\`</span>`;
     case SegmentType.IssueReference:
       return segment.linkTarget ? `[${segment.text}](${segment.linkTarget})` : segment.text;
+    case SegmentType.Link: {
+      if (!segment.linkTarget) return segment.text;
+      const target = segment.linkTarget;
+      if (!target.startsWith('http://') && !target.startsWith('https://')) {
+        const symbolName = getTypeNameFromCref(target);
+        const encoded = encodeURIComponent(JSON.stringify([`#${symbolName}`]));
+        return `[${segment.text}](command:workbench.action.quickOpen?${encoded})`;
+      }
+      return `[${segment.text}](${target})`;
+    }
     case SegmentType.Strikethrough:
       return `~~${segment.text}~~`;
     case SegmentType.Text:
@@ -554,6 +553,7 @@ function segmentToMarkdown(segment: RenderedSegment): string {
       return segment.linkTarget ? `[${segment.text}](${segment.linkTarget})` : segment.text;
     case SegmentType.ParamRef:
     case SegmentType.TypeParamRef:
+    case SegmentType.TypeRef:
       return `\`${segment.text}\``;
     case SegmentType.Heading:
       return `**${segment.text}**`;
@@ -776,11 +776,17 @@ function renderNode(node: XmlNode, section: RenderedCommentSection, repoInfo?: G
     case 'see':
       renderSeeTag(node, section);
       break;
-    case 'paramref':
+    case 'paramref': {
+      const name = getAttr(node, 'name');
+      if (name) {
+        getOrCreateCurrentLine(section).segments.push({ text: name, type: SegmentType.ParamRef });
+      }
+      break;
+    }
     case 'typeparamref': {
       const name = getAttr(node, 'name');
       if (name) {
-        getOrCreateCurrentLine(section).segments.push({ text: name, type: SegmentType.Code });
+        getOrCreateCurrentLine(section).segments.push({ text: name, type: SegmentType.TypeParamRef });
       }
       break;
     }
@@ -839,7 +845,7 @@ function renderSeeTag(element: XmlElement, section: RenderedCommentSection): voi
   let linkTarget: string | undefined;
 
   if (cref) {
-    segmentType = SegmentType.Code;
+    segmentType = cref.startsWith('T:') ? SegmentType.TypeRef : SegmentType.Code;
     if (!displayText) {
       displayText = getTypeNameFromCref(cref) || cref;
     }
@@ -1025,276 +1031,6 @@ function stripXmlTags(xml: string): string {
   let text = xml.replace(/<[^>]+>/g, ' ');
   text = text.replace(/\s+/g, ' ');
   return text.trim();
-}
-
-/**
- * Renders an XML doc comment block as an HTML fragment (body content only, no document wrapper).
- * Suitable for embedding in an existing webview such as the documentation overlay.
- */
-export function renderToHtmlFragment(block: XmlDocCommentBlock, repoInfo?: GitRepositoryInfo): string {
-  const rendered = renderCommentBlock(block, repoInfo);
-  const htmlParts: string[] = [];
-
-  for (const section of rendered.sections) {
-    if (section.lines.length === 0 || section.lines.every(l => isBlankLine(l))) continue;
-
-    switch (section.type) {
-      case CommentSectionType.Summary:
-        htmlParts.push(`<div class="section summary">${sectionLinesToHtml(section)}</div>`);
-        break;
-
-      case CommentSectionType.Param:
-      case CommentSectionType.TypeParam: {
-        const label = section.type === CommentSectionType.TypeParam ? 'T' : '';
-        const paramName = section.name || '?';
-        const desc = sectionLinesToHtml(section);
-        htmlParts.push(
-          `<div class="param-row">` +
-          `<span class="param-name">${label}${escapeHtml(paramName)}</span>` +
-          `<span class="param-sep">—</span>` +
-          `<span class="param-desc">${desc}</span>` +
-          `</div>`,
-        );
-        break;
-      }
-
-      case CommentSectionType.Returns:
-        htmlParts.push(
-          `<div class="section labeled"><span class="section-label">Returns</span>` +
-          `<div class="section-body">${sectionLinesToHtml(section)}</div></div>`,
-        );
-        break;
-
-      case CommentSectionType.Value:
-        htmlParts.push(
-          `<div class="section labeled"><span class="section-label">Value</span>` +
-          `<div class="section-body">${sectionLinesToHtml(section)}</div></div>`,
-        );
-        break;
-
-      case CommentSectionType.Remarks:
-        htmlParts.push(
-          `<div class="section labeled"><span class="section-label">Remarks</span>` +
-          `<div class="section-body">${sectionLinesToHtml(section)}</div></div>`,
-        );
-        break;
-
-      case CommentSectionType.Example:
-        htmlParts.push(
-          `<div class="section labeled example"><span class="section-label">Example</span>` +
-          `<div class="section-body">${sectionLinesToHtml(section)}</div></div>`,
-        );
-        break;
-
-      case CommentSectionType.Exception: {
-        const excName = section.name || 'Exception';
-        htmlParts.push(
-          `<div class="section labeled"><span class="section-label">Throws <code>${escapeHtml(excName)}</code></span>` +
-          `<div class="section-body">${sectionLinesToHtml(section)}</div></div>`,
-        );
-        break;
-      }
-
-      case CommentSectionType.SeeAlso:
-        htmlParts.push(
-          `<div class="section labeled"><span class="section-label">See Also</span>` +
-          `<div class="section-body">${sectionLinesToHtml(section)}</div></div>`,
-        );
-        break;
-
-      default: {
-        const heading = section.heading;
-        if (heading) {
-          htmlParts.push(
-            `<div class="section labeled"><span class="section-label">${escapeHtml(heading)}</span>` +
-            `<div class="section-body">${sectionLinesToHtml(section)}</div></div>`,
-          );
-        } else {
-          htmlParts.push(`<div class="section">${sectionLinesToHtml(section)}</div>`);
-        }
-        break;
-      }
-    }
-  }
-
-  return htmlParts.join('\n');
-}
-
-/**
- * Renders an XML doc comment block as a styled HTML document for display in a WebviewPanel.
- * Uses VS Code theme CSS variables for consistent theming.
- */
-export function renderToHtml(block: XmlDocCommentBlock, repoInfo?: GitRepositoryInfo): string {
-  const body = renderToHtmlFragment(block, repoInfo);
-
-  return `<!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<style>
-  body {
-    font-family: var(--vscode-font-family, 'Segoe UI', sans-serif);
-    font-size: var(--vscode-font-size, 13px);
-    color: var(--vscode-editor-foreground);
-    background: var(--vscode-editor-background);
-    padding: 12px 16px;
-    line-height: 1.5;
-    margin: 0;
-  }
-  .summary {
-    margin-bottom: 10px;
-    color: var(--vscode-descriptionForeground);
-    font-size: 1.05em;
-  }
-  .param-row {
-    display: flex;
-    gap: 8px;
-    padding: 2px 0 2px 16px;
-    align-items: baseline;
-  }
-  .param-name {
-    color: var(--vscode-symbolIcon-fieldForeground, #9CDCFE);
-    font-family: var(--vscode-editor-font-family, 'Consolas', monospace);
-    font-size: var(--vscode-editor-font-size, 13px);
-    white-space: nowrap;
-  }
-  .param-sep {
-    color: var(--vscode-descriptionForeground);
-    opacity: 0.6;
-  }
-  .param-desc {
-    color: var(--vscode-editor-foreground);
-  }
-  .section {
-    margin: 8px 0;
-  }
-  .section.labeled {
-    margin: 12px 0 8px 0;
-  }
-  .section-label {
-    display: block;
-    font-weight: 600;
-    color: var(--vscode-editorCodeLens-foreground, #999);
-    text-transform: uppercase;
-    font-size: 0.85em;
-    letter-spacing: 0.5px;
-    margin-bottom: 4px;
-    border-bottom: 1px solid var(--vscode-widget-border, #333);
-    padding-bottom: 2px;
-  }
-  .section-body {
-    padding-left: 16px;
-    color: var(--vscode-editor-foreground);
-  }
-  .example .section-body {
-    background: var(--vscode-textBlockQuote-background, #1e1e1e);
-    border-left: 3px solid var(--vscode-textBlockQuote-border, #444);
-    padding: 8px 12px;
-    border-radius: 3px;
-    font-family: var(--vscode-editor-font-family, 'Consolas', monospace);
-    font-size: var(--vscode-editor-font-size, 13px);
-    white-space: pre-wrap;
-  }
-  code {
-    font-family: var(--vscode-editor-font-family, 'Consolas', monospace);
-    font-size: var(--vscode-editor-font-size, 13px);
-    color: var(--vscode-textPreformat-foreground, #CE9178);
-    background: var(--vscode-textPreformat-background, rgba(255,255,255,0.06));
-    padding: 1px 4px;
-    border-radius: 3px;
-  }
-  a {
-    color: var(--vscode-textLink-foreground);
-    text-decoration: none;
-  }
-  a:hover {
-    text-decoration: underline;
-  }
-  .seg-bold { font-weight: 600; }
-  .seg-italic { font-style: italic; }
-  .seg-strike { text-decoration: line-through; }
-  .blank-line { height: 0.5em; }
-</style>
-</head>
-<body>
-${body}
-</body>
-</html>`;
-}
-
-function sectionLinesToHtml(section: RenderedCommentSection): string {
-  const htmlLines: string[] = [];
-  let i = 0;
-  const lines = section.lines;
-  while (i < lines.length) {
-    const line = lines[i];
-    if (isBlankLine(line)) {
-      htmlLines.push('<div class="blank-line"></div>');
-      i++;
-      continue;
-    }
-
-    // Merge consecutive Code-only lines into a single <code> block
-    if (line.segments.length === 1 && line.segments[0].type === SegmentType.Code) {
-      const codeTexts: string[] = [];
-      while (i < lines.length) {
-        const cl = lines[i];
-        if (cl.segments.length === 1 && cl.segments[0].type === SegmentType.Code) {
-          codeTexts.push(escapeHtml(cl.segments[0].text));
-          i++;
-        } else {
-          break;
-        }
-      }
-      htmlLines.push(`<code>${codeTexts.join('\n')}</code>`);
-      continue;
-    }
-
-    const lineHtml = line.segments.map(s => segmentToHtml(s)).join('');
-    htmlLines.push(`<div>${lineHtml}</div>`);
-    i++;
-  }
-  return htmlLines.join('\n');
-}
-
-function segmentToHtml(segment: RenderedSegment): string {
-  const text = escapeHtml(segment.text);
-  switch (segment.type) {
-    case SegmentType.Bold:
-    case SegmentType.Heading:
-      return `<span class="seg-bold">${text}</span>`;
-    case SegmentType.Italic:
-      return `<span class="seg-italic">${text}</span>`;
-    case SegmentType.Code:
-    case SegmentType.ParamRef:
-    case SegmentType.TypeParamRef:
-      return `<code>${text}</code>`;
-    case SegmentType.Strikethrough:
-      return `<span class="seg-strike">${text}</span>`;
-    case SegmentType.Link:
-    case SegmentType.IssueReference:
-      if (segment.linkTarget && isSafeUrl(segment.linkTarget)) {
-        return `<a href="${escapeHtml(segment.linkTarget)}">${text}</a>`;
-      }
-      return text;
-    case SegmentType.Text:
-    default:
-      return colorizeAnchorTags(text);
-  }
-}
-
-function isSafeUrl(url: string): boolean {
-  const trimmed = url.trim().toLowerCase();
-  return trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('#');
-}
-
-function escapeHtml(text: string): string {
-  return text
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }
 
 /**

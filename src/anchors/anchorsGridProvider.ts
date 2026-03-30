@@ -24,8 +24,6 @@ export class AnchorsGridProvider implements vscode.WebviewViewProvider, vscode.D
 
   private view: vscode.WebviewView | undefined;
   private _webviewReady = false;
-  private _pendingOverlayHtml: string | undefined;
-  private _overlayVisible = false;
   private _lastBadgeCount = 0;
   private model: AnchorsGridModel = {
     anchors: [],
@@ -83,11 +81,6 @@ export class AnchorsGridProvider implements vscode.WebviewViewProvider, vscode.D
           this.log('[KAT] webviewReady received, pushing model');
           this._webviewReady = true;
           this.pushModel();
-          if (this._pendingOverlayHtml) {
-            const html = this._pendingOverlayHtml;
-            this._pendingOverlayHtml = undefined;
-            this.showDocOverlay(html);
-          }
           break;
         case 'navigateTo':
           this.onNavigate(message.filePath, message.lineNumber);
@@ -122,13 +115,6 @@ export class AnchorsGridProvider implements vscode.WebviewViewProvider, vscode.D
           break;
         case 'copyCell':
           this.onCopyText(message.text ?? '');
-          break;
-        case 'overlayDismissed':
-          this._overlayVisible = false;
-          // Return focus to the active editor
-          if (vscode.window.activeTextEditor) {
-            void vscode.window.showTextDocument(vscode.window.activeTextEditor.document, vscode.window.activeTextEditor.viewColumn);
-          }
           break;
         case 'openExternal':
           if (message.url && typeof message.url === 'string') {
@@ -198,29 +184,6 @@ export class AnchorsGridProvider implements vscode.WebviewViewProvider, vscode.D
         : '',
       value: count,
     };
-  }
-
-  showDocOverlay(html: string): void {
-    if (!this.view || !this._webviewReady) {
-      this._pendingOverlayHtml = html;
-      return;
-    }
-    this._pendingOverlayHtml = undefined;
-    this._overlayVisible = true;
-    void this.view.webview.postMessage({
-      type: 'showDocOverlay',
-      html,
-    });
-  }
-
-  /** Hide the overlay without returning focus (called when editor regains focus externally). */
-  hideOverlay(): void {
-    this._pendingOverlayHtml = undefined;
-    if (!this._overlayVisible) return;
-    this._overlayVisible = false;
-    if (this.view && this._webviewReady) {
-      void this.view.webview.postMessage({ type: 'hideDocOverlay' });
-    }
   }
 
   private isFilterActive(): boolean {
