@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { AnchorMatch } from './anchorService';
+import { AnchorMatch, BUILTIN_ANCHOR_TYPES } from './anchorService';
 import { generateAnchorsGridHtml } from './anchorsGridWebview';
 import { AnchorScopeId, AnchorScopeOption, AnchorViewState, createDefaultAnchorViewState } from './anchorViewState';
 
@@ -100,6 +100,9 @@ export class AnchorsGridProvider implements vscode.WebviewViewProvider, vscode.D
         case 'setTypeFilter':
           this.onTypeFilterChange(message.includedTypes);
           break;
+        case 'showTypeFilter':
+          void this.showTypeFilterPicker();
+          break;
         case 'setSearchQuery':
           this.log(`[KAT-BADGE] provider received setSearchQuery: '${message.searchQuery ?? ''}'`);
           this.onSearchQueryChange(message.searchQuery ?? '');
@@ -150,6 +153,33 @@ export class AnchorsGridProvider implements vscode.WebviewViewProvider, vscode.D
 
   dispose(): void {
     this.view = undefined;
+  }
+
+  private async showTypeFilterPicker(): Promise<void> {
+    const { availableTypes, state } = this.model;
+    if (availableTypes.length === 0) {
+      void vscode.window.showInformationMessage('No anchor types are available in the current scope.');
+      return;
+    }
+
+    const currentIncludedTypes = state.includedTypes;
+    const picks = availableTypes.map(type => ({
+      label: BUILTIN_ANCHOR_TYPES.get(type)?.displayName ?? type,
+      value: type,
+      picked: !currentIncludedTypes || currentIncludedTypes.includes(type),
+    }));
+
+    const selected = await vscode.window.showQuickPick(picks, {
+      placeHolder: 'Select anchor types to show',
+      canPickMany: true,
+    });
+
+    if (selected) {
+      const includedTypes = selected.length === picks.length
+        ? undefined
+        : selected.map(p => p.value);
+      this.onTypeFilterChange(includedTypes);
+    }
   }
 
   private applyViewMetadata(): void {

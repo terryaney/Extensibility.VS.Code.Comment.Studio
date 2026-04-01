@@ -560,6 +560,18 @@ If you're comfortable with all VS Code hover tooltips using your editor backgrou
 
 ---
 
+#### Complete line hiding (optional — requires Custom CSS and JS Loader)
+
+By default, when rendering is active the original XML comment lines are dimmed to `opacity: 0.05` and the block is auto-folded. One blank line gap remains (the fold anchor line). Setting `dimOpacity` to `0` in your settings makes those lines fully invisible:
+
+```json
+"kat-comment-studio.dimOpacity": 0
+```
+
+This is the maximum hiding achievable through the VS Code extension API alone — one blank line gap still remains after folding.
+
+---
+
 ## Settings Reference
 
 | Setting | Type | Default | Description |
@@ -567,15 +579,16 @@ If you're comfortable with all VS Code hover tooltips using your editor backgrou
 | `renderingMode` | `"off"` \| `"on"` | `"on"` | How XML doc comments are rendered |
 | `enabledLanguages` | `string[]` | *(all supported)* | Language IDs with rendering enabled |
 | `dimOriginalComments` | `boolean` | `true` | Dim original comment text when rendering is active |
-| `dimOpacity` | `number` | `0.05` | Opacity for dimmed comments (0.01–1.0) |
+| `dimOpacity` | `number` | `0.05` | Opacity for dimmed comments (0–1.0). Set to `0` to make comment lines fully invisible. |
 | `maxLineLength` | `number` | `120` | Max width for comment reflow (overridden by `.editorconfig`) |
 | `codeLensPosition` | `"inline"` \| `"ownLine"` | `"inline"` | Where CodeLens appears: on declaration line or above it |
 | `enableReflowOnPaste` | `boolean` | `true` | Reflow when pasting into a doc comment block |
 | `enableReflowWhileTyping` | `boolean` | `true` | Reflow after 300ms pause when line exceeds max width |
 | `preserveBlankLines` | `boolean` | `true` | Preserve intentional blank lines during reflow |
 | `collapseByDefault` | `boolean` | `false` | Collapse XML doc comments when opening files |
-| `leftBorder` | enum | `"off"` | Vertical border on comments: `off`, `multilineOnly`, `inlineOnly`, `always` |
+| `codeLensMaxLength` | `number` | `0` | Max chars for CodeLens summary text before truncation. `0` = no truncation. |
 | `enableTagHighlighting` | `boolean` | `true` | Inline color highlighting of anchor tags |
+| `anchorColorizeMode` | `"never"` \| `"caseSensitive"` \| `"caseInsensitive"` | `"caseInsensitive"` | Colorization of anchor keywords not followed by `:`. Keywords with `:` always colorize. |
 | `enablePrefixHighlighting` | `boolean` | `true` | Better Comments–style prefix highlighting |
 | `enableIssueLinks` | `boolean` | `true` | Clickable `#123` issue links |
 | `customTags` | `string` | `""` | Comma-separated custom anchor tags (e.g., `"PERF, SECURITY"`) |
@@ -593,9 +606,8 @@ All commands are available via the Command Palette (`Ctrl+Shift+P`) under the **
 | Command | Description |
 |---|---|
 | `Toggle Comment Rendering` | Toggle rendering on/off |
-| `Cycle Rendering Mode (Off → On)` | Same toggle |
-| `Reflow Comment` | Reflow the current comment block |
-| `Reflow All Comments` | Reflow all comment blocks in the document |
+| `Reflow Current Comment` | Reflow the comment block containing the cursor |
+| `Reflow Comments in File` | Reflow all comment blocks in the document |
 | `Scan Code Anchors` | Scan workspace for anchors (with progress) |
 | `Refresh Code Anchors` | Re-scan workspace |
 | `Export Code Anchors` | Export to TSV/CSV/Markdown/JSON |

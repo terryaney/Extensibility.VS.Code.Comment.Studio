@@ -15,6 +15,10 @@ export interface LinkAnchorTarget {
   pathStart: number;
   /** Length of the path portion */
   pathLength: number;
+  /** True when both a line number and anchor name were specified (invalid combined syntax) */
+  invalidCombinedSyntax?: true;
+  /** True when no file path was given (e.g. LINK: :42 or LINK: :42#anchor) */
+  missingFilePath?: true;
 }
 
 // Match LINK: followed by the target
@@ -52,10 +56,11 @@ export function parseLinkAnchors(text: string): LinkAnchorTarget[] {
 function parseLinkTarget(text: string, linkStart: number, prefixLength: number): LinkAnchorTarget | undefined {
   if (!text.trim()) return undefined;
 
-  // Local anchor: #anchor-name
+  // Local anchor: #anchor-name (optionally followed by :lineNum which is invalid)
   if (text.startsWith('#')) {
-    const anchorMatch = text.match(/^#([\w-]+)/);
+    const anchorMatch = text.match(/^#([\w-]+)(:\d+)?/);
     if (anchorMatch) {
+      const hasLineSuffix = anchorMatch[2] !== undefined;
       return {
         rawText: `LINK: ${anchorMatch[0]}`,
         targetPath: '',
@@ -63,6 +68,7 @@ function parseLinkTarget(text: string, linkStart: number, prefixLength: number):
         isLocalAnchor: true,
         pathStart: linkStart + prefixLength,
         pathLength: anchorMatch[0].length,
+        ...(hasLineSuffix ? { invalidCombinedSyntax: true as const } : {}),
       };
     }
     return undefined;
@@ -131,7 +137,31 @@ function parseLinkTarget(text: string, linkStart: number, prefixLength: number):
     if (lineMatch[3]) {
       endLineNumber = parseInt(lineMatch[3], 10);
     }
+    // After extracting line number, check if #anchor is still embedded in targetPath
+    // (handles: file.cs#AnchorName:42 where anchor-before-colon wasn't caught above)
+    if (anchorName === undefined) {
+      const residualAnchorIdx = targetPath.lastIndexOf('#');
+      if (residualAnchorIdx > 0) {
+        const residualAnchor = targetPath.substring(residualAnchorIdx + 1);
+        if (/^[\w-]+$/.test(residualAnchor)) {
+          anchorName = residualAnchor;
+          targetPath = targetPath.substring(0, residualAnchorIdx);
+        }
+      }
+    }
   }
+
+  // Detect bare :N or :N-M with no file path (e.g. LINK: :42 or LINK: :42#anchor)
+  if (lineNumber === undefined) {
+    const bareLineMatch = targetPath.match(/^:(\d+)(?:-(\d+))?$/);
+    if (bareLineMatch) {
+      lineNumber = parseInt(bareLineMatch[1], 10);
+      if (bareLineMatch[2]) endLineNumber = parseInt(bareLineMatch[2], 10);
+      targetPath = '';
+    }
+  }
+
+  const missingFilePath = targetPath.trim() === '' ? (true as const) : undefined;
 
   return {
     rawText: `LINK: ${pathPart}`,
@@ -142,6 +172,8 @@ function parseLinkTarget(text: string, linkStart: number, prefixLength: number):
     isLocalAnchor: false,
     pathStart: linkStart + prefixLength,
     pathLength: pathPart.length,
+    ...(missingFilePath ? { missingFilePath } : {}),
+    ...(lineNumber !== undefined && anchorName !== undefined ? { invalidCombinedSyntax: true as const } : {}),
   };
 }
 

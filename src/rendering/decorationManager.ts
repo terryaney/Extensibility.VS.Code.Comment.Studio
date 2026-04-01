@@ -37,7 +37,7 @@ export class DecorationManager implements vscode.Disposable {
 
   constructor(config: CommentStudioConfig) {
     this.config = config;
-    this.styles = createDecorationStyles(config.leftBorder, config.dimOpacity);
+    this.styles = createDecorationStyles(config.dimOpacity);
 
     if (config.renderingMode === 'on') {
       this.startCursorTracking();
@@ -57,7 +57,7 @@ export class DecorationManager implements vscode.Disposable {
     const oldMode = this.config.renderingMode;
     disposeDecorationStyles(this.styles);
     this.config = config;
-    this.styles = createDecorationStyles(config.leftBorder, config.dimOpacity);
+    this.styles = createDecorationStyles(config.dimOpacity);
 
     // If mode changed, handle folding transitions
     if (oldMode !== config.renderingMode) {
@@ -91,13 +91,6 @@ export class DecorationManager implements vscode.Disposable {
     } else {
       setRenderingMode('off');
     }
-  }
-
-  cycleRenderingMode(): void {
-    const modes: RenderingMode[] = ['off', 'on'];
-    const currentIndex = modes.indexOf(this.config.renderingMode);
-    const nextMode = modes[(currentIndex + 1) % modes.length];
-    setRenderingMode(nextMode);
   }
 
   private async handleModeTransition(
@@ -224,26 +217,10 @@ export class DecorationManager implements vscode.Disposable {
     }
 
     const transparentDecorations: vscode.DecorationOptions[] = [];
-    const leftBorderDecorations: vscode.DecorationOptions[] = [];
     const expanded = this.expandedBlocks.get(docKey) ?? new Set();
 
     for (const block of blocks) {
       const isMultiline = block.endLine > block.startLine;
-
-      // Left border
-      if (this.styles.leftBorder) {
-        const shouldApply =
-          this.config.leftBorder === 'always' ||
-          (this.config.leftBorder === 'multilineOnly' && isMultiline) ||
-          (this.config.leftBorder === 'inlineOnly' && !isMultiline);
-        if (shouldApply) {
-          for (let line = block.startLine; line <= block.endLine; line++) {
-            leftBorderDecorations.push({
-              range: new vscode.Range(line, 0, line, lines[line].length),
-            });
-          }
-        }
-      }
 
       // Apply dim decoration to all lines of folded multi-line blocks
       if (isMultiline && !expanded.has(block.startLine)) {
@@ -256,9 +233,6 @@ export class DecorationManager implements vscode.Disposable {
     }
 
     editor.setDecorations(this.styles.transparentComment, transparentDecorations);
-    if (this.styles.leftBorder) {
-      editor.setDecorations(this.styles.leftBorder, leftBorderDecorations);
-    }
   }
 
   private markAllBlocksFolded(editor: vscode.TextEditor): void {
@@ -623,9 +597,6 @@ export class DecorationManager implements vscode.Disposable {
       dbg('decorMgr', 'clearDecorations', { caller });
     }
     editor.setDecorations(this.styles.transparentComment, []);
-    if (this.styles.leftBorder) {
-      editor.setDecorations(this.styles.leftBorder, []);
-    }
   }
 
   dispose(): void {

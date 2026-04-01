@@ -76,6 +76,10 @@ export class LinkAnchorHoverProvider implements vscode.HoverProvider {
  * Navigates to a LINK: target.
  */
 export async function navigateToLinkTarget(target: LinkAnchorTarget, baseFilePath: string): Promise<void> {
+  if (target.invalidCombinedSyntax) {
+    console.warn('[KAT] LINK syntax warning: combined line+anchor syntax — navigating to anchor (anchor takes priority).');
+  }
+
   const resolvedPath = resolveLinkTarget(target, baseFilePath);
 
   if (target.isLocalAnchor && target.anchorName) {

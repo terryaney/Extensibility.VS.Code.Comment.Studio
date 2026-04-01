@@ -46,6 +46,16 @@ export function generateAnchorsGridHtml(nonce: string, codiconsCssUri: string, c
       z-index: 20;
     }
 
+    .toolbar-icon {
+      font-size: 16px;
+      color: var(--vscode-icon-foreground);
+      flex-shrink: 0;
+    }
+
+    .filter-search-icon {
+      margin-left: auto;
+    }
+
     .scope-select,
     .search-input {
       padding: 3px 8px;
@@ -65,7 +75,6 @@ export function generateAnchorsGridHtml(nonce: string, codiconsCssUri: string, c
 
     .search-input {
       width: 220px;
-      margin-left: auto;
     }
 
     .scope-select:focus,
@@ -77,7 +86,6 @@ export function generateAnchorsGridHtml(nonce: string, codiconsCssUri: string, c
       color: var(--vscode-input-placeholderForeground);
     }
 
-    .filter-btn,
     .menu-button {
       padding: 3px 8px;
       border: 1px solid var(--vscode-button-secondaryBackground, var(--vscode-input-border, transparent));
@@ -89,9 +97,16 @@ export function generateAnchorsGridHtml(nonce: string, codiconsCssUri: string, c
       height: 26px;
     }
 
-    .filter-btn:hover,
     .menu-button:hover:not(:disabled) {
       background: var(--vscode-button-secondaryHoverBackground, var(--vscode-list-hoverBackground));
+    }
+
+    .toolbar-icon-btn {
+      cursor: pointer;
+    }
+
+    .toolbar-icon-btn:hover {
+      color: var(--vscode-textLink-foreground);
     }
 
     .menu-button:disabled {
@@ -270,7 +285,6 @@ export function generateAnchorsGridHtml(nonce: string, codiconsCssUri: string, c
       max-width: 520px;
     }
 
-    .filter-dropdown,
     .context-menu {
       display: none;
       position: absolute;
@@ -283,36 +297,8 @@ export function generateAnchorsGridHtml(nonce: string, codiconsCssUri: string, c
       min-width: 170px;
     }
 
-    .filter-dropdown {
-      top: 100%;
-      right: 12px;
-    }
-
-    .filter-dropdown.open,
     .context-menu.open {
       display: block;
-    }
-
-    .filter-dropdown label {
-      display: flex;
-      align-items: center;
-      gap: 6px;
-      padding: 3px 0;
-      cursor: pointer;
-      font-size: 12px;
-      font-weight: 700;
-    }
-
-    .filter-dropdown label:hover {
-      color: var(--vscode-textLink-foreground);
-    }
-
-    .filter-icon {
-      display: inline-flex;
-      width: 14px;
-      justify-content: center;
-      font-size: 11px;
-      font-weight: 700;
     }
 
     .context-menu {
@@ -335,10 +321,10 @@ export function generateAnchorsGridHtml(nonce: string, codiconsCssUri: string, c
 </head>
 <body>
   <div class="toolbar">
+    <span class="codicon codicon-surround-with toolbar-icon" title="Anchor Scope"></span>
     <select class="scope-select" id="scopeSelect"></select>
-    <input type="text" class="search-input" id="searchInput" placeholder="Filter anchors..." />
-    <button class="filter-btn" id="filterBtn">Type ▾</button>
-    <div class="filter-dropdown" id="filterDropdown"></div>
+    <span class="codicon codicon-list-filter toolbar-icon toolbar-icon-btn filter-search-icon" id="filterTypeBtn" title="Filter Anchor Types"></span>
+    <input type="text" class="search-input" id="searchInput" placeholder="Filter anchor text..." />
   </div>
   <div class="grid-container" id="gridContainer">
     <table id="anchorsTable">
@@ -405,8 +391,7 @@ export function generateAnchorsGridHtml(nonce: string, codiconsCssUri: string, c
     const emptyHint = document.getElementById('emptyHint');
     const table = document.getElementById('anchorsTable');
     const searchInput = document.getElementById('searchInput');
-    const filterBtn = document.getElementById('filterBtn');
-    const filterDropdown = document.getElementById('filterDropdown');
+    const filterTypeBtn = document.getElementById('filterTypeBtn');
     const scopeSelect = document.getElementById('scopeSelect');
     const gridContainer = document.getElementById('gridContainer');
     const contextMenu = document.getElementById('contextMenu');
@@ -431,19 +416,12 @@ export function generateAnchorsGridHtml(nonce: string, codiconsCssUri: string, c
       vscode.postMessage({ type: 'setScope', scopeId: model.state.scopeId });
     });
 
-    filterBtn.addEventListener('click', (event) => {
-      event.stopPropagation();
-      filterDropdown.classList.toggle('open');
-      hideContextMenu();
+    filterTypeBtn.addEventListener('click', () => {
+      vscode.postMessage({ type: 'showTypeFilter' });
     });
 
     document.addEventListener('click', () => {
-      filterDropdown.classList.remove('open');
       hideContextMenu();
-    });
-
-    filterDropdown.addEventListener('click', (event) => {
-      event.stopPropagation();
     });
 
     contextMenu.addEventListener('click', (event) => {
@@ -471,7 +449,6 @@ export function generateAnchorsGridHtml(nonce: string, codiconsCssUri: string, c
     document.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') {
         hideContextMenu();
-        filterDropdown.classList.remove('open');
       }
     });
 
@@ -535,7 +512,6 @@ export function generateAnchorsGridHtml(nonce: string, codiconsCssUri: string, c
 
       syncControls();
       buildScopeOptions();
-      buildTypeFilter();
       applyColumnWidths();
       updateSortIndicators();
       persistLocalState();
@@ -583,47 +559,6 @@ export function generateAnchorsGridHtml(nonce: string, codiconsCssUri: string, c
           optionElement.title = option.description;
         }
         scopeSelect.appendChild(optionElement);
-      }
-    }
-
-    function buildTypeFilter() {
-      const includedTypes = model.state.includedTypes;
-      filterDropdown.innerHTML = '';
-
-      for (const type of model.availableTypes) {
-        const metadata = typeMetadata[type] || { color: '#DAA520', codicon: 'symbol-misc' };
-        const label = document.createElement('label');
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.checked = !includedTypes || includedTypes.includes(type);
-        checkbox.addEventListener('change', () => {
-          const nextIncludedTypes = [];
-          filterDropdown.querySelectorAll('input[type="checkbox"]').forEach((element, index) => {
-            if (element.checked) {
-              nextIncludedTypes.push(model.availableTypes[index]);
-            }
-          });
-
-          model.state.includedTypes = nextIncludedTypes.length === model.availableTypes.length
-            ? undefined
-            : nextIncludedTypes;
-          persistLocalState();
-          render();
-          vscode.postMessage({ type: 'setTypeFilter', includedTypes: model.state.includedTypes });
-        });
-
-        const icon = document.createElement('span');
-        icon.className = 'filter-icon codicon codicon-' + metadata.codicon;
-        icon.style.color = metadata.color;
-
-        const text = document.createElement('span');
-        text.textContent = type;
-        text.style.color = metadata.color;
-
-        label.appendChild(checkbox);
-        label.appendChild(icon);
-        label.appendChild(text);
-        filterDropdown.appendChild(label);
       }
     }
 
@@ -777,7 +712,26 @@ export function generateAnchorsGridHtml(nonce: string, codiconsCssUri: string, c
         row.appendChild(createTextCell(String(anchor.lineNumber + 1), 'line', String(anchor.lineNumber + 1), 'line-cell'));
         row.appendChild(createTextCell(anchor.owner || '', 'owner'));
         row.appendChild(createTextCell(anchor.issueRef || '', 'issue'));
-        row.appendChild(createTextCell(anchor.dueDate ? formatLocaleDate(anchor.dueDate) : '', 'dueDate', anchor.dueDate || '', isOverdue(anchor.dueDate) ? 'overdue' : ''));
+        {
+          const dueDateDisplay = anchor.dueDate ? formatLocaleDate(anchor.dueDate) : '';
+          const dueDateCell = document.createElement('td');
+          dueDateCell.dataset.col = 'dueDate';
+          dueDateCell.dataset.sort = anchor.dueDate || '';
+          dueDateCell.dataset.copyValue = dueDateDisplay;
+          if (isOverdue(anchor.dueDate)) {
+            dueDateCell.className = 'overdue';
+            const wrapper = document.createElement('span');
+            wrapper.style.cssText = 'display:inline-flex;align-items:center;gap:4px;';
+            const icon = document.createElement('span');
+            icon.className = 'codicon codicon-warning';
+            wrapper.appendChild(icon);
+            wrapper.appendChild(document.createTextNode(dueDateDisplay));
+            dueDateCell.appendChild(wrapper);
+          } else {
+            dueDateCell.textContent = dueDateDisplay;
+          }
+          row.appendChild(dueDateCell);
+        }
 
         body.appendChild(row);
       });

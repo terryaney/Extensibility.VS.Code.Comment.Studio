@@ -17,7 +17,7 @@ export class CommentCodeLensProvider implements vscode.CodeLensProvider {
   private foldState = new Map<string, Map<number, boolean>>();
   private enabled = true;
   private codeLensPosition: CodeLensPosition = 'inline';
-  private codeLensMaxLength = 100;
+  private codeLensMaxLength = 0;
 
   setEnabled(enabled: boolean): void {
     this.enabled = enabled;
@@ -99,11 +99,11 @@ export class CommentCodeLensProvider implements vscode.CodeLensProvider {
 
       // CodeLens 2: Summary text — click to show documentation popup
       const rawSummary = getStrippedSummary(block);
-      const summary = rawSummary.length > this.codeLensMaxLength
-        ? rawSummary.substring(0, this.codeLensMaxLength) + '…'
+      const summary = this.codeLensMaxLength > 0 && rawSummary.length > this.codeLensMaxLength
+        ? rawSummary.substring(0, this.codeLensMaxLength) + '...'
         : rawSummary;
       lenses.push(new vscode.CodeLens(range, {
-        title: `$(info)\u00A0${summary}`,
+        title: `$(comment-discussion-quote)\u00A0${summary}`,
         tooltip: '',
         command: 'kat-comment-studio.showCommentTooltip',
         arguments: [document.uri, block.startLine],

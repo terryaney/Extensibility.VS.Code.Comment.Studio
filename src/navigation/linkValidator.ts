@@ -44,7 +44,39 @@ export class LinkValidator implements vscode.Disposable {
       const targets = parseLinkAnchors(line);
 
       for (const target of targets) {
-        if (target.isLocalAnchor) continue; // Can't validate local anchors statically
+        // Skip local anchors UNLESS they have a syntax error we can flag
+        if (target.isLocalAnchor && !target.invalidCombinedSyntax) continue;
+
+        if (target.missingFilePath) {
+          const range = new vscode.Range(
+            lineNum, target.pathStart,
+            lineNum, target.pathStart + target.pathLength,
+          );
+          const msg = target.invalidCombinedSyntax
+            ? 'LINK syntax error: missing file path, and cannot combine a line number with an anchor name. Use file.cs:42 or file.cs#AnchorName.'
+            : 'LINK syntax error: missing file path. Use file.cs:42 to navigate to a line, or file.cs#AnchorName for an anchor.';
+          const diagnostic = new vscode.Diagnostic(range, msg, vscode.DiagnosticSeverity.Warning);
+          diagnostic.source = 'KAT Comment Studio';
+          diagnostic.code = 'invalid-link-syntax';
+          diagnostics.push(diagnostic);
+          continue;
+        }
+
+        if (target.invalidCombinedSyntax) {
+          const range = new vscode.Range(
+            lineNum, target.pathStart,
+            lineNum, target.pathStart + target.pathLength,
+          );
+          const diagnostic = new vscode.Diagnostic(
+            range,
+            'LINK syntax error: cannot specify both a line number and an anchor name. Use file.cs:42 or file.cs#AnchorName.',
+            vscode.DiagnosticSeverity.Warning,
+          );
+          diagnostic.source = 'KAT Comment Studio';
+          diagnostic.code = 'invalid-link-syntax';
+          diagnostics.push(diagnostic);
+          continue;
+        }
 
         const resolvedPath = resolveLinkTarget(target, document.uri.fsPath);
         if (!fileExists(resolvedPath)) {

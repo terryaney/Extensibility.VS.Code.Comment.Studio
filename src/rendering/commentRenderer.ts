@@ -162,6 +162,13 @@ export function renderToMarkdown(block: XmlDocCommentBlock, repoInfo?: GitReposi
   );
   let paramSectionsRendered = false;
 
+  // Collect exceptions for table rendering
+  const exceptionSections = rendered.sections.filter(
+    s => s.type === CommentSectionType.Exception
+      && s.lines.length > 0 && !s.lines.every(l => isBlankLine(l)),
+  );
+  let exceptionSectionsRendered = false;
+
   let isFirst = true;
   for (const section of rendered.sections) {
     if (section.lines.length === 0 || section.lines.every(l => isBlankLine(l))) continue;
@@ -173,6 +180,16 @@ export function renderToMarkdown(block: XmlDocCommentBlock, repoInfo?: GitReposi
       if (!isFirst) md.appendMarkdown('\n\n---\n\n');
       isFirst = false;
       md.appendMarkdown(renderParamTableMarkdown(paramSections));
+      continue;
+    }
+
+    // Batch all exception sections into a single table
+    if (section.type === CommentSectionType.Exception) {
+      if (exceptionSectionsRendered) continue;
+      exceptionSectionsRendered = true;
+      if (!isFirst) md.appendMarkdown('\n\n---\n\n');
+      isFirst = false;
+      md.appendMarkdown(renderExceptionTableMarkdown(exceptionSections));
       continue;
     }
 
@@ -203,13 +220,6 @@ export function renderToMarkdown(block: XmlDocCommentBlock, repoInfo?: GitReposi
         md.appendMarkdown(sectionHeadingMarkdown('$(book) Example'));
         md.appendMarkdown(sectionLinesToMarkdownRichExample(section));
         break;
-
-      case CommentSectionType.Exception: {
-        const excName = section.name || 'Exception';
-        md.appendMarkdown(`<span style="color:var(--vscode-editorCodeLens-foreground);">**$(warning) Throws**</span> <span style="color:var(--vscode-katCommentStudio-typeName);">\`${excName}\`</span>\n\n`);
-        md.appendMarkdown(sectionLinesToMarkdownRich(section));
-        break;
-      }
 
       case CommentSectionType.SeeAlso:
         md.appendMarkdown(sectionHeadingMarkdown('$(references) See Also'));
@@ -257,6 +267,24 @@ function renderParamTableMarkdown(sections: RenderedCommentSection[]): string {
 }
 
 /**
+ * Renders exception sections as a formatted table.
+ */
+function renderExceptionTableMarkdown(sections: RenderedCommentSection[]): string {
+  const parts: string[] = [];
+  parts.push('<span style="color:var(--vscode-editorCodeLens-foreground);">**$(warning) Throws**</span>\n\n');
+  parts.push('| | |\n|---|---|\n');
+  for (const s of sections) {
+    const name = s.name || '?';
+    const desc = s.lines
+      .filter(l => !isBlankLine(l))
+      .map(l => l.segments.map(seg => segmentToMarkdownRich(seg)).join(''))
+      .join(' ');
+    parts.push(`| <span style="color:var(--vscode-katCommentStudio-typeName);">\`${name}\`</span> | ${desc} |\n`);
+  }
+  return parts.join('');
+}
+
+/**
  * Returns a backtick fence string long enough that the content cannot break out.
  * Finds the longest run of consecutive backticks in the text and adds one more.
  */
@@ -271,23 +299,35 @@ function safeFence(text: string): string {
 }
 
 /**
- * Renders section lines to rich markdown, merging consecutive code lines
- * into fenced code blocks with syntax highlighting.
+ * Renders section lines to rich markdown, merging consecutive prose lines
+ * into paragraphs (blank lines = paragraph break), and merging consecutive
+ * code lines into fenced code blocks.
  */
 function sectionLinesToMarkdownRich(section: RenderedCommentSection): string {
   const parts: string[] = [];
+  let paragraphTokens: string[] = [];
   let i = 0;
   const lines = section.lines;
+
+  const flushParagraph = () => {
+    if (paragraphTokens.length > 0) {
+      parts.push(paragraphTokens.join(' ') + '\n\n');
+      paragraphTokens = [];
+    }
+  };
+
   while (i < lines.length) {
     const line = lines[i];
+
     if (isBlankLine(line)) {
-      parts.push('\n');
+      flushParagraph();
       i++;
       continue;
     }
 
     // Merge consecutive Code-only lines into a fenced code block
     if (line.segments.length === 1 && line.segments[0].type === SegmentType.Code) {
+      flushParagraph();
       const codeTexts: string[] = [];
       while (i < lines.length) {
         const cl = lines[i];
@@ -299,16 +339,18 @@ function sectionLinesToMarkdownRich(section: RenderedCommentSection): string {
         }
       }
       const codeBlock = codeTexts.join('\n');
-      // Use a fence longer than any backtick run in content to prevent breakout
       const fence = safeFence(codeBlock);
       parts.push(`\n${fence}csharp\n${codeBlock}\n${fence}\n`);
       continue;
     }
 
+    // Normal prose line — accumulate into paragraph buffer
     const lineText = line.segments.map(s => segmentToMarkdownRich(s)).join('');
-    parts.push(lineText + '  \n');
+    paragraphTokens.push(lineText);
     i++;
   }
+
+  flushParagraph();
   return parts.join('');
 }
 
@@ -686,6 +728,18 @@ function renderTopLevelNode(node: XmlNode, result: RenderedComment, repoInfo?: G
     case 'inheritdoc':
       renderInheritDocSection(node, result);
       break;
+    case 'permission': {
+      const permissionCref = getAttr(node, 'cref');
+      const section = createSection(CommentSectionType.Other, '$(lock) Permission');
+      if (permissionCref) {
+        const permName = getTypeNameFromCref(permissionCref);
+        getOrCreateCurrentLine(section).segments.push({ text: permName, type: SegmentType.TypeRef });
+        section.lines.push({ segments: [] });
+      }
+      renderChildNodes(node, section, repoInfo);
+      result.sections.push(section);
+      break;
+    }
     default: {
       let summary = result.sections.find(s => s.type === CommentSectionType.Summary);
       if (!summary) {
@@ -807,6 +861,9 @@ function renderNode(node: XmlNode, section: RenderedCommentSection, repoInfo?: G
       break;
     case 'list':
       renderList(node, section);
+      break;
+    case 'br':
+      section.lines.push({ segments: [] });
       break;
     case 'b':
     case 'strong': {

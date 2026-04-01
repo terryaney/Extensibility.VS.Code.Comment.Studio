@@ -6,7 +6,7 @@ import { CommentHoverProvider } from './rendering/commentHoverProvider';
 
 import { PrefixHighlighter }from './rendering/prefixHighlighter';
 import { getConfiguration, onConfigurationChanged } from './configuration';
-import { reflowAllComments } from './reflow/reflowCommands';
+import { reflowAllComments, reflowCurrentComment } from './reflow/reflowCommands';
 import { ReflowCodeActionProvider } from './reflow/reflowCodeAction';
 import { SmartPasteHandler } from './reflow/smartPaste';
 import { AutoReflowHandler } from './reflow/autoReflow';
@@ -127,19 +127,19 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('kat-comment-studio.toggleRendering', () => {
       decorationManager?.toggleRendering();
     }),
-    vscode.commands.registerCommand('kat-comment-studio.cycleRenderingMode', () => {
-      decorationManager?.cycleRenderingMode();
-    }),
     vscode.commands.registerCommand('kat-comment-studio.reflowComment', () => {
       const editor = vscode.window.activeTextEditor;
       if (!editor) return;
-      const edits = reflowAllComments(editor.document);
+      const cursorLine = editor.selection.active.line;
+      const edits = reflowCurrentComment(editor.document, cursorLine);
       if (edits.length > 0) {
         const edit = new vscode.WorkspaceEdit();
         for (const e of edits) {
           edit.replace(editor.document.uri, e.range, e.newText);
         }
         void vscode.workspace.applyEdit(edit);
+      } else {
+        void vscode.window.showInformationMessage('Cursor is not inside an XML doc comment block.');
       }
     }),
     vscode.commands.registerCommand('kat-comment-studio.reflowAllComments', () => {
@@ -272,6 +272,40 @@ export function activate(context: vscode.ExtensionContext): void {
     })
   );
 
+  // Track cursor position for menu enablement of "Reflow Current Comment"
+  function updateCursorInCommentContext(editor: vscode.TextEditor | undefined): void {
+    if (!editor) {
+      void vscode.commands.executeCommand('setContext', 'kat-comment-studio.cursorInXmlComment', false);
+      return;
+    }
+    const lines = editor.document.getText().split(/\r?\n/);
+    const commentStyle = (() => {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        return require('./parsing/languageConfig').getLanguageCommentStyle(editor.document.languageId);
+      } catch { return undefined; }
+    })();
+    if (!commentStyle) {
+      void vscode.commands.executeCommand('setContext', 'kat-comment-studio.cursorInXmlComment', false);
+      return;
+    }
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { findAllCommentBlocks } = require('./parsing/commentParser') as typeof import('./parsing/commentParser');
+    const blocks = findAllCommentBlocks(lines, commentStyle);
+    const cursorLine = editor.selection.active.line;
+    const inComment = blocks.some(b => cursorLine >= b.startLine && cursorLine <= b.endLine);
+    void vscode.commands.executeCommand('setContext', 'kat-comment-studio.cursorInXmlComment', inComment);
+  }
+
+  context.subscriptions.push(
+    vscode.window.onDidChangeTextEditorSelection(event => {
+      updateCursorInCommentContext(event.textEditor);
+    }),
+  );
+
+  // Initialize context for current editor
+  updateCursorInCommentContext(vscode.window.activeTextEditor);
+
   // Register reflow code action provider
   context.subscriptions.push(
     vscode.languages.registerCodeActionsProvider(SUPPORTED_LANGUAGES, new ReflowCodeActionProvider(), {
@@ -323,7 +357,7 @@ export function activate(context: vscode.ExtensionContext): void {
   anchorStatusBarItem.command = 'kat-comment-studio.anchorsGrid.focus';
   anchorStatusBarItem.name = 'Code Anchor Count';
   let anchorStatusBarHighlighted = true;
-  const warningForeground = new vscode.ThemeColor('problemsWarningIcon.foreground');
+  const anchorHighlightColor = new vscode.ThemeColor('katCommentStudio.anchorCountForeground');
   context.subscriptions.push(anchorStatusBarItem);
 
   // StatusBarItem for toggling XML comment rendering on/off
@@ -493,7 +527,7 @@ export function activate(context: vscode.ExtensionContext): void {
     anchorStatusBarItem.tooltip = badgeAnchors.length === allAnchors.length
       ? `KAT Comment Studio - View ${badgeAnchors.length} Code Anchor${badgeAnchors.length === 1 ? '' : 's'}`
       : `KAT Comment Studio - View ${badgeAnchors.length} of ${allAnchors.length} Code Anchors (filtered)`;
-    anchorStatusBarItem.color = anchorStatusBarHighlighted ? warningForeground : undefined;
+    anchorStatusBarItem.color = anchorStatusBarHighlighted ? anchorHighlightColor : undefined;
     anchorStatusBarItem.show();
 
     anchorsGridProvider.applyBadge(badgeAnchors.length);

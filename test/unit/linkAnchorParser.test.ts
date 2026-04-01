@@ -107,4 +107,41 @@ describe('parseLinkAnchors', () => {
     expect(results[0].targetPath).toBe('@/Models/User.cs');
     expect(results[0].anchorName).toBe('UserModel');
   });
+
+  // Link validation cases
+  it('should detect local anchor with line suffix as invalidCombinedSyntax', () => {
+    const results = parseLinkAnchors('// LINK: #first-anchor:41');
+    expect(results).toHaveLength(1);
+    expect(results[0].isLocalAnchor).toBe(true);
+    expect(results[0].anchorName).toBe('first-anchor');
+    expect(results[0].invalidCombinedSyntax).toBe(true);
+  });
+
+  it('should detect anchor-before-line (file.cs#Name:42) as invalidCombinedSyntax', () => {
+    const results = parseLinkAnchors('// LINK: ./file.cs#GetFoo:42');
+    expect(results).toHaveLength(1);
+    expect(results[0].targetPath).toBe('./file.cs');
+    expect(results[0].anchorName).toBe('GetFoo');
+    expect(results[0].lineNumber).toBe(42);
+    expect(results[0].invalidCombinedSyntax).toBe(true);
+  });
+
+  it('should detect bare :N as missingFilePath', () => {
+    const results = parseLinkAnchors('// LINK: :42');
+    expect(results).toHaveLength(1);
+    expect(results[0].lineNumber).toBe(42);
+    expect(results[0].targetPath).toBe('');
+    expect(results[0].missingFilePath).toBe(true);
+    expect(results[0].invalidCombinedSyntax).toBeUndefined();
+  });
+
+  it('should detect bare :N#anchor as missingFilePath and invalidCombinedSyntax', () => {
+    const results = parseLinkAnchors('// LINK: :41#first-anchor');
+    expect(results).toHaveLength(1);
+    expect(results[0].lineNumber).toBe(41);
+    expect(results[0].anchorName).toBe('first-anchor');
+    expect(results[0].targetPath).toBe('');
+    expect(results[0].missingFilePath).toBe(true);
+    expect(results[0].invalidCombinedSyntax).toBe(true);
+  });
 });

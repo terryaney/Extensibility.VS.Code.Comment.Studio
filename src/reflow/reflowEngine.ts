@@ -235,11 +235,13 @@ export function reflowXmlContent(
 
 /**
  * Wraps a paragraph of text to fit within maxWidth.
+ * XML tags (anything between < and >) are treated as atomic tokens
+ * and will never be split across lines.
  */
 function wrapParagraph(text: string, maxWidth: number): string[] {
   if (!text.trim()) return [];
 
-  const words = text.split(/\s+/).filter(w => w);
+  const words = tokenizePreservingXml(text);
   if (words.length === 0) return [];
 
   const lines: string[] = [];
@@ -257,6 +259,36 @@ function wrapParagraph(text: string, maxWidth: number): string[] {
   lines.push(currentLine);
 
   return lines;
+}
+
+/**
+ * Splits text on whitespace while keeping XML tag sequences (<...>) as single indivisible tokens.
+ */
+function tokenizePreservingXml(text: string): string[] {
+  const tokens: string[] = [];
+  let buffer = '';
+  let inTag = false;
+
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === '<') {
+      inTag = true;
+      buffer += ch;
+    } else if (ch === '>') {
+      inTag = false;
+      buffer += ch;
+    } else if (!inTag && (ch === ' ' || ch === '\t')) {
+      if (buffer) {
+        tokens.push(buffer);
+        buffer = '';
+      }
+    } else {
+      buffer += ch;
+    }
+  }
+  if (buffer) tokens.push(buffer);
+
+  return tokens.filter(t => t);
 }
 
 /**

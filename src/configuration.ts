@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { CommentStudioConfig, RenderingMode, LeftBorderMode, CodeLensPosition } from './types';
+import { CommentStudioConfig, RenderingMode, CodeLensPosition } from './types';
 
 const SECTION = 'kat-comment-studio';
 
@@ -22,6 +22,7 @@ export function getConfiguration(): CommentStudioConfig {
     customTags: config.get<string>('customTags', ''),
     tagPrefixes: config.get<string>('tagPrefixes', '@, $'),
     enableTagHighlighting: config.get<boolean>('enableTagHighlighting', true),
+    anchorColorizeMode: config.get<'never' | 'caseSensitive' | 'caseInsensitive'>('anchorColorizeMode', 'caseInsensitive'),
     scanOnLoad: config.get<boolean>('scanOnLoad', true),
     fileExtensionsToScan: config.get<string>('fileExtensionsToScan', 'cs,vb,fs,cpp,c,h,ts,tsx,js,jsx,razor,cshtml,sql,ps1,psm1'),
     foldersToIgnore: config.get<string>('foldersToIgnore', 'node_modules,bin,obj,.git,dist,out,build,.vs,.vscode-test'),
@@ -35,9 +36,8 @@ export function getConfiguration(): CommentStudioConfig {
 
     // Visual
     preserveBlankLines: config.get<boolean>('preserveBlankLines', true),
-    leftBorder: config.get<LeftBorderMode>('leftBorder', 'off'),
     codeLensPosition: config.get<CodeLensPosition>('codeLensPosition', 'inline'),
-    codeLensMaxLength: config.get<number>('codeLensMaxLength', 100),
+    codeLensMaxLength: config.get<number>('codeLensMaxLength', 0),
 
     // Color overrides
     colors: {

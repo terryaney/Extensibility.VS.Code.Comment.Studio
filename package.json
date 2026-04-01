@@ -2,8 +2,12 @@
   "name": "kat-comment-studio",
   "displayName": "KAT Comment Studio",
   "description": "XML documentation comment rendering, reflow, code anchors, and link navigation for VS Code",
-  "version": "0.1.0",
-  "publisher": "btr",
+  "version": "1.0.0",
+  "publisher": "conduent-kat-team",
+  "author": {
+    "name": "Terry Aney",
+    "email": "terry.aney@icloud.com"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -79,18 +83,14 @@
           "group": "1_rendering@1"
         },
         {
-          "command": "kat-comment-studio.cycleRenderingMode",
-          "group": "1_rendering@2"
-        },
-        {
           "command": "kat-comment-studio.reflowComment",
-          "group": "2_reflow@1"
+          "group": "2_reflow@1",
+          "when": "kat-comment-studio.cursorInXmlComment"
         },
         {
           "command": "kat-comment-studio.reflowAllComments",
           "group": "2_reflow@2"
-        },
-        {
+        },        {
           "command": "kat-comment-studio.removeCommentsInSelection",
           "group": "3_remove@1",
           "when": "editorHasSelection"
@@ -140,13 +140,8 @@
         "category": "KAT Comment Studio"
       },
       {
-        "command": "kat-comment-studio.cycleRenderingMode",
-        "title": "Cycle Rendering Mode (Off → On)",
-        "category": "KAT Comment Studio"
-      },
-      {
         "command": "kat-comment-studio.reflowComment",
-        "title": "Reflow Comment",
+        "title": "Reflow Current Comment",
         "category": "KAT Comment Studio",
         "icon": "$(wrap)"
       },
@@ -157,7 +152,7 @@
       },
       {
         "command": "kat-comment-studio.reflowAllComments",
-        "title": "Reflow All Comments",
+        "title": "Reflow Comments in File",
         "category": "KAT Comment Studio",
         "icon": "$(wrap)"
       },
@@ -193,13 +188,13 @@
         "command": "kat-comment-studio.setAnchorScope",
         "title": "Set Anchor Scope",
         "category": "KAT Comment Studio",
-        "icon": "$(symbol-number)"
+        "icon": "$(surround-with)"
       },
       {
         "command": "kat-comment-studio.filterAnchorTypes",
         "title": "Filter Anchor Types",
         "category": "KAT Comment Studio",
-        "icon": "$(filter)"
+        "icon": "$(list-filter)"
       },
       {
         "command": "kat-comment-studio.nextAnchor",
@@ -314,9 +309,9 @@
         "kat-comment-studio.dimOpacity": {
           "type": "number",
           "default": 0.05,
-          "minimum": 0.01,
+          "minimum": 0,
           "maximum": 1,
-          "description": "Opacity for dimmed original comments (0.01 to 1.0)"
+          "description": "Opacity for dimmed original comments (0-1.0). Set to 0 to make comment lines fully invisible (one blank line gap remains after folding)."
         },
         "kat-comment-studio.maxLineLength": {
           "type": "number",
@@ -339,6 +334,17 @@
           "type": "boolean",
           "default": true,
           "description": "Enable inline color highlighting of anchor tags (TODO, HACK, etc.)"
+        },
+        "kat-comment-studio.anchorColorizeMode": {
+          "type": "string",
+          "enum": ["never", "caseSensitive", "caseInsensitive"],
+          "default": "caseInsensitive",
+          "enumDescriptions": [
+            "Never colorize anchor keywords that are not followed by ':' (or '(...):' / '[...]:' with metadata)",
+            "Colorize only when the keyword case exactly matches the tag definition",
+            "Colorize regardless of case (default behavior)"
+          ],
+          "description": "Controls colorization of anchor keywords in editor comments when NOT followed by ':' (or '(...):' / '[...]:' with metadata). Keywords with a colon always colorize."
         },
         "kat-comment-studio.enablePrefixHighlighting": {
           "type": "boolean",
@@ -385,23 +391,6 @@
           "default": "node_modules,bin,obj,.git,dist,out,build,.vs,.vscode-test",
           "description": "Comma-separated folder names to ignore when scanning for code anchors"
         },
-        "kat-comment-studio.leftBorder": {
-          "type": "string",
-          "default": "off",
-          "enum": [
-            "off",
-            "multilineOnly",
-            "inlineOnly",
-            "always"
-          ],
-          "enumDescriptions": [
-            "No left border indicator",
-            "Show left border on multiline comment blocks only",
-            "Show left border on inline comments only",
-            "Always show left border on comments"
-          ],
-          "description": "Show a subtle vertical line on the left edge of rendered comments"
-        },
         "kat-comment-studio.codeLensPosition": {
           "type": "string",
           "default": "inline",
@@ -417,10 +406,10 @@
         },
         "kat-comment-studio.codeLensMaxLength": {
           "type": "number",
-          "default": 100,
-          "minimum": 30,
+          "default": 0,
+          "minimum": 0,
           "maximum": 500,
-          "description": "Maximum number of characters for the CodeLens summary text before truncation"
+          "description": "Maximum number of characters for the CodeLens summary text before truncation. Set to 0 for no truncation (default)."
         },
         "kat-comment-studio.colors.todo": {
           "type": "string",
@@ -520,6 +509,15 @@
       }
     },
     "colors": [
+      {
+        "id": "katCommentStudio.anchorCountForeground",
+        "description": "Foreground color of the anchor count status bar item when anchors are present and unviewed. Defaults to the active panel title color.",
+        "defaults": {
+          "dark": "panelTitle.activeForeground",
+          "light": "panelTitle.activeForeground",
+          "highContrast": "panelTitle.activeForeground"
+        }
+      },
       {
         "id": "katCommentStudio.anchorTodo",
         "description": "TODO anchor color",
@@ -717,7 +715,8 @@
     "watch": "tsc -watch -p ./",
     "lint": "eslint src --ext ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "package": "npm version patch --no-git-tag-version && npm run compile && npx vsce package"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",

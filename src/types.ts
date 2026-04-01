@@ -10,9 +10,6 @@ export interface PrefixStyle {
   textDecoration?: string;
 }
 
-/** Left border indicator mode */
-export type LeftBorderMode = 'off' | 'multilineOnly' | 'inlineOnly' | 'always';
-
 /** CodeLens placement relative to the comment block */
 export type CodeLensPosition = 'inline' | 'ownLine';
 
@@ -30,6 +27,7 @@ export interface CommentStudioConfig {
   customTags: string;
   tagPrefixes: string;
   enableTagHighlighting: boolean;
+  anchorColorizeMode: 'never' | 'caseSensitive' | 'caseInsensitive';
   scanOnLoad: boolean;
   fileExtensionsToScan: string;
   foldersToIgnore: string;
@@ -43,7 +41,6 @@ export interface CommentStudioConfig {
 
   // Visual settings
   preserveBlankLines: boolean;
-  leftBorder: LeftBorderMode;
   codeLensPosition: CodeLensPosition;
   codeLensMaxLength: number;
 
