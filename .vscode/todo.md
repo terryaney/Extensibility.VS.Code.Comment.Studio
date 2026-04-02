@@ -1,41 +1,3 @@
-Misc Bugs:
-- Render 'Throws' section in comment popup like the Arguments section - in a table format for each exception listed.
-- What does Reflow All Comments do?  Current file or all files?  Change to Reflow Comments in File and Reflow Current Comment.
-- Right click has Toggle Comment Rendering and Cycle Rendering Mode (Off -> On) - both seem to do same
-- Never reflow an xml element (currently it reflowed <paramref name="desiredDay"/> before the name attribute)
-- Can we put decoration of comment icon and right border line where reflow would happen when comments are expanded?
-- If I have any left border decorations (like original VS extension), remove it completely and remove it from documentation, configuration and implementation.
-- My reflowed comment looks nice in xml comment, but it does same breaks during rendering...I'd have expected it to just concatenate together and let markdown container handle warpping.  Only do line feeds (or maybe 2) for <para/> elements
-- Currently, I colorize words no matter what in comments regardless of : indicator.  
-	- Skip 'anchor' that is only one I don't want to colorize.
-	- Add option for colorize mode for non ':' elements (: elements ALWAYS colorize regardless of start of line or not)
-		- Never
-		- Case sensitive
-		- Case insensitive
-- Remove Line Number + anchor syntax support (any implementatoin, documentation, configuration).  I don't agree with the need
-- Can we put same 'scope' icon from tree pane in web panel to left of 'scope dropdown'?
-- Can we put same 'filter' icon from tree pane into web panel to the left of 'filter anchors' input?
-- I've been asking that my status bar icon '# Anchors' be in yellow font.  And it has been a battle.  I'm not sure why we can't set it.  But looking at my actual anchor pane, the color of file column in my grid is the exact 'yellow' I want.  Do it or tell me why not possible.
-- In due date column, when past date, it puts date in red, I like, but if past date, can we also put a 'warning' codicon?
-- When I generate a package, can it automatically bump the revision number in package.json before compiling?
-- xml comment codelens - there is max length with min/max before ... truncation - make it so that if set to 0/blank there is no truncation, and that should be the default value
-- Tell me if any of the custom xml elements are not 'handled' during popup rendering: https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/xmldoc/recommended-tags
-
-Implementation Wrong:
-- Reflow Current Comment menu isn't disabling when not inside xml comment.
-- Filter anchors in web pane.  It is aligned immediately after/right of Scope dropdown, instead of immediately before/left of *filter* input.  Please correct, and change tooltip to say 'Filter Anchors...'
-- Overdue icon in grid warning is showing, but can you vertically center the icon and the text?  There is an awkward gap between the icon and text and it looks misaligned.
-- Colorization, I had `// BUG: This is BUG and note hello`.  With case sensitive, neither BUG or note colorized.  With case insensitive, only note colorized.  Expected with case sensitive that BUG is colorized and note is not.
-
-Additional Misc Bugs (For all requested changes below update all needed, readme, code, configuration, package.json etc.):
-- Change default length for codelens comment preview to 205
-- 'See Also' section in comment render popup. Change from bullet list to a table format like arguments/throws with following:
-	- <seealso cref="System.String"/> - when cref is used, that is 'name' (in blue/code colorization) and if any content in the seealso element, that is the description.  Only the cref is what is linked and then populated in the vs code command pallete on click.
-	- <seealso href="link">Link Text</seealso> - make the name simply 'Visit Url' (in link colorization) and the description is the link text.  When clicked, it opens the link in browser.
-- Does Remove All Comments really work?  Seems agressive if it does.  Is there a confirmation?  Considering removing it.
-- Remove the 'Expand Xml' and 'Collapse Xml' codelens feature.  I don't think it adds much especially with auto expand/colapse when cursor enters xml comment and the fact that I can't remove the collapse/expand chevron from left gutter from vs code.  Thoes two are sufficient.
-- If <summary> is leveraging <para> elements the codelens should only work with content of first one (or content before the first one if present).
-
 - Add a Extension Developers section to readme and make sure to document how to package an installer and other 'how to work with this project' information, available tasks, avail npm scripts, etc.
 - Add a references section to bottom of readme
 	- https://microsoft.github.io/vscode-codicons/dist/codicon.html
@@ -59,12 +21,12 @@ Additional Misc Bugs (For all requested changes below update all needed, readme,
 	- Open package.json file - look at the problems and ask AI, also change name to match test explorer, KAT - **
 	- Remove all diagnostic logging (or at least comment it out)
 
+Make a new .vscode\Plans\06.misc-bugs-features.04.md for Phase 4 (updating other doc headers approrpiately).  This is for XML Comment Editing issues.
 
-Big xml edit bug:
-1. Do we just remove 'reflow' action until they move out of comment or manually click the menu?
-2. <para> opening elements should ALWAYS start on a new line.
-
-Below is some of the bad behavior I noticed:
+1. Do we just remove 'reflow' action until they move out of comment or manually click the menu?  Worried getting this 'right' with could be complex.  Before continuing with plan, let me know your thoughts on this item specifically, and also tell me how often we try to 'auto reflow'.
+2. <para> opening elements should ALWAYS start on a new line regardless of previous line length.
+3. Reflow should always modify <summary> so that the open and close tags of summary are on their own (helps with the transparent text look) and the content line(s) are on its own line(s).
+4. Big xml edit bug.  Below is some of the bad behavior I noticed:
 
 Started with (trimmed for brevity):
 

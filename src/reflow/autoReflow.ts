@@ -9,23 +9,33 @@ import { dbg, canReflow, resetReflowCycles } from '../diagnostics/debugLog';
 
 export { computeMinimalEditRange } from './reflowUtils';
 
-const AUTO_REFLOW_DELAY_MS = 1500;
-
 // Set true while our own editor.edit() is running so that decorationManager
 // can skip clearing decorations and fold-state sync for programmatic edits.
 export let isAutoReflowEdit = false;
 
+interface BlockTracker {
+  /** Start line of the last known block the cursor was in, or undefined if outside all blocks. */
+  lastBlockStart: number | undefined;
+  /** True if at least one edit was made while the cursor was in lastBlockStart's block. */
+  isDirty: boolean;
+}
+
 /**
- * Monitors typing and auto-reflows doc comment blocks when a line exceeds max width.
+ * Monitors typing and auto-reflows doc comment blocks when the cursor leaves
+ * a block that was edited. Reflow only fires on cursor-exit, not on every keystroke.
  */
 export class AutoReflowHandler implements vscode.Disposable {
-  private debounceTimer: NodeJS.Timeout | undefined;
-  private disposable: vscode.Disposable;
+  private changeListener: vscode.Disposable;
+  private selectionListener: vscode.Disposable;
+  private docTrackers = new Map<string, BlockTracker>();
   private lastDocUri: string | undefined;
 
   constructor() {
-    this.disposable = vscode.workspace.onDidChangeTextDocument(event => {
+    this.changeListener = vscode.workspace.onDidChangeTextDocument(event => {
       this.handleChange(event);
+    });
+    this.selectionListener = vscode.window.onDidChangeTextEditorSelection(event => {
+      this.handleSelectionChange(event);
     });
   }
 
@@ -36,44 +46,24 @@ export class AutoReflowHandler implements vscode.Disposable {
     const editor = vscode.window.activeTextEditor;
     if (!editor || event.document !== editor.document) return;
 
-    // Reset the reflow cycle cap when the user switches to a different document.
+    // Skip our own programmatic edits to avoid marking the block dirty again.
+    if (isAutoReflowEdit) return;
+
     const docUri = event.document.uri.toString();
+
+    // Reset the reflow cycle cap when the user switches to a different document.
     if (docUri !== this.lastDocUri) {
       resetReflowCycles();
       this.lastDocUri = docUri;
     }
     if (!config.enabledLanguages.includes(event.document.languageId)) return;
 
-    // Only trigger on single-character insertions (typing)
-    const isSingleChar = event.contentChanges.length === 1
-      && event.contentChanges[0].text.length === 1
-      && event.contentChanges[0].rangeLength === 0;
-    if (!isSingleChar) {
-      dbg('autoReflow', 'handleChange SKIP not-single-char', {
-        changeCount: event.contentChanges.length,
-        text: event.contentChanges[0]?.text.slice(0, 20),
-        textLen: event.contentChanges[0]?.text.length,
-        rangeLength: event.contentChanges[0]?.rangeLength,
-      });
-      return;
-    }
-
-    const changeLine = event.contentChanges[0].range.start.line;
-    const lineText = event.document.lineAt(changeLine).text;
-
-    const editorConfigSettings = getEditorConfigSettings(event.document.uri.fsPath);
-    const maxLineWidth = editorConfigSettings.maxLineLength ?? config.maxLineLength;
-
-    // Only trigger if line exceeds max width
-    if (lineText.length <= maxLineWidth) {
-      dbg('autoReflow', 'handleChange SKIP under-limit', { line: changeLine, lineLen: lineText.length, max: maxLineWidth });
-      return;
-    }
+    const changeLine = event.contentChanges[0]?.range.start.line;
+    if (changeLine === undefined) return;
 
     const commentStyle = getLanguageCommentStyle(event.document.languageId);
     if (!commentStyle) return;
 
-    // Check if the edited line is within a doc comment block
     const lines = event.document.getText().split(/\r?\n/);
     const blocks = findAllCommentBlocks(lines, commentStyle);
     const block = blocks.find(b => changeLine >= b.startLine && changeLine <= b.endLine);
@@ -82,13 +72,56 @@ export class AutoReflowHandler implements vscode.Disposable {
       return;
     }
 
-    dbg('autoReflow', 'handleChange SCHEDULE reflow', { block: `${block.startLine}-${block.endLine}`, delayMs: AUTO_REFLOW_DELAY_MS });
+    dbg('autoReflow', 'handleChange MARK dirty', { block: `${block.startLine}-${block.endLine}` });
 
-    // Debounce
-    if (this.debounceTimer) clearTimeout(this.debounceTimer);
-    this.debounceTimer = setTimeout(() => {
-      this.reflowBlock(editor, block, maxLineWidth);
-    }, AUTO_REFLOW_DELAY_MS);
+    let tracker = this.docTrackers.get(docUri);
+    if (!tracker) {
+      tracker = { lastBlockStart: block.startLine, isDirty: true };
+      this.docTrackers.set(docUri, tracker);
+    } else {
+      tracker.lastBlockStart = block.startLine;
+      tracker.isDirty = true;
+    }
+  }
+
+  private handleSelectionChange(event: vscode.TextEditorSelectionChangeEvent): void {
+    const config = getConfiguration();
+    if (!config.enableReflowWhileTyping) return;
+
+    const editor = event.textEditor;
+    if (!config.enabledLanguages.includes(editor.document.languageId)) return;
+
+    const docUri = editor.document.uri.toString();
+    const tracker = this.docTrackers.get(docUri);
+    if (!tracker) return;
+
+    const commentStyle = getLanguageCommentStyle(editor.document.languageId);
+    if (!commentStyle) return;
+
+    const cursorLine = editor.selection.active.line;
+    const lines = editor.document.getText().split(/\r?\n/);
+    const blocks = findAllCommentBlocks(lines, commentStyle);
+    const currentBlock = blocks.find(b => cursorLine >= b.startLine && cursorLine <= b.endLine);
+    const currentBlockStart = currentBlock?.startLine;
+
+    if (tracker.isDirty && tracker.lastBlockStart !== undefined && currentBlockStart !== tracker.lastBlockStart) {
+      // Cursor moved out of the dirty block — trigger reflow now.
+      const dirtyBlockStart = tracker.lastBlockStart;
+      tracker.isDirty = false;
+      tracker.lastBlockStart = currentBlockStart;
+
+      const dirtyBlock = blocks.find(b => b.startLine === dirtyBlockStart);
+      if (dirtyBlock) {
+        dbg('autoReflow', 'handleSelectionChange TRIGGER reflow on exit', { block: `${dirtyBlock.startLine}-${dirtyBlock.endLine}` });
+        const editorConfigSettings = getEditorConfigSettings(editor.document.uri.fsPath);
+        const maxLineWidth = editorConfigSettings.maxLineLength ?? config.maxLineLength;
+        this.reflowBlock(editor, dirtyBlock, maxLineWidth).catch(err => {
+          dbg('autoReflow', 'handleSelectionChange reflowBlock error', { err: String(err) });
+        });
+      }
+    } else {
+      tracker.lastBlockStart = currentBlockStart;
+    }
   }
 
   private async reflowBlock(
@@ -138,8 +171,6 @@ export class AutoReflowHandler implements vscode.Disposable {
         oldSnippet: oldText.slice(0, 80).replace(/\n/g, '↵'),
         newSnippet: newText.slice(0, 80).replace(/\n/g, '↵'),
       });
-      // Save cursor position relative to document
-      const savedPos = editor.selection.active;
       isAutoReflowEdit = true;
       try {
         await editor.edit(editBuilder => {
@@ -152,35 +183,12 @@ export class AutoReflowHandler implements vscode.Disposable {
       } finally {
         isAutoReflowEdit = false;
       }
-      // Restore cursor — if the typed char caused a line wrap, move to start of next line
-      const newLines = newText.split('\n');
-      const lastNewLine = refreshedBlock.startLine + newLines.length - 1;
-      if (savedPos.line <= lastNewLine) {
-        const lineIndexInBlock = savedPos.line - refreshedBlock.startLine;
-        const newLineText = newLines[lineIndexInBlock] || '';
-        let newChar: number;
-        let newLine: number;
-        if (savedPos.character > newLineText.length && lineIndexInBlock + 1 < newLines.length) {
-          // Character wrapped to next line — place cursor at content start of next line
-          newLine = refreshedBlock.startLine + lineIndexInBlock + 1;
-          const nextLineText = newLines[lineIndexInBlock + 1] || '';
-          // Skip past the comment prefix (e.g. "    /// ")
-          const prefixMatch = nextLineText.match(/^(\s*(?:\/\/\/|'\/\/\/|\*)\s?)/);
-          newChar = prefixMatch ? prefixMatch[1].length : 0;
-        } else {
-          newLine = Math.min(savedPos.line, lastNewLine);
-          newChar = Math.min(savedPos.character, newLineText.length);
-        }
-        const newPos = new vscode.Position(newLine, newChar);
-        dbg('autoReflow', 'reflowBlock cursor', { from: `${savedPos.line}:${savedPos.character}`, to: `${newLine}:${newChar}` });
-        editor.selection = new vscode.Selection(newPos, newPos);
-      }
     }
   }
 
   dispose(): void {
-    if (this.debounceTimer) clearTimeout(this.debounceTimer);
-    this.disposable.dispose();
+    this.changeListener.dispose();
+    this.selectionListener.dispose();
   }
 }
 

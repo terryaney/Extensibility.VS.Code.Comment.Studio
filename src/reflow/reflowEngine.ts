@@ -75,7 +75,12 @@ export function reflowXmlContent(
         continue;
       }
 
-      // Other block tags - put tag on its own line, reflow content
+      // Other block tags - put tag on its own line, reflow content.
+      // <para> must always start on its own line — insert a blank separator if
+      // the preceding result entry is non-empty (e.g. after </para> or text).
+      if (tagName === 'para' && result.length > 0 && result[result.length - 1] !== '') {
+        result.push('');
+      }
       result.push(line);
       i++;
 
@@ -88,9 +93,9 @@ export function reflowXmlContent(
           break;
         }
 
-        // Check for nested block tags
-        const nestedOpen = contentLine.match(XML_OPEN_TAG_REGEX);
-        if (nestedOpen && BLOCK_TAGS.has(nestedOpen[1].toLowerCase())) {
+        // Check for nested block tags — both standalone (<para>) and inline (<para>content)
+        const nestedBlockOpen = contentLine.match(/^<(\w+)[^>]*>/);
+        if (nestedBlockOpen && BLOCK_TAGS.has(nestedBlockOpen[1].toLowerCase())) {
           // Flush accumulated content first
           if (contentLines.length > 0) {
             result.push(...wrapParagraph(contentLines.join(' '), effectiveWidth));
@@ -141,10 +146,17 @@ export function reflowXmlContent(
       // Check if closing tag is on same line
       const inlineCloseMatch = afterContent.match(new RegExp(`^(.*)<\\/${tagName}>\\s*$`));
       if (inlineCloseMatch) {
-        // Single line tag with content
+        // Single line tag with content.
+        // <summary> and <remarks> always use multi-line form regardless of content length
+        // so the transparent-text opacity effect renders cleanly.
+        // <para> always starts on its own line — insert a blank separator if needed.
+        if (tagName === 'para' && result.length > 0 && result[result.length - 1] !== '') {
+          result.push('');
+        }
         const content = inlineCloseMatch[1].trim();
         const wrapped = wrapParagraph(content, effectiveWidth);
-        if (wrapped.length === 1) {
+        const alwaysMultiLine = tagName === 'summary' || tagName === 'remarks';
+        if (wrapped.length === 1 && !alwaysMultiLine) {
           result.push(`<${tagName}${tagAttrs}>${wrapped[0]}</${tagName}>`);
         } else {
           result.push(`<${tagName}${tagAttrs}>`);
@@ -155,7 +167,11 @@ export function reflowXmlContent(
         continue;
       }
 
-      // Multi-line: split tag and content
+      // Multi-line: split tag and content.
+      // <para> must always start on its own line — insert a blank separator if needed.
+      if (tagName === 'para' && result.length > 0 && result[result.length - 1] !== '') {
+        result.push('');
+      }
       result.push(`<${tagName}${tagAttrs}>`);
       const contentLines: string[] = [afterContent];
       i++;
@@ -211,6 +227,12 @@ export function reflowXmlContent(
     while (i < lines.length) {
       const contentLine = lines[i].trim();
       if (!contentLine || contentLine.match(XML_OPEN_TAG_REGEX) || contentLine.match(XML_SELF_CLOSE_TAG_REGEX) || contentLine.match(XML_CLOSE_TAG_REGEX)) {
+        break;
+      }
+      // Also stop when we encounter an inline block-level open tag (e.g. "<para>word...")
+      // so the preceding paragraph flushes before the new block tag is handled.
+      const inlineBlockOpen = contentLine.match(/^<(\w+)[^>]*>/);
+      if (inlineBlockOpen && BLOCK_TAGS.has(inlineBlockOpen[1].toLowerCase())) {
         break;
       }
       contentLines.push(contentLine);

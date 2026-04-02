@@ -65,14 +65,27 @@ describe('reflowXmlContent', () => {
     expect(result).toEqual(['<inheritdoc/>']);
   });
 
-  it('should handle single-line summary', () => {
+  it('should always expand single-line summary to multi-line form', () => {
     const lines = [
       '<summary>Short.</summary>',
     ];
 
     const result = reflowXmlContent(lines, 80, '', csharpStyle);
-    expect(result).toHaveLength(1);
-    expect(result[0]).toContain('Short.');
+    expect(result).toHaveLength(3);
+    expect(result[0]).toBe('<summary>');
+    expect(result[1]).toBe('Short.');
+    expect(result[2]).toBe('</summary>');
+  });
+
+  it('should always expand single-line remarks to multi-line form', () => {
+    const lines = [
+      '<remarks>Brief note.</remarks>',
+    ];
+
+    const result = reflowXmlContent(lines, 80, '', csharpStyle);
+    expect(result[0]).toBe('<remarks>');
+    expect(result[result.length - 1]).toBe('</remarks>');
+    expect(result.length).toBe(3);
   });
 
   it('should handle param tags', () => {
@@ -82,5 +95,63 @@ describe('reflowXmlContent', () => {
 
     const result = reflowXmlContent(lines, 50, '    ', csharpStyle);
     expect(result.length).toBeGreaterThan(1);
+  });
+
+  it('<para> always starts on its own line after preceding content', () => {
+    const lines = [
+      '<remarks>',
+      'Intro text.',
+      '<para>First paragraph content.</para>',
+      '</remarks>',
+    ];
+
+    const result = reflowXmlContent(lines, 80, '', csharpStyle);
+    // <para> may be single-line (<para>content</para>) or expanded; find whichever form
+    const paraIdx = result.findIndex(l => l === '<para>' || l.startsWith('<para>'));
+    expect(paraIdx).toBeGreaterThan(0);
+    // The entry immediately before <para> must be empty (blank separator)
+    expect(result[paraIdx - 1]).toBe('');
+  });
+
+  it('<para> always starts on its own line after </para>', () => {
+    // Both <para> blocks use standalone tags (tag alone on its own line).
+    // This matches the Issue 3 scenario: two consecutive <para> blocks separated
+    // only by their tags, with no blank lines in the source.
+    const lines = [
+      '<remarks>',
+      '<para>',
+      'First.',
+      '</para>',
+      '<para>',
+      'Second.',
+      '</para>',
+      '</remarks>',
+    ];
+
+    const result = reflowXmlContent(lines, 80, '', csharpStyle);
+    const firstClose = result.indexOf('</para>');
+    const secondOpen = result.indexOf('<para>', firstClose + 1);
+    expect(firstClose).toBeGreaterThan(-1);
+    expect(secondOpen).toBeGreaterThan(firstClose);
+    // There should be a blank line between </para> and <para>
+    expect(result[secondOpen - 1]).toBe('');
+  });
+
+  it('plain-text loop stops when inline block-level open tag is encountered', () => {
+    // <para> appears inline (with content) mid-block — it should not be swallowed as plain text
+    const lines = [
+      '<summary>',
+      'Before text.',
+      '<para>Inside paragraph content.</para>',
+      '</summary>',
+    ];
+
+    const result = reflowXmlContent(lines, 80, '', csharpStyle);
+    // <para> tag must appear in result as a separate structural element
+    expect(result.some(l => l === '<para>' || l.startsWith('<para>'))).toBe(true);
+    // 'Before text.' must appear before <para>
+    const beforeIdx = result.findIndex(l => l.includes('Before text.'));
+    const paraIdx = result.findIndex(l => l === '<para>' || l.startsWith('<para>'));
+    expect(beforeIdx).toBeLessThan(paraIdx);
   });
 });
