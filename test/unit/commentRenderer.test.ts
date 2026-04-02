@@ -198,7 +198,34 @@ Use <c>MyMethod</c> for processing.
     });
   });
 
-  // --- Issue Reference in Summary Tests ---
+  // --- Para element truncation for CodeLens ---
+  describe('para truncation in getStrippedSummaryFromXml', () => {
+    it('should use text before first <para> when present', () => {
+      const xml = '<summary>Intro text.<para>More detail here.</para><para>Even more.</para></summary>';
+      const result = getStrippedSummaryFromXml(xml);
+      expect(result).toBe('Intro text.');
+    });
+
+    it('should use first <para> content when no text precedes it', () => {
+      const xml = '<summary><para>First paragraph.</para><para>Second paragraph.</para></summary>';
+      const result = getStrippedSummaryFromXml(xml);
+      expect(result).toBe('First paragraph.');
+    });
+
+    it('should use whitespace-only pre-para text as empty, falling back to first <para>', () => {
+      const xml = '<summary>   <para>First paragraph.</para></summary>';
+      const result = getStrippedSummaryFromXml(xml);
+      expect(result).toBe('First paragraph.');
+    });
+
+    it('should return full text when no <para> elements are present', () => {
+      const xml = '<summary>Plain summary text without paragraphs.</summary>';
+      const result = getStrippedSummaryFromXml(xml);
+      expect(result).toBe('Plain summary text without paragraphs.');
+    });
+  });
+
+
   describe('issue references in rendered content', () => {
     it('should render both issue reference and code in summary', () => {
       const xml = '<summary>Fix #7 using <c>Apply()</c>.</summary>';
@@ -343,6 +370,84 @@ Use <c>MyMethod</c> for processing.
       expect(codeRef).toBeDefined();
       // Should NOT be TypeRef
       expect(allSegments.find(s => s.type === SegmentType.TypeRef)).toBeUndefined();
+    });
+  });
+
+  // --- See Also table rendering ---
+  describe('seealso table rendering', () => {
+    function makeBlock(xmlContent: string): XmlDocCommentBlock {
+      return { startOffset: 0, endOffset: xmlContent.length, startLine: 0, endLine: 0, indentation: '', xmlContent, isMultiLineStyle: false };
+    }
+
+    it('should create one section per <seealso cref> entry', () => {
+      const xml = '<summary>Test</summary><seealso cref="T:System.String"/><seealso cref="T:System.Int32"/>';
+      const result = renderXmlContent(xml);
+      const seeAlsoSections = result.sections.filter(s => s.type === CommentSectionType.SeeAlso);
+      expect(seeAlsoSections).toHaveLength(2);
+      expect(seeAlsoSections[0].name).toBe('String');
+      expect(seeAlsoSections[1].name).toBe('Int32');
+    });
+
+    it('should set nameLink as command URI for cref entries', () => {
+      const xml = '<summary>Test</summary><seealso cref="T:System.String"/>';
+      const result = renderXmlContent(xml);
+      const seeAlsoSection = result.sections.find(s => s.type === CommentSectionType.SeeAlso);
+      expect(seeAlsoSection).toBeDefined();
+      expect(seeAlsoSection!.nameLink).toContain('command:workbench.action.quickOpen');
+      expect(seeAlsoSection!.nameLink).toContain('%23String');
+    });
+
+    it('should set name to "Visit Url" and nameLink to href for href entries', () => {
+      const xml = '<summary>Test</summary><seealso href="https://example.com">Link Text</seealso>';
+      const result = renderXmlContent(xml);
+      const seeAlsoSection = result.sections.find(s => s.type === CommentSectionType.SeeAlso);
+      expect(seeAlsoSection).toBeDefined();
+      expect(seeAlsoSection!.name).toBe('Visit Url');
+      expect(seeAlsoSection!.nameLink).toBe('https://example.com');
+    });
+
+    it('should store inner text as description for href entries', () => {
+      const xml = '<summary>Test</summary><seealso href="https://example.com">Link Text</seealso>';
+      const result = renderXmlContent(xml);
+      const seeAlsoSection = result.sections.find(s => s.type === CommentSectionType.SeeAlso)!;
+      const descText = seeAlsoSection.lines.flatMap(l => l.segments).map(s => s.text).join('');
+      expect(descText).toBe('Link Text');
+    });
+
+    it('should produce section data with name and command URI (not bullet list) for cref', () => {
+      const xml = '<summary>Test</summary><seealso cref="T:System.String"/>';
+      const result = renderXmlContent(xml);
+      const seeAlsoSection = result.sections.find(s => s.type === CommentSectionType.SeeAlso)!;
+      // Name and link are on the section, not embedded as bullet segments
+      expect(seeAlsoSection.name).toBe('String');
+      expect(seeAlsoSection.nameLink).toContain('workbench.action.quickOpen');
+      // No bullet text in lines
+      const allText = seeAlsoSection.lines.flatMap(l => l.segments).map(s => s.text).join('');
+      expect(allText).not.toContain('• ');
+    });
+
+    it('should produce section data with Visit Url name and href link', () => {
+      const xml = '<summary>Test</summary><seealso href="https://example.com">Docs</seealso>';
+      const result = renderXmlContent(xml);
+      const seeAlsoSection = result.sections.find(s => s.type === CommentSectionType.SeeAlso)!;
+      expect(seeAlsoSection.name).toBe('Visit Url');
+      expect(seeAlsoSection.nameLink).toBe('https://example.com');
+      const descText = seeAlsoSection.lines.flatMap(l => l.segments).map(s => s.text).join('');
+      expect(descText).toContain('Docs');
+    });
+
+    it('should reject non-http/https href schemes to prevent command injection', () => {
+      const xml = '<summary>Test</summary><seealso href="command:evil.command">Bad</seealso>';
+      const result = renderXmlContent(xml);
+      const seeAlsoSections = result.sections.filter(s => s.type === CommentSectionType.SeeAlso);
+      expect(seeAlsoSections).toHaveLength(0);
+    });
+
+    it('should have empty lines array for self-closing cref seealso', () => {
+      const xml = '<summary>Test</summary><seealso cref="T:System.String"/>';
+      const result = renderXmlContent(xml);
+      const seeAlsoSection = result.sections.find(s => s.type === CommentSectionType.SeeAlso)!;
+      expect(seeAlsoSection.lines).toHaveLength(0);
     });
   });
 });

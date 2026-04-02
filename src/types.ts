@@ -117,6 +117,8 @@ export interface RenderedCommentSection {
   type: CommentSectionType;
   heading?: string;
   name?: string;
+  /** Optional link target for the name cell (e.g., command URI for seealso cref, or href URL). */
+  nameLink?: string;
   lines: RenderedLine[];
   listContentStartIndex: number;
 }

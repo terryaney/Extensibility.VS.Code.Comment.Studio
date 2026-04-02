@@ -146,11 +146,6 @@
         "icon": "$(wrap)"
       },
       {
-        "command": "kat-comment-studio.toggleCommentFold",
-        "title": "Toggle Comment Fold",
-        "category": "KAT Comment Studio"
-      },
-      {
         "command": "kat-comment-studio.reflowAllComments",
         "title": "Reflow Comments in File",
         "category": "KAT Comment Studio",
@@ -208,7 +203,7 @@
       },
       {
         "command": "kat-comment-studio.removeAllComments",
-        "title": "Remove All Comments",
+        "title": "Remove All Comments in File",
         "category": "KAT Comment Studio"
       },
       {
@@ -406,10 +401,10 @@
         },
         "kat-comment-studio.codeLensMaxLength": {
           "type": "number",
-          "default": 0,
+          "default": 205,
           "minimum": 0,
           "maximum": 500,
-          "description": "Maximum number of characters for the CodeLens summary text before truncation. Set to 0 for no truncation (default)."
+          "description": "Maximum number of characters for the CodeLens summary text before truncation. Set to 0 for no truncation."
         },
         "kat-comment-studio.colors.todo": {
           "type": "string",

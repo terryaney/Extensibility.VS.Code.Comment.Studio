@@ -88,16 +88,8 @@ export class CommentCodeLensProvider implements vscode.CodeLensProvider {
 
       const targetLine = this.findCodeLensLine(block, lines, document.lineCount);
       const range = new vscode.Range(targetLine, 0, targetLine, 0);
-      const folded = this.isFolded(document.uri.toString(), block.startLine);
 
-      // CodeLens 1: Expand/Collapse toggle
-      lenses.push(new vscode.CodeLens(range, {
-        title: folded ? 'Expand Xml' : 'Collapse Xml',
-        command: 'kat-comment-studio.toggleCommentFold',
-        arguments: [document.uri, block.startLine],
-      }));
-
-      // CodeLens 2: Summary text — click to show documentation popup
+      // Summary text — click to show documentation popup
       const rawSummary = getStrippedSummary(block);
       const summary = this.codeLensMaxLength > 0 && rawSummary.length > this.codeLensMaxLength
         ? rawSummary.substring(0, this.codeLensMaxLength) + '...'

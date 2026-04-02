@@ -167,7 +167,13 @@ export function registerCommentRemoverCommands(context: vscode.ExtensionContext)
     vscode.commands.registerCommand('kat-comment-studio.removeAllComments', async () => {
       const editor = vscode.window.activeTextEditor;
       if (!editor) return;
-      await removeComments(editor, () => true, false);
+      const answer = await vscode.window.showWarningMessage(
+        'Remove all XML comments in this file?',
+        { modal: true },
+        'Remove',
+      );
+      if (answer !== 'Remove') return;
+      await removeComments(editor, r => r.isDocComment, false);
     }),
 
     vscode.commands.registerCommand('kat-comment-studio.removeCommentsInSelection', async () => {

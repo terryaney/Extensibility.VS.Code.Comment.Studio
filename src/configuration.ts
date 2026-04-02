@@ -37,7 +37,7 @@ export function getConfiguration(): CommentStudioConfig {
     // Visual
     preserveBlankLines: config.get<boolean>('preserveBlankLines', true),
     codeLensPosition: config.get<CodeLensPosition>('codeLensPosition', 'inline'),
-    codeLensMaxLength: config.get<number>('codeLensMaxLength', 0),
+    codeLensMaxLength: config.get<number>('codeLensMaxLength', 205),
 
     // Color overrides
     colors: {

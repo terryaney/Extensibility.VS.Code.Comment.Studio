@@ -115,7 +115,7 @@ export function getStrippedSummaryFromXml(xmlContent: string, repoInfo?: GitRepo
     // Find summary element
     for (const node of nodes) {
       if (isElement(node) && node.tagName.toLowerCase() === 'summary') {
-        const summaryText = cleanText(extractPlainText(node));
+        const summaryText = cleanText(extractFirstParagraphText(node));
         return summaryText.trim() || NO_SUMMARY_PLACEHOLDER;
       }
     }
@@ -169,9 +169,14 @@ export function renderToMarkdown(block: XmlDocCommentBlock, repoInfo?: GitReposi
   );
   let exceptionSectionsRendered = false;
 
+  // Collect seealso entries for table rendering (include entries with no description lines too)
+  const seeAlsoSections = rendered.sections.filter(s => s.type === CommentSectionType.SeeAlso);
+  let seeAlsoSectionsRendered = false;
+
   let isFirst = true;
   for (const section of rendered.sections) {
-    if (section.lines.length === 0 || section.lines.every(l => isBlankLine(l))) continue;
+    if (section.type !== CommentSectionType.SeeAlso
+      && (section.lines.length === 0 || section.lines.every(l => isBlankLine(l)))) continue;
 
     // Batch all param/typeParam sections into a single table
     if (section.type === CommentSectionType.Param || section.type === CommentSectionType.TypeParam) {
@@ -190,6 +195,16 @@ export function renderToMarkdown(block: XmlDocCommentBlock, repoInfo?: GitReposi
       if (!isFirst) md.appendMarkdown('\n\n---\n\n');
       isFirst = false;
       md.appendMarkdown(renderExceptionTableMarkdown(exceptionSections));
+      continue;
+    }
+
+    // Batch all seealso entries into a single table
+    if (section.type === CommentSectionType.SeeAlso) {
+      if (seeAlsoSectionsRendered) continue;
+      seeAlsoSectionsRendered = true;
+      if (!isFirst) md.appendMarkdown('\n\n---\n\n');
+      isFirst = false;
+      md.appendMarkdown(renderSeeAlsoTableMarkdown(seeAlsoSections));
       continue;
     }
 
@@ -219,11 +234,6 @@ export function renderToMarkdown(block: XmlDocCommentBlock, repoInfo?: GitReposi
       case CommentSectionType.Example:
         md.appendMarkdown(sectionHeadingMarkdown('$(book) Example'));
         md.appendMarkdown(sectionLinesToMarkdownRichExample(section));
-        break;
-
-      case CommentSectionType.SeeAlso:
-        md.appendMarkdown(sectionHeadingMarkdown('$(references) See Also'));
-        md.appendMarkdown(sectionLinesToMarkdownRich(section));
         break;
 
       default: {
@@ -280,6 +290,29 @@ function renderExceptionTableMarkdown(sections: RenderedCommentSection[]): strin
       .map(l => l.segments.map(seg => segmentToMarkdownRich(seg)).join(''))
       .join(' ');
     parts.push(`| <span style="color:var(--vscode-katCommentStudio-typeName);">\`${name}\`</span> | ${desc} |\n`);
+  }
+  return parts.join('');
+}
+
+function renderSeeAlsoTableMarkdown(sections: RenderedCommentSection[]): string {
+  const parts: string[] = [];
+  parts.push('<span style="color:var(--vscode-editorCodeLens-foreground);">**$(references) See Also**</span>\n\n');
+  parts.push('| | |\n|---|---|\n');
+  for (const s of sections) {
+    const name = s.name || '?';
+    const link = s.nameLink;
+    const desc = s.lines
+      .filter(l => !isBlankLine(l))
+      .map(l => l.segments.map(seg => segmentToMarkdownRich(seg)).join(''))
+      .join(' ')
+      .replace(/\|/g, '\\|')
+      .replace(/\r?\n/g, ' ');
+    // cref entries: code-styled name linked to quick-symbol search
+    // href entries: "Visit Url" linked to the URL (plain markdown link)
+    const nameCell = link
+      ? `<span style="color:var(--vscode-katCommentStudio-typeName);">[${name}](${link})</span>`
+      : `<span style="color:var(--vscode-katCommentStudio-typeName);">\`${name}\`</span>`;
+    parts.push(`| ${nameCell} | ${desc} |\n`);
   }
   return parts.join('');
 }
@@ -766,34 +799,34 @@ function renderSectionElement(
 }
 
 function renderSeeAlsoSection(element: XmlElement, result: RenderedComment): void {
-  let seeAlsoSection = result.sections.find(s => s.type === CommentSectionType.SeeAlso);
-  if (!seeAlsoSection) {
-    seeAlsoSection = createSection(CommentSectionType.SeeAlso, 'See also:');
-    result.sections.push(seeAlsoSection);
-  }
-
   const cref = getAttr(element, 'cref');
   const href = getAttr(element, 'href');
-  const displayText = extractText(element.children).trim();
-  let linkTarget: string | undefined;
-  let text = displayText;
+  const innerText = extractText(element.children).trim();
+
+  let name: string;
+  let nameLink: string | undefined;
+  const descriptionText = innerText;
 
   if (cref) {
-    linkTarget = cref;
-    if (!text) text = getTypeNameFromCref(cref);
+    name = getTypeNameFromCref(cref);
+    // command URI to open VS Code quick symbol search pre-populated with #TypeName
+    nameLink = `command:workbench.action.quickOpen?${encodeURIComponent(JSON.stringify(['#' + name]))}`;
   } else if (href) {
-    linkTarget = href;
-    if (!text) text = href;
+    // Only allow http/https schemes — prevents command: injection via isTrusted MarkdownString
+    if (!href.startsWith('http://') && !href.startsWith('https://')) return;
+    name = 'Visit Url';
+    nameLink = href;
+  } else {
+    return;
   }
 
-  if (text) {
-    seeAlsoSection.lines.push({
-      segments: [
-        { text: '• ', type: SegmentType.Text },
-        { text, type: SegmentType.Link, linkTarget },
-      ],
-    });
+  const section = createSection(CommentSectionType.SeeAlso);
+  section.name = name;
+  section.nameLink = nameLink;
+  if (descriptionText) {
+    section.lines.push({ segments: [{ text: descriptionText, type: SegmentType.Text }] });
   }
+  result.sections.push(section);
 }
 
 function renderInheritDocSection(element: XmlElement, result: RenderedComment): void {
@@ -1088,6 +1121,42 @@ function stripXmlTags(xml: string): string {
   let text = xml.replace(/<[^>]+>/g, ' ');
   text = text.replace(/\s+/g, ' ');
   return text.trim();
+}
+
+/**
+ * Extracts plain text from the first meaningful paragraph of a summary element.
+ * Logic: if there is non-whitespace text before the first <para> child, return that.
+ * Otherwise return the text content of the first <para> child only.
+ * Falls back to full extractPlainText if no <para> elements exist.
+ */
+function extractFirstParagraphText(element: XmlElement): string {
+  const preParaParts: string[] = [];
+  let firstParaElement: XmlElement | undefined;
+
+  for (const child of element.children) {
+    if (isText(child)) {
+      preParaParts.push(child.text);
+    } else if (isElement(child)) {
+      if (child.tagName.toLowerCase() === 'para') {
+        firstParaElement = child;
+        break;
+      }
+      // Non-para element before first para — include its text
+      preParaParts.push(extractPlainText(child));
+    }
+  }
+
+  if (!firstParaElement) {
+    // No <para> elements — return full text
+    return extractPlainText(element);
+  }
+
+  const preParaText = preParaParts.join('').trim();
+  if (preParaText) {
+    return preParaText;
+  }
+
+  return extractPlainText(firstParaElement).trim();
 }
 
 /**

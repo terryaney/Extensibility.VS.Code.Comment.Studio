@@ -154,12 +154,6 @@ export function activate(context: vscode.ExtensionContext): void {
         void vscode.workspace.applyEdit(edit);
       }
     }),
-    vscode.commands.registerCommand('kat-comment-studio.toggleCommentFold', async (uri: vscode.Uri, startLine: number) => {
-      const editor = vscode.window.activeTextEditor;
-      if (editor && editor.document.uri.toString() === uri.toString()) {
-        await decorationManager?.toggleFold(editor, startLine);
-      }
-    }),
     vscode.commands.registerCommand('kat-comment-studio.showCommentTooltip', async (uri: vscode.Uri, startLine: number) => {
       const editor = vscode.window.activeTextEditor;
       if (!editor || editor.document.uri.toString() !== uri.toString()) return;
