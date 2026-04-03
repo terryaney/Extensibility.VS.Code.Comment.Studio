@@ -1,6 +1,6 @@
 # KAT Comment Studio
 
-**KAT Comment Studio** is a VS Code extension that brings rich XML documentation comment rendering, smart comment reflow, workspace-wide code anchors, clickable issue links, and `LINK:` navigation to your editor. It is a port and extension of [madskristensen/CommentsVS](https://github.com/madskristensen/CommentsVS) for Visual Studio Code.
+**KAT Comment Studio** is a VS Code extension that brings rich XML documentation comment rendering, smart comment reflow, workspace-wide code anchors, clickable issue links, and `LINK:` navigation to your editor. It is a port and extension of [madskristensen/CommentsVS](https://github.com/madskristensen/CommentsVS) for Visual Studio Code.  You can see a presentation of this at [10 New Visual Studio Extensions from Mads](https://www.youtube.com/watch?v=5v1aB-bq3a8&t=471s) video on YouTube.
 
 ## Supported Languages
 
@@ -19,38 +19,93 @@ C#, VB, F#, C/C++, TypeScript, JavaScript, TypeScript/JavaScript React, Razor, S
 - [Comment Remover](#comment-remover)
 - [Color Customization](#color-customization)
 - [Settings Reference](#settings-reference)
+- [Extension Developers](#extension-developers)
 
 ---
 
 ## XML Doc Comment Rendering
 
-When rendering is **On**, XML documentation comment blocks are transformed from raw XML into a clean, readable experience using VS Code's native CodeLens API.
+When rendering is **On**, XML documentation comment blocks are transformed from raw XML into a clean, readable experience using VS Code's native CodeLens API with automatic reflow, expansion, and folding.  By default, let's start with a sample XML comment block as shown in the image below and discussion some of the problems it addresses.
 
-### How It Works
+1. This is a large comment block that takes almost the entire screen and given different VS Code themes, it can be difficult to read.  Pair this with all, or many, of the methods with similar size comment blocks and it makes navigating and understanding the code challenging.
+1. Line 27, has an odd break within the `paramref` element.
+1. Line 30 has an extremely long line.
+1. Lines 32, 41, and 49 have inconsistent blank lines that serve no real purpose.
+1. The code example at line 52 isn't rendered as code at all.
 
-| What You See | What It Does |
-|---|---|
-| `$(comment-discussion-quote) Represents a user account.` | CodeLens summary on the method declaration line |
-| Comment lines become nearly invisible | Auto-folded and dimmed (opacity `0.05` by default) |
-| Click the summary text | Opens a documentation overlay on the Code Anchors pane |
-| Cursor enters a folded block | Auto-unfolds after 500ms pause for editing |
-| Cursor leaves an expanded block | Auto-re-folds after ~500ms |
-| Press `Escape` | Toggle rendering off/on |
+![Current VS XML Comment Block](./media/xml.comments.before.png)
 
-### CodeLens Positioning
+### Comment Reflow
 
-The `codeLensPosition` setting controls where the CodeLens appears relative to the comment block:
+KAT Comment Studio automatically wraps and reformats XML doc comment blocks to stay within a configurable line width.
 
-| Value | Behavior |
-|---|---|
-| `inline` (default) | Placed on the method/property declaration line (alongside References) |
-| `ownLine` | Placed on the line immediately above the declaration |
+#### Commands and Code Actions
 
-The CodeLens scans forward from the end of the comment block, skipping blank lines and C# attribute lines (`[...]`), to find the actual declaration.
+Comment reflow is available through:
 
-### Documentation Overlay
+- **Command Palette** → `KAT Comment Studio: Reflow Current Comment` — reflow the comment block at the cursor position
+- **Command Palette** → `KAT Comment Studio: Reflow Comments in File` — reflow all comment blocks in the document
+- **Right-click** → **KAT Comment Studio** submenu — `Reflow Current Comment` (cursor in comment only) and `Reflow Comments in File`
+- **Light Bulb / Code Action** (`Ctrl+.`) — when cursor is inside a comment block, offers "Reflow Current Comment" and "Reflow Comments in File"
 
-Click the **summary text** in a CodeLens to open a themed documentation overlay on the Code Anchors grid pane:
+The extension does not register a document or range formatting provider, avoiding conflicts with language-specific formatters (e.g., C# Dev Kit, OmniSharp).
+
+#### Light Bulb (Code Action)
+
+Place the cursor anywhere inside an XML doc comment block, then press `Ctrl+.` to see a **Reflow Current Comment** code action. This reflows only the current comment block without touching any other formatting.
+
+#### Smart Paste
+
+When you paste text into an XML doc comment block, the entire block is automatically reflowed to fit within the max line width.
+
+Controlled by `kat-comment-studio.enableReflowOnPaste` (default: `true`).
+
+#### Auto-Reflow on Edit Exit
+
+When you exit a doc comment block after making edits, the block is automatically reflowed to fit within the max line width.
+
+Controlled by `kat-comment-studio.enableReflowWhileTyping` (default: `true`).
+
+#### Line Width
+
+The reflow width is resolved in this order:
+1. `.editorconfig` `max_line_length` for the file's directory (if present)
+2. `kat-comment-studio.maxLineLength` setting (default: `120`)
+
+#### XML-Aware Wrapping
+
+The reflow engine understands XML structure:
+- Block tags (`<summary>`, `<remarks>`, `<param>`, etc.) each wrap their content independently
+- `<code>` blocks are preserved as preformatted — never reflowed
+
+---
+
+When rendering is **On**, the extension automatically performs a 'reflow' to improve readability by adjusting line breaks, indentation, and spacing within the XML comment block when exiting a comment block.  You can also trigger a manual reflow via the command palette or context menu.
+
+1. XML elements are never split.  Notice how entire `paramref` element was moved down to line 29.
+2. All comment lengths are adjusted to fit the width defined at `kat-comment-studio.maxLineLength` setting.
+3. All unnecessary blank lines between XML elements are removed to improve readability.
+4. `<summary>` is always forced to be on its own line to improve code lines discussed below.
+
+![XML Comment Block After Reflow](./media/xml.comments.after.reflow.png)
+
+---
+
+### Rendering Behavior
+
+The following is how XML comments are rendered after existing an XML comment block.
+
+1. With `kat-comment-studio.dimOpacity: 0`, the entire XML comment is transparent.  But the collapse chevron in left gutter, the `...` decoration, and the single line height remain to enable expanding/entering the comment block when edits are required.  The comment auto-unfolds after 500ms delay on the block line, and auto-re-folds after ~500ms when the cursor leaves the block.
+1. There is a CodeLens that renders the member summary.
+	- If more than one `<para>` elements are present, it only renders the first one (or only the content before the first if comment is created in that form).
+	- If the summary is long, it truncates at `kat-comment-studio.codeLensMaxLength`.  An empty setting or value of `0` disables truncation.
+1. If you click on the CodeLens, it opens a [Documentation Popup](#documentation-popup) displaying the entire XML comment block formatted in an easy to read format.
+
+![XML Comment Block Rendering](./media/xml.comments.after.rendered.png)
+
+### Documentation Popup
+
+Click the **summary text** in a CodeLens to open a VS Code hover popup displaying the full XML comment block in a formatted, readable layout:
 
 - **Summary** — rendered as styled text
 - **Parameters** — listed with name and description
@@ -61,13 +116,19 @@ Click the **summary text** in a CodeLens to open a themed documentation overlay 
 - **See Also** — clickable links
 - **Anchor tags** — TODO:, NOTE:, HACK:, etc. are colorized using their configured colors
 
-The overlay uses VS Code theme variables for consistent styling and dismisses on Escape, clicking outside, or the close button (✕). Focus returns to the editor on dismiss.
+The popup uses VS Code theme variables for consistent styling and dismisses naturally when the cursor moves away — it is a standard VS Code hover, not a panel or overlay.
 
 Inline formatting within XML tags is fully rendered: `code`, **bold**, *italic*, ~~strikethrough~~, and hyperlinks.
 
-### XML Tag Support
+The `kat-comment-studio.codeLensMaxLength` setting controls how much of the summary is shown in the CodeLens text before truncation — the popup always shows the full content regardless.
 
-The following XML doc tags are rendered in the documentation panel:
+Given the original (extreme) example of a long comment, when clicking the summary, you would see a popup like the following:
+
+![Documentation Popup](./media/xml.comments.after.popup.png)
+
+#### XML Tag Support
+
+The following XML doc tags are rendered in the documentation popup:
 
 `<summary>`, `<param>`, `<typeparam>`, `<returns>`, `<remarks>`, `<example>`, `<exception>`, `<see>`, `<seealso>`, `<inheritdoc>`, `<paramref>`, `<typeparamref>`, `<c>`, `<code>`, `<list>`
 
@@ -75,10 +136,9 @@ The following XML doc tags are rendered in the documentation panel:
 
 | Trigger | Action |
 |---|---|
-| `Escape` (in editor) | Toggle rendering off/on |
 | Command Palette → `Comment Studio: Toggle Comment Rendering` | Toggle rendering |
-| Command Palette → `Comment Studio: Cycle Rendering Mode (Off → On)` | Same toggle |
 | Right-click → **Comment Studio** submenu | Quick access |
+| Status Bar → ![OFF](./media/codicon-comment-draft.svg) `OFF` and ![ON](./media/codicon-comment.svg) `ON` Icons | Toggle rendering |
 
 ### Collapse by Default
 
@@ -86,67 +146,16 @@ Enable `kat-comment-studio.collapseByDefault` to automatically fold all XML doc 
 
 ---
 
-## Prefix Highlighting (Better Comments Style)
+### Comment Remover
 
-Comments beginning with specific prefix characters are highlighted with distinct colors and styles, inspired by the popular [Better Comments](https://marketplace.visualstudio.com/items?itemName=aaron-bond.better-comments) approach.
+Two XML doc comment removal commands are available from the right-click **KAT Comment Studio** context menu and the Command Palette.
 
-| Prefix | Style | Purpose |
-|---|---|---|
-| `// !` | 🔴 Red | Alerts and warnings |
-| `// ?` | 🔵 Blue | Questions |
-| `// *` | 🟢 Green | Highlighted notes |
-| `// //` | ~~Gray~~ (strikethrough) | Deprecated / disabled code comments |
-| `// -` | Dark Gray | Disabled items |
-| `// >` | 🟣 Purple italic | Quotes |
+| Command | Description |
+|---|---|
+| `Remove Current XML Comment` | Removes the XML doc comment block at the cursor position. Only enabled when the cursor is inside an XML doc comment. |
+| `Remove All XML Comments in File` | Removes every XML doc comment block in the active file. |
 
-These patterns also work with `#` (PowerShell/Python), `'` (VB), and other single-line comment markers.
-
-Disable with `kat-comment-studio.enablePrefixHighlighting: false`.
-
----
-
-## Comment Reflow
-
-KAT Comment Studio automatically wraps and reformats XML doc comment blocks to stay within a configurable line width.
-
-### Commands and Code Actions
-
-Comment reflow is available through:
-
-- **Command Palette** → `Comment Studio: Reflow Comment` — reflow all comment blocks in the document
-- **Command Palette** → `Comment Studio: Reflow All Comments` — same as above
-- **Light Bulb / Code Action** (`Ctrl+.`) — when cursor is inside a comment block, offers "Reflow comment" and "Reflow all comments"
-
-The extension does not register a document or range formatting provider, avoiding conflicts with language-specific formatters (e.g., C# Dev Kit, OmniSharp).
-
-### Light Bulb (Code Action)
-
-Place the cursor anywhere inside an XML doc comment block, then press `Ctrl+.` to see a **Reflow comment** code action. This reflows only the current comment block without touching any other formatting.
-
-### Smart Paste
-
-When you paste text into an XML doc comment block, the entire block is automatically reflowed to fit within the max line width.
-
-Controlled by `kat-comment-studio.enableReflowOnPaste` (default: `true`).
-
-### Auto-Reflow While Typing
-
-As you type in a doc comment and a line exceeds the max line width, the block is reflowed automatically after a 300ms pause.
-
-Controlled by `kat-comment-studio.enableReflowWhileTyping` (default: `true`).
-
-### Line Width
-
-The reflow width is resolved in this order:
-1. `.editorconfig` `max_line_length` for the file's directory (if present)
-2. `kat-comment-studio.maxLineLength` setting (default: `120`)
-
-### XML-Aware Wrapping
-
-The reflow engine understands XML structure:
-- Block tags (`<summary>`, `<remarks>`, `<param>`, etc.) each wrap their content independently
-- `<code>` blocks are preserved as preformatted — never reflowed
-- Intentional blank lines within blocks are preserved when `kat-comment-studio.preserveBlankLines` is `true`
+Both commands are accessible via the **KAT Comment Studio** right-click context menu. `Remove Current XML Comment` is only shown in the context menu when the cursor is inside an XML doc comment block.
 
 ---
 
@@ -154,22 +163,24 @@ The reflow engine understands XML structure:
 
 Code anchors are specially tagged comments that mark items of interest across your workspace. KAT Comment Studio scans your entire workspace, displays anchors in a tree view and grid panel, and lets you navigate between them.
 
+![Code Anchors](./media/code-anchors-highlighting.png)
+
 ### Built-in Anchor Types
 
 | Tag | Color | Icon | Purpose |
 |---|---|---|---|
-| `TODO` | 🟠 Orange | ✅ | Work to be done |
-| `HACK` | 🔴 Crimson | ⚠️ | Workaround that needs cleanup |
-| `NOTE` | 🔵 Royal Blue | 📝 | Important information |
-| `BUG` | 🔴 Red | 🐛 | Known bug |
-| `FIXME` | 🔴 Orange-Red | 🔧 | Must be fixed |
-| `UNDONE` | ⚫ Gray | ⊘ | Reverted or incomplete |
-| `REVIEW` | 🟣 Purple | 👁️ | Needs review |
-| `ANCHOR` | 🩵 Teal | 🔗 | Named navigation target |
+| `TODO` | `colors.todo` `#FF8C00` | ![checklist](./media/codicon-checklist.svg) | Work to be done |
+| `HACK` | `colors.hack` `#DC143C` | ![alert](./media/codicon-alert.svg) | Workaround that needs cleanup |
+| `NOTE` | `colors.note` `#4169E1` | ![note](./media/codicon-note.svg) | Important information |
+| `BUG` | `colors.bug` `#FF0000` | ![bug](./media/codicon-bug.svg) | Known bug |
+| `FIXME` | `colors.fixme` `#FF4500` | ![wrench](./media/codicon-wrench.svg) | Must be fixed |
+| `UNDONE` | `colors.undone` `#808080` | ![circle-slash](./media/codicon-circle-slash.svg) | Reverted or incomplete |
+| `REVIEW` | `colors.review` `#9370DB` | ![eye](./media/codicon-eye.svg) | Needs review |
+| `ANCHOR` | `colors.anchor` `#20B2AA` | ![link](./media/codicon-link.svg) | Named navigation target |
 
 ### Basic Syntax
 
-Tags are **case-insensitive** — `todo`, `Todo`, and `TODO` are all recognized and normalized to uppercase in all views.
+Tags are **case-insensitive** for detection — `todo`, `Todo`, and `TODO` are all recognized and displayed as their canonical uppercase form in all views. Colorization of tags not followed by `:` is controlled by the `kat-comment-studio.anchorColorizeMode` setting (default: `caseInsensitive`).
 
 ```
 // TODO: Add input validation
@@ -202,6 +213,23 @@ Metadata can be embedded directly after the tag in parentheses:
 
 > **Note:** `ANCHOR:` without a name (e.g., `// ANCHOR:`) is silently ignored — a name is required for the anchor to have any purpose as a navigation target.
 
+### Prefix Highlighting (Better Comments Style)
+
+Comments beginning with specific prefix characters are highlighted with distinct colors and styles, inspired by the popular [Better Comments](https://marketplace.visualstudio.com/items?itemName=aaron-bond.better-comments) approach.
+
+| Prefix | Color setting | Default (dark / light) | Purpose |
+|---|---|---|---|
+| `// !` | `colors.prefixAlert` | `#FF2D00` / `#CC0000` | Alerts and warnings |
+| `// ?` | `colors.prefixQuestion` | `#3498DB` / `#2070B0` | Questions |
+| `// *` | `colors.prefixHighlight` | `#98C379` / `#008000` | Highlighted notes |
+| `// //` | `colors.prefixStrikethrough` | `#808080` / `#999999` | Deprecated / disabled code comments (strikethrough) |
+| `// -` | `colors.prefixDisabled` | `#505050` / `#AAAAAA` | Disabled items |
+| `// >` | `colors.prefixQuote` | `#C586C0` / `#800080` | Quotes (italic) |
+
+These patterns also work with `#` (PowerShell/Python), `'` (VB), and other single-line comment markers.
+
+Disable with `kat-comment-studio.enablePrefixHighlighting: false`.
+
 ### Custom Tags
 
 Add your own tags via `kat-comment-studio.customTags` (comma-separated). Custom tags are highlighted in **Goldenrod** and appear in all views alongside built-in types.
@@ -224,15 +252,16 @@ Disable with `kat-comment-studio.enableTagHighlighting: false`.
 
 The **KAT Comment Studio** activity bar panel shows a tree of all anchors grouped by file.
 
+![Code Anchor Sidebar](media/code-anchors-sidebar.png)
+
 **Toolbar actions:**
 
 | Button | Action |
 |---|---|
-| 🔍 Scan | Scan the entire workspace for anchors |
-| 🔄 Refresh | Re-run the scan |
-| ⬆️ Export | Export visible anchors to a file |
-| ⊟ Set Scope | Filter by scope |
-| ≡ Filter Types | Toggle which anchor types are shown |
+| ![Scan](./media/codicon-refresh.svg) Scan | Scan the entire workspace for anchors |
+| ![Export](./media/codicon-export.svg) Export | Export visible anchors to a file |
+| ![Set Scope](./media/codicon-surround-with.svg) Set Scope | Filter by scope |
+| ![Filter Types](./media/codicon-list-filter.svg) Filter Types | Toggle which anchor types are shown |
 
 **Scope options** (Command Palette → `Comment Studio: Set Anchor Scope` or the grid dropdown):
 
@@ -250,6 +279,8 @@ Multi-select picker to show/hide specific anchor types. The tree view and bottom
 
 A sortable, filterable grid panel (**KAT Comment Studio - Code Anchors**) is available in the bottom panel alongside Problems and Output.
 
+![Code Anchor Pane](media/code-anchors-pane.png)
+
 **Columns:** Type · Description · File · Line · Owner · Issue · Due Date
 
 - Click a column header to sort ascending/descending
@@ -262,16 +293,11 @@ A sortable, filterable grid panel (**KAT Comment Studio - Code Anchors**) is ava
 - Right-click a row to copy a deterministic row summary; right-click a cell to copy the cell value
 - Overdue dates are highlighted
 
-Access via: Command Palette → `Comment Studio: Show Code Anchors Grid`
+Access via: Command Palette → `Comment Studio: Show Code Anchors Pane`
 
 ### Anchor Navigation
 
-Jump between anchors in the current file using keyboard shortcuts:
-
-| Shortcut | Action |
-|---|---|
-| `Alt+PageDown` | Go to next anchor |
-| `Alt+PageUp` | Go to previous anchor |
+Jump between anchors in the current file using keyboard shortcuts. No shortcuts are registered by default — see [Keyboard Shortcuts](#keyboard-shortcuts) for suggested bindings (`Alt+PageDown` / `Alt+PageUp`).
 
 ### Export
 
@@ -301,31 +327,11 @@ custom_anchor_tag_prefixes = @, $
 
 ---
 
-## Issue Links
-
-When working in a git repository, `#123` patterns in comments become clickable links that open the corresponding issue in your browser.
-
-```csharp
-// TODO: Fix this — see #1234
-// Related to the bug reported in #567
-```
-
-**Supported hosting providers:**
-
-- **GitHub** (github.com and GitHub Enterprise)
-- **GitLab** (gitlab.com and self-hosted, including nested groups)
-- **Bitbucket** (bitbucket.org)
-- **Azure DevOps** (dev.azure.com and on-premises TFS)
-
-Remote URLs are detected automatically from your git configuration, supporting both SSH and HTTPS formats.
-
-Disable with `kat-comment-studio.enableIssueLinks: false`.
-
----
-
 ## LINK: Navigation
 
 The `LINK:` syntax creates navigable cross-references directly in comments. Hover for a preview or `Ctrl+Click` to jump.
+
+![Link Navigation](./media/code-anchors-links.png)
 
 ### Path Prefixes
 
@@ -375,25 +381,84 @@ Selecting a **directory** in the completion list re-triggers suggestions so you 
 
 Broken `LINK:` references (missing files, unresolved anchors) are flagged with **warning squiggles** in the editor. Diagnostics clear automatically when the link is corrected.
 
+### Workspace Configuration Scenarios
+
+Path resolution behavior varies depending on how VS Code opened the project. The key behaviors:
+
+- `/` — always resolves from the **first workspace folder root** (`workspaceFolders[0]`)
+- `@/` — resolves from the **nearest `.csproj` directory above the file containing the link**. Falls back to `workspaceFolders[0]` only if no `.csproj` is found anywhere in the ancestor chain.
+
+#### Multi-root workspace (`.code-workspace` file)
+
+`@/` resolves per-file — each source file uses its own nearest `.csproj` regardless of how many workspace roots are open. `/` always uses the first folder listed in the `.code-workspace`.
+
+```jsonc
+// MyApp.code-workspace
+{
+  "folders": [
+    { "path": "C:/BTR/Camelot/Core" },
+    { "path": "C:/BTR/Camelot/UI" }
+  ]
+}
+```
+
+```
+// File: C:/BTR/Camelot/Core/src/Domain/User.cs
+//       (inside C:/BTR/Camelot/Core/src/Core.csproj)
+
+// LINK: @/Services/UserService.cs  → C:/BTR/Camelot/Core/src/Services/UserService.cs
+//                                     (resolved from Core.csproj directory)
+// LINK: /Services/UserService.cs   → C:/BTR/Camelot/Core/Services/UserService.cs
+//                                     (resolved from workspaceFolders[0] = Core folder)
+```
+
+#### Opening a folder containing a `.sln`
+
+VS Code opens the folder that contains the `.sln` as the workspace root. There is no `.sln` parsing — the `.sln` file itself has no special meaning for path resolution. As long as source files are inside a `.csproj`, `@/` works correctly.
+
+```
+// VS Code opened: C:/BTR/Camelot/MyApp/   (folder containing MyApp.sln)
+// File: C:/BTR/Camelot/MyApp/src/Core/Core.csproj exists
+
+// LINK: @/Services/UserService.cs  → C:/BTR/Camelot/MyApp/src/Core/Services/UserService.cs
+//                                     (from nearest .csproj ancestor of current file)
+// LINK: /Core/Domain/User.cs       → C:/BTR/Camelot/MyApp/Core/Domain/User.cs
+//                                     (from workspace root = folder containing .sln)
+```
+
+#### Opening a subfolder without a `.csproj` ancestor
+
+```
+// VS Code opened: C:/BTR/Camelot/Core/Domain/  (no .csproj in hierarchy)
+
+// LINK: @/Models/User.cs    → no .csproj found; falls back to workspace root
+//                             = C:/BTR/Camelot/Core/Domain/Models/User.cs
+// LINK: /Models/User.cs     → same (workspaceFolders[0])
+```
+
+`@/` is most useful when source files live inside a C# project. Without a `.csproj` ancestor, it behaves identically to `/`.
+
 ---
 
-## Comment Remover
+## Issue Links
 
-Seven bulk comment removal commands are available from the Command Palette under the `Comment Studio:` category.
+When working in a git repository, `#123` patterns in comments become clickable links that open the corresponding issue in your browser.
 
-| Command | Description |
-|---|---|
-| `Remove All Comments in File` | Remove every comment in the active file (prompts for confirmation) |
-| `Remove All Comments in Selection` | Remove comments within the current selection |
-| `Remove All Except XML Doc Comments` | Remove comments but preserve `///` doc blocks |
-| `Remove All Except Anchors` | Remove comments but preserve anchor tags (TODO, HACK, etc.) |
-| `Remove XML Doc Comments Only` | Remove only `///` doc comment blocks |
-| `Remove Anchors Only` | Remove only lines containing anchor tags |
-| `Remove Regions` | Remove `#region` / `#endregion` directives |
+```csharp
+// TODO: Fix this — see #1234
+// Related to the bug reported in #567
+```
 
-All commands perform smart cleanup: lines that become entirely empty after comment removal are deleted.
+**Supported hosting providers:**
 
-Quick access via the **Comment Studio** right-click context menu in the editor.
+- **GitHub** (github.com and GitHub Enterprise)
+- **GitLab** (gitlab.com and self-hosted, including nested groups)
+- **Bitbucket** (bitbucket.org)
+- **Azure DevOps** (dev.azure.com and on-premises TFS)
+
+Remote URLs are detected automatically from your git configuration, supporting both SSH and HTTPS formats.
+
+Disable with `kat-comment-studio.enableIssueLinks: false`.
 
 ---
 
@@ -580,10 +645,8 @@ This is the maximum hiding achievable through the VS Code extension API alone �
 | `dimOriginalComments` | `boolean` | `true` | Dim original comment text when rendering is active |
 | `dimOpacity` | `number` | `0.05` | Opacity for dimmed comments (0–1.0). Set to `0` to make comment lines fully invisible. |
 | `maxLineLength` | `number` | `120` | Max width for comment reflow (overridden by `.editorconfig`) |
-| `codeLensPosition` | `"inline"` \| `"ownLine"` | `"inline"` | Where CodeLens appears: on declaration line or above it |
 | `enableReflowOnPaste` | `boolean` | `true` | Reflow when pasting into a doc comment block |
-| `enableReflowWhileTyping` | `boolean` | `true` | Reflow after 300ms pause when line exceeds max width |
-| `preserveBlankLines` | `boolean` | `true` | Preserve intentional blank lines during reflow |
+| `enableReflowWhileTyping` | `boolean` | `true` | Reflow when cursor exits a comment block that was edited |
 | `collapseByDefault` | `boolean` | `false` | Collapse XML doc comments when opening files |
 | `codeLensMaxLength` | `number` | `205` | Max chars for CodeLens summary text before truncation. `0` = no truncation. |
 | `enableTagHighlighting` | `boolean` | `true` | Inline color highlighting of anchor tags |
@@ -608,30 +671,26 @@ All commands are available via the Command Palette (`Ctrl+Shift+P`) under the **
 | `Reflow Current Comment` | Reflow the comment block containing the cursor |
 | `Reflow Comments in File` | Reflow all comment blocks in the document |
 | `Scan Code Anchors` | Scan workspace for anchors (with progress) |
-| `Refresh Code Anchors` | Re-scan workspace |
-| `Export Code Anchors` | Export to TSV/CSV/Markdown/JSON |
+| `Export Code Anchors` | Export to CSV/Markdown/JSON |
 | `Set Anchor Scope` | Choose Workspace / Folder / Document / Open Docs |
 | `Filter Anchor Types` | Show/hide specific anchor types |
-| `Go to Next Anchor` | Jump to next anchor in file (`Alt+PageDown`) |
-| `Go to Previous Anchor` | Jump to previous anchor in file (`Alt+PageUp`) |
-| `Show Code Anchors Grid` | Open the bottom panel grid |
-| `Remove All Comments in File` | Remove all comments from active file (prompts for confirmation) |
-| `Remove All Comments in Selection` | Remove comments in selection |
-| `Remove All Except XML Doc Comments` | Preserve `///` doc blocks |
-| `Remove All Except Anchors` | Preserve anchor tags |
-| `Remove XML Doc Comments Only` | Remove only doc comment blocks |
-| `Remove Anchors Only` | Remove only anchor lines |
-| `Remove Regions` | Remove `#region`/`#endregion` directives |
+| `Go to Next Anchor` | Jump to next anchor in file |
+| `Go to Previous Anchor` | Jump to previous anchor in file |
+| `Show Code Anchors Pane` | Open the bottom panel pane showing code anchors in grid layout |
+| `Remove Current XML Comment` | Remove the XML doc comment block at the cursor position (only enabled when cursor is inside an XML doc comment) |
+| `Remove All XML Comments in File` | Remove every XML doc comment block in the active file |
 
 ---
 
 ## Keyboard Shortcuts
 
-| Key | Command |
+No keyboard shortcuts are registered by default. To bind commands, open **File → Preferences → Keyboard Shortcuts** (`Ctrl+K Ctrl+S`) and search for `KAT Comment Studio`. Suggested bindings:
+
+| Suggested Key | Command |
 |---|---|
-| `Escape` | Toggle comment rendering (when rendering is active) |
-| `Alt+PageDown` | Go to next anchor in current file |
-| `Alt+PageUp` | Go to previous anchor in current file |
+| `Escape` | `kat-comment-studio.toggleRendering` — toggle rendering (when rendering is active) |
+| `Alt+PageDown` | `kat-comment-studio.nextAnchor` — go to next anchor in current file |
+| `Alt+PageUp` | `kat-comment-studio.previousAnchor` — go to previous anchor in current file |
 
 ---
 
@@ -647,6 +706,116 @@ custom_anchor_tag_prefixes = @
 ```
 
 File watcher updates settings automatically when `.editorconfig` changes — no reload required.
+
+---
+
+## Extension Developers
+
+### Prerequisites
+
+- **Node.js** 20 or later
+- **VS Code** (any recent version)
+- No global `vsce` install required — the `package` script uses `npx vsce`
+
+### Getting Started
+
+```bash
+npm install
+```
+
+### npm Scripts
+
+| Script | Command | Description |
+|--------|---------|-------------|
+| `compile` | `npm run compile` | TypeScript → JS (`tsc -p ./`). Output goes to `out/` |
+| `watch` | `npm run watch` | Incremental compile in watch mode |
+| `test` | `npm test` | Run all tests once (Vitest) |
+| `test:watch` | `npm run test:watch` | Run tests in watch mode |
+| `lint` | `npm run lint` | ESLint on `src/` |
+| `package` | `npm run package` | Bump patch version, compile, and create `.vsix` |
+
+### VS Code Tasks
+
+Two tasks are defined in `.vscode/tasks.json`:
+
+- **compile** (Build task) — run with `Ctrl+Shift+B` for a one-off build
+- **watch** (Default background task) — runs `tsc --watch` automatically; TypeScript errors appear in the Problems panel in real time
+
+### Running / Debugging
+
+Press **F5** (or **Run → Start Debugging**). The `Run Extension` launch config in `.vscode/launch.json` compiles first (`preLaunchTask: compile`), then opens an **Extension Development Host** window with the extension loaded.
+
+Make changes in `src/`, save (watch compiles automatically), then press `Ctrl+R` in the Extension Development Host to reload.
+
+### Packaging a `.vsix`
+
+```bash
+npm run package
+```
+
+This does three things in sequence:
+
+1. Bumps the **patch version** in `package.json` (e.g., `1.0.3` → `1.0.4`) — file only, no git tag
+2. Runs `npm run compile`
+3. Runs `npx vsce package` to produce `kat-comment-studio-<version>.vsix`
+
+Commit the version bump manually afterward if you want it tracked in git.
+
+### Installing a `.vsix`
+
+In VS Code: **Extensions** panel → `···` menu (top-right) → **Install from VSIX...** → select the file.
+
+Or from the terminal:
+
+```bash
+code --install-extension kat-comment-studio-1.0.4.vsix
+```
+
+### Running Tests
+
+```bash
+npm test
+```
+
+Tests are in `test/` and use [Vitest](https://vitest.dev/). They are pure unit tests — no VS Code host required. Exit code 0 means all passed.
+
+### Project Structure
+
+```
+src/
+├── extension.ts            # Activation — all command and provider registration
+├── types.ts                # Shared types and interfaces
+├── configuration.ts        # Settings management + .editorconfig integration
+├── anchors/                # Code anchors: service, scanner, tree view, grid panel, export
+├── commands/               # Comment remover commands
+├── diagnostics/            # LINK: validation diagnostics
+├── navigation/             # LINK: parser, navigator, validator, git service
+├── parsing/                # Comment block detection, XML doc parser, language config
+├── reflow/                 # Reflow engine, auto-reflow, smart paste
+├── rendering/              # CodeLens provider, decoration manager/factory, prefix highlighter
+└── services/               # EditorConfig service
+test/                       # Vitest unit tests (mirrors src/ structure)
+out/                        # Compiled JS output (git-ignored)
+```
+
+### VS Extension vs VS Code — Implementation Differences
+
+This extension is a port and adaptation of [madskristensen/CommentsVS](https://github.com/madskristensen/CommentsVS) for Visual Studio 2022. Some features differ by design due to VS Code API constraints:
+
+| Original VS Feature | VS Code Behavior |
+|---|---|
+| Background parallel scanning (`SolutionAnchorScanner` with threads) | Synchronous scan with VS Code progress notification. Sufficient for typical workspace sizes. |
+| WPF inline adornment replacement (renders XML comment as styled controls inline) | Replaced with CodeLens + hover popup. VS Code's Decoration API cannot replace text with arbitrary HTML. |
+| Double-click rendered comment to edit raw source | Not available — VS Code decorations don't receive click events. Auto-unfold on cursor-enter is used instead. |
+| Compact / Full rendering modes | Collapsed into a single "on" mode (CodeLens + hover + auto-fold). |
+
+---
+
+## References
+
+- [VS Code Codicons](https://microsoft.github.io/vscode-codicons/dist/codicon.html) — icon names used in commands and the UI (`$(book)`, `$(refresh)`, `$(wrap)`, etc.)
+- [madskristensen/CommentsVS](https://github.com/madskristensen/CommentsVS) — the original Visual Studio 2022 extension this project ports and extends
+- [C# XML Documentation Tags](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/xmldoc/recommended-tags) — official reference for all supported `<summary>`, `<param>`, `<returns>`, and related tags
 
 ---
 

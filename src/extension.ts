@@ -74,7 +74,6 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const isRenderingOn = config.renderingMode === 'on';
   codeLensProvider.setEnabled(isRenderingOn);
-  codeLensProvider.setCodeLensPosition(config.codeLensPosition);
   codeLensProvider.setCodeLensMaxLength(config.codeLensMaxLength);
 
   context.subscriptions.push(
@@ -201,14 +200,15 @@ export function activate(context: vscode.ExtensionContext): void {
       anchorDecorationManager?.updateConfiguration(newConfig);
       prefixHighlighter?.updateConfiguration(newConfig);
 
-      // Re-apply anchor decorations after config rebuild (fixes colorization loss on toggle)
-      for (const editor of vscode.window.visibleTextEditors) {
+	  for (const editor of vscode.window.visibleTextEditors) {
+		// Re-apply anchor decorations after config rebuild (fixes colorization loss on toggle)
         anchorDecorationManager?.updateDecorations(editor);
+		// Re-apply prefix-based decorations after config rebuild (fixes colorization loss on toggle)
+		prefixHighlighter?.updateDecorations(editor);
       }
 
       const renderingOn = newConfig.renderingMode === 'on';
       codeLensProvider?.setEnabled(renderingOn);
-      codeLensProvider?.setCodeLensPosition(newConfig.codeLensPosition);
       codeLensProvider?.setCodeLensMaxLength(newConfig.codeLensMaxLength);
       commentHoverProvider?.setEnabled(renderingOn);
 

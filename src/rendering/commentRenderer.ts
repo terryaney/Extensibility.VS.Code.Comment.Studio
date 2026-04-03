@@ -142,13 +142,27 @@ export function getStrippedSummary(block: XmlDocCommentBlock): string {
  * Renders an XML doc comment block to a rich MarkdownString for hover display.
  * Requires vscode module to be available (extension host only).
  */
-export function renderToMarkdown(block: XmlDocCommentBlock, repoInfo?: GitRepositoryInfo): InstanceType<typeof import('vscode').MarkdownString> | undefined {
+export interface SignatureInfo {
+  text: string;
+  languageId: string;
+}
+
+export function renderToMarkdown(
+  block: XmlDocCommentBlock,
+  repoInfo?: GitRepositoryInfo,
+  signatureInfo?: SignatureInfo,
+): InstanceType<typeof import('vscode').MarkdownString> | undefined {
   if (!vscodeModule) return undefined;
 
   const rendered = renderCommentBlock(block, repoInfo);
   const md = new vscodeModule.MarkdownString('', true);
   md.isTrusted = true;
   md.supportHtml = true;
+
+  if (signatureInfo) {
+    const fence = safeFence(signatureInfo.text);
+    md.appendMarkdown(`${fence}${signatureInfo.languageId}\n${signatureInfo.text}\n${fence}\n\n`);
+  }
 
   // KAT hovers are identified by the presence of a $(book) codicon heading
   // (rendered as <span class="codicon codicon-book">) which IntelliSense and

@@ -10,9 +10,6 @@ export interface PrefixStyle {
   textDecoration?: string;
 }
 
-/** CodeLens placement relative to the comment block */
-export type CodeLensPosition = 'inline' | 'ownLine';
-
 /** Extension configuration */
 export interface CommentStudioConfig {
   renderingMode: RenderingMode;
@@ -40,8 +37,6 @@ export interface CommentStudioConfig {
   collapseByDefault: boolean;
 
   // Visual settings
-  preserveBlankLines: boolean;
-  codeLensPosition: CodeLensPosition;
   codeLensMaxLength: number;
 
   // Color overrides(empty string = use ThemeColor default)

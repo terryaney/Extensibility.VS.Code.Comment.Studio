@@ -1,12 +1,11 @@
 import * as vscode from 'vscode';
-import { BUILTIN_ANCHOR_TYPES } from '../anchors/anchorService';
 import { getLanguageCommentStyle } from '../parsing/languageConfig';
+import { findAllCommentBlocks } from '../parsing/commentParser';
 
 interface CommentRange {
   startLine: number;
   endLine: number;
   isDocComment: boolean;
-  hasAnchor: boolean;
 }
 
 /**
@@ -16,9 +15,6 @@ function findCommentRanges(document: vscode.TextDocument): CommentRange[] {
   const ranges: CommentRange[] = [];
   const lines = document.getText().split(/\r?\n/);
   const commentStyle = getLanguageCommentStyle(document.languageId);
-
-  const anchorTags = [...BUILTIN_ANCHOR_TYPES.keys()];
-  const anchorRegex = new RegExp(`\\b(${anchorTags.join('|')}):`);
 
   let inMultiLineComment = false;
   let multiLineStart = -1;
@@ -31,13 +27,7 @@ function findCommentRanges(document: vscode.TextDocument): CommentRange[] {
     if (inMultiLineComment) {
       const endMarker = commentStyle?.multiLineDocEnd || '*/';
       if (trimmed.includes(endMarker)) {
-        const blockText = lines.slice(multiLineStart, i + 1).join('\n');
-        ranges.push({
-          startLine: multiLineStart,
-          endLine: i,
-          isDocComment: multiLineIsDoc,
-          hasAnchor: anchorRegex.test(blockText),
-        });
+        ranges.push({ startLine: multiLineStart, endLine: i, isDocComment: multiLineIsDoc });
         inMultiLineComment = false;
       }
       continue;
@@ -49,11 +39,7 @@ function findCommentRanges(document: vscode.TextDocument): CommentRange[] {
       if (trimmed.startsWith(docStart)) {
         const endMarker = commentStyle.multiLineDocEnd || '*/';
         if (trimmed.includes(endMarker) && trimmed.indexOf(endMarker) > trimmed.indexOf(docStart)) {
-          ranges.push({
-            startLine: i, endLine: i,
-            isDocComment: true,
-            hasAnchor: anchorRegex.test(trimmed),
-          });
+          ranges.push({ startLine: i, endLine: i, isDocComment: true });
         } else {
           inMultiLineComment = true;
           multiLineStart = i;
@@ -64,11 +50,7 @@ function findCommentRanges(document: vscode.TextDocument): CommentRange[] {
       // Non-doc multi-line: /* ... */
       if (trimmed.startsWith('/*') && !trimmed.startsWith('/**')) {
         if (trimmed.includes('*/') && trimmed.indexOf('*/') > 2) {
-          ranges.push({
-            startLine: i, endLine: i,
-            isDocComment: false,
-            hasAnchor: anchorRegex.test(trimmed),
-          });
+          ranges.push({ startLine: i, endLine: i, isDocComment: false });
         } else {
           inMultiLineComment = true;
           multiLineStart = i;
@@ -81,71 +63,33 @@ function findCommentRanges(document: vscode.TextDocument): CommentRange[] {
     // Single-line doc comment (///, ''', ##, ---)
     const docPrefix = commentStyle?.singleLineDocPrefix;
     if (docPrefix && trimmed.startsWith(docPrefix)) {
-      // Find contiguous block
       let endLine = i;
       while (endLine + 1 < lines.length && lines[endLine + 1].trim().startsWith(docPrefix)) {
         endLine++;
       }
-      const blockText = lines.slice(i, endLine + 1).join('\n');
-      ranges.push({
-        startLine: i, endLine,
-        isDocComment: true,
-        hasAnchor: anchorRegex.test(blockText),
-      });
+      ranges.push({ startLine: i, endLine, isDocComment: true });
       i = endLine;
       continue;
     }
 
     // Regular single-line comment
     if (trimmed.startsWith('//') || trimmed.startsWith('#') || trimmed.startsWith("'")) {
-      ranges.push({
-        startLine: i, endLine: i,
-        isDocComment: false,
-        hasAnchor: anchorRegex.test(trimmed),
-      });
+      ranges.push({ startLine: i, endLine: i, isDocComment: false });
     }
   }
 
   return ranges;
 }
 
-/**
- * Finds #region / #endregion lines.
- */
-function findRegionLines(document: vscode.TextDocument): number[] {
-  const lines = document.getText().split(/\r?\n/);
-  const result: number[] = [];
-
-  for (let i = 0; i < lines.length; i++) {
-    const trimmed = lines[i].trim();
-    if (/^#\s*(region|endregion)\b/i.test(trimmed)) {
-      result.push(i);
-    }
-  }
-
-  return result;
-}
-
-type RemovalFilter = (range: CommentRange) => boolean;
-
-async function removeComments(
+async function removeDocComments(
   editor: vscode.TextEditor,
-  filter: RemovalFilter,
-  selectionOnly: boolean,
+  filter: (range: CommentRange) => boolean,
 ): Promise<void> {
-  const document = editor.document;
-  const ranges = findCommentRanges(document);
-
+  const ranges = findCommentRanges(editor.document);
   const linesToDelete = new Set<number>();
 
   for (const range of ranges) {
     if (!filter(range)) continue;
-
-    if (selectionOnly) {
-      const selection = editor.selection;
-      if (range.endLine < selection.start.line || range.startLine > selection.end.line) continue;
-    }
-
     for (let i = range.startLine; i <= range.endLine; i++) {
       linesToDelete.add(i);
     }
@@ -154,71 +98,38 @@ async function removeComments(
   if (linesToDelete.size === 0) return;
 
   await editor.edit(editBuilder => {
-    const sortedLines = [...linesToDelete].sort((a, b) => b - a);
-    for (const lineNum of sortedLines) {
-      const lineRange = document.lineAt(lineNum).rangeIncludingLineBreak;
-      editBuilder.delete(lineRange);
-    }
+    [...linesToDelete].sort((a, b) => b - a).forEach(lineNum => {
+      editBuilder.delete(editor.document.lineAt(lineNum).rangeIncludingLineBreak);
+    });
   });
 }
 
 export function registerCommentRemoverCommands(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
-    vscode.commands.registerCommand('kat-comment-studio.removeAllComments', async () => {
+    vscode.commands.registerCommand('kat-comment-studio.removeCurrentXmlComment', async () => {
       const editor = vscode.window.activeTextEditor;
       if (!editor) return;
-      const answer = await vscode.window.showWarningMessage(
-        'Remove all XML comments in this file?',
-        { modal: true },
-        'Remove',
-      );
-      if (answer !== 'Remove') return;
-      await removeComments(editor, r => r.isDocComment, false);
-    }),
-
-    vscode.commands.registerCommand('kat-comment-studio.removeCommentsInSelection', async () => {
-      const editor = vscode.window.activeTextEditor;
-      if (!editor || editor.selection.isEmpty) return;
-      await removeComments(editor, () => true, true);
-    }),
-
-    vscode.commands.registerCommand('kat-comment-studio.removeExceptXmlDoc', async () => {
-      const editor = vscode.window.activeTextEditor;
-      if (!editor) return;
-      await removeComments(editor, r => !r.isDocComment, false);
-    }),
-
-    vscode.commands.registerCommand('kat-comment-studio.removeExceptAnchors', async () => {
-      const editor = vscode.window.activeTextEditor;
-      if (!editor) return;
-      await removeComments(editor, r => !r.hasAnchor, false);
+      const commentStyle = getLanguageCommentStyle(editor.document.languageId);
+      if (!commentStyle) return;
+      const cursorLine = editor.selection.active.line;
+      const lines = editor.document.getText().split(/\r?\n/);
+      const blocks = findAllCommentBlocks(lines, commentStyle);
+      const currentBlock = blocks.find(b => cursorLine >= b.startLine && cursorLine <= b.endLine);
+      if (!currentBlock) {
+        vscode.window.showInformationMessage('No XML doc comment at cursor position.');
+        return;
+      }
+      await editor.edit(editBuilder => {
+        for (let i = currentBlock.endLine; i >= currentBlock.startLine; i--) {
+          editBuilder.delete(editor.document.lineAt(i).rangeIncludingLineBreak);
+        }
+      });
     }),
 
     vscode.commands.registerCommand('kat-comment-studio.removeXmlDocOnly', async () => {
       const editor = vscode.window.activeTextEditor;
       if (!editor) return;
-      await removeComments(editor, r => r.isDocComment, false);
-    }),
-
-    vscode.commands.registerCommand('kat-comment-studio.removeAnchorsOnly', async () => {
-      const editor = vscode.window.activeTextEditor;
-      if (!editor) return;
-      await removeComments(editor, r => r.hasAnchor, false);
-    }),
-
-    vscode.commands.registerCommand('kat-comment-studio.removeRegions', async () => {
-      const editor = vscode.window.activeTextEditor;
-      if (!editor) return;
-      const regionLines = findRegionLines(editor.document);
-      if (regionLines.length === 0) return;
-
-      await editor.edit(editBuilder => {
-        const sorted = [...regionLines].sort((a, b) => b - a);
-        for (const lineNum of sorted) {
-          const lineRange = editor.document.lineAt(lineNum).rangeIncludingLineBreak;
-          editBuilder.delete(lineRange);
-        }
-      });
+      await removeDocComments(editor, r => r.isDocComment);
     }),
   );
 }

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { XmlDocCommentBlock, CodeLensPosition } from '../types';
+import { XmlDocCommentBlock } from '../types';
 import { getCachedCommentBlocks } from '../parsing/commentParser';
 import { getStrippedSummary } from './commentRenderer';
 
@@ -16,16 +16,10 @@ export class CommentCodeLensProvider implements vscode.CodeLensProvider {
   // Track fold state per document URI → Map of startLine → folded
   private foldState = new Map<string, Map<number, boolean>>();
   private enabled = true;
-  private codeLensPosition: CodeLensPosition = 'inline';
   private codeLensMaxLength = 0;
 
   setEnabled(enabled: boolean): void {
     this.enabled = enabled;
-    this._onDidChangeCodeLenses.fire();
-  }
-
-  setCodeLensPosition(position: CodeLensPosition): void {
-    this.codeLensPosition = position;
     this._onDidChangeCodeLenses.fire();
   }
 
@@ -106,7 +100,7 @@ export class CommentCodeLensProvider implements vscode.CodeLensProvider {
   }
 
   /**
-   * Finds the line where the CodeLens should be placed based on the codeLensPosition setting.
+   * Finds the declaration line for CodeLens placement.
    * Scans forward from the end of the comment block, skipping blank lines and attribute lines,
    * to find the method declaration line.
    */
@@ -129,12 +123,7 @@ export class CommentCodeLensProvider implements vscode.CodeLensProvider {
       return block.endLine;
     }
 
-    if (this.codeLensPosition === 'inline') {
-      return declarationLine;
-    }
-
-    const ownLine = declarationLine - 1;
-    return ownLine > block.endLine ? ownLine : block.endLine + 1;
+    return declarationLine;
   }
 
   dispose(): void {

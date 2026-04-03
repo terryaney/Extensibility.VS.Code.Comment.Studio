@@ -8,6 +8,10 @@
     "name": "Terry Aney",
     "email": "terry.aney@icloud.com"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -91,12 +95,12 @@
           "command": "kat-comment-studio.reflowAllComments",
           "group": "2_reflow@2"
         },        {
-          "command": "kat-comment-studio.removeCommentsInSelection",
+          "command": "kat-comment-studio.removeCurrentXmlComment",
           "group": "3_remove@1",
-          "when": "editorHasSelection"
+          "when": "kat-comment-studio.cursorInXmlComment"
         },
         {
-          "command": "kat-comment-studio.removeAllComments",
+          "command": "kat-comment-studio.removeXmlDocOnly",
           "group": "3_remove@2"
         }
       ],
@@ -164,7 +168,7 @@
       },
       {
         "command": "kat-comment-studio.refreshAnchors",
-        "title": "Refresh Code Anchors",
+        "title": "Refresh Code Anchors (OBSOLETE - SEE future-ideas.md)",
         "category": "KAT Comment Studio"
       },
       {
@@ -175,7 +179,7 @@
       },
       {
         "command": "kat-comment-studio.showAnchorsGrid",
-        "title": "Show Code Anchors Grid",
+        "title": "Show Code Anchors Pane",
         "category": "KAT Comment Studio",
         "icon": "$(table)"
       },
@@ -202,43 +206,19 @@
         "category": "KAT Comment Studio"
       },
       {
-        "command": "kat-comment-studio.removeAllComments",
-        "title": "Remove All Comments in File",
-        "category": "KAT Comment Studio"
+        "command": "kat-comment-studio.removeCurrentXmlComment",
+        "title": "Remove Current XML Comment",
+        "category": "KAT Comment Studio",
+        "enablement": "kat-comment-studio.cursorInXmlComment"
       },
       {
-        "command": "kat-comment-studio.removeCommentsInSelection",
-        "title": "Remove All Comments in Selection",
-        "category": "KAT Comment Studio"
-      },
-      {
-        "command": "kat-comment-studio.removeExceptXmlDoc",
-        "title": "Remove All Except XML Doc Comments",
+        "command": "kat-comment-studio.removeXmlDocOnly",
+        "title": "Remove All XML Comments in File",
         "category": "KAT Comment Studio"
       },
       {
         "command": "kat-comment-studio.navigateLink",
         "title": "Navigate to LINK Target",
-        "category": "KAT Comment Studio"
-      },
-      {
-        "command": "kat-comment-studio.removeExceptAnchors",
-        "title": "Remove All Except Anchors",
-        "category": "KAT Comment Studio"
-      },
-      {
-        "command": "kat-comment-studio.removeXmlDocOnly",
-        "title": "Remove XML Doc Comments Only",
-        "category": "KAT Comment Studio"
-      },
-      {
-        "command": "kat-comment-studio.removeAnchorsOnly",
-        "title": "Remove Anchors Only",
-        "category": "KAT Comment Studio"
-      },
-      {
-        "command": "kat-comment-studio.removeRegions",
-        "title": "Remove Regions",
         "category": "KAT Comment Studio"
       }
     ],
@@ -366,11 +346,6 @@
           "default": false,
           "description": "Automatically collapse XML doc comments when opening files"
         },
-        "kat-comment-studio.preserveBlankLines": {
-          "type": "boolean",
-          "default": true,
-          "description": "Preserve intentional blank lines within comment blocks during reflow"
-        },
         "kat-comment-studio.scanOnLoad": {
           "type": "boolean",
           "default": true,
@@ -385,19 +360,6 @@
           "type": "string",
           "default": "node_modules,bin,obj,.git,dist,out,build,.vs,.vscode-test",
           "description": "Comma-separated folder names to ignore when scanning for code anchors"
-        },
-        "kat-comment-studio.codeLensPosition": {
-          "type": "string",
-          "default": "inline",
-          "enum": [
-            "inline",
-            "ownLine"
-          ],
-          "enumDescriptions": [
-            "Place CodeLens on the method declaration line alongside other providers (References, etc.)",
-            "Place CodeLens on its own line immediately above the method declaration"
-          ],
-          "description": "Where to position the comment summary CodeLens relative to the comment block"
         },
         "kat-comment-studio.codeLensMaxLength": {
           "type": "number",

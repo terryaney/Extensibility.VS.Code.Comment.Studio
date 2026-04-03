@@ -60,6 +60,7 @@ export class AutoReflowHandler implements vscode.Disposable {
 
   private handleChange(event: vscode.TextDocumentChangeEvent): void {
     const config = getConfiguration();
+    if (config.renderingMode !== 'on') return;
     if (!config.enableReflowWhileTyping) return;
 
     const editor = vscode.window.activeTextEditor;
@@ -105,6 +106,7 @@ export class AutoReflowHandler implements vscode.Disposable {
 
   private handleSelectionChange(event: vscode.TextEditorSelectionChangeEvent): void {
     const config = getConfiguration();
+    if (config.renderingMode !== 'on') return;
     if (!config.enableReflowWhileTyping) return;
 
     const editor = event.textEditor;

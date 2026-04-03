@@ -12,7 +12,11 @@
 - Review VS Code readme and document anything that we didn't implement or confirm the items we did
 	- i.e. background thread scanning
 
+Bugs
+- kat-comment-studio.collapseByDefault - is this working?  I onpened a file when rendering was on and xml collapsed and I haven't set the property ever and I never moved my cursor or anything when opening file via ctrl+p.
+
 - Terry
+	- Test all commands from pallette, some seem dead
 	- Just launch and look at output...seems way too much??
 	- Review readme and compare to VS extension
 		- Review settings - categories or alpha?  Then do same to package.json

@@ -157,6 +157,50 @@ describe('findAllCommentBlocks', () => {
     expect(blocks[0].xmlContent).toBe('<summary>\nHello world.\n</summary>');
   });
 
+  it('should bridge a single blank line between /// chunks', () => {
+    const lines = [
+      '/// <summary>',
+      '/// First chunk.',
+      '',
+      '/// Second chunk.',
+      '/// </summary>',
+      'public void Method() { }',
+    ];
+
+    const blocks = findAllCommentBlocks(lines, csharpStyle);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].startLine).toBe(0);
+    expect(blocks[0].endLine).toBe(4);
+    expect(blocks[0].xmlContent).toContain('First chunk.');
+    expect(blocks[0].xmlContent).toContain('Second chunk.');
+  });
+
+  it('should bridge multiple consecutive blank lines between /// chunks', () => {
+    const lines = [
+      '/// <summary>',
+      '',
+      '',
+      '/// Gets the value.',
+      '/// </summary>',
+    ];
+
+    const blocks = findAllCommentBlocks(lines, csharpStyle);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].endLine).toBe(4);
+  });
+
+  it('should NOT bridge a blank line when only code follows', () => {
+    const lines = [
+      '/// <summary>First.</summary>',
+      '',
+      'public void Method() { }',
+    ];
+
+    const blocks = findAllCommentBlocks(lines, csharpStyle);
+    expect(blocks).toHaveLength(1);
+    expect(blocks[0].endLine).toBe(0);
+  });
+
   it('should return empty array for file with no doc comments', () => {
     const lines = [
       '// Regular comment',

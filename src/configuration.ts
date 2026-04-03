@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { CommentStudioConfig, RenderingMode, CodeLensPosition } from './types';
+import { CommentStudioConfig, RenderingMode } from './types';
 
 const SECTION = 'kat-comment-studio';
 
@@ -35,8 +35,6 @@ export function getConfiguration(): CommentStudioConfig {
     collapseByDefault: config.get<boolean>('collapseByDefault', false),
 
     // Visual
-    preserveBlankLines: config.get<boolean>('preserveBlankLines', true),
-    codeLensPosition: config.get<CodeLensPosition>('codeLensPosition', 'inline'),
     codeLensMaxLength: config.get<number>('codeLensMaxLength', 205),
 
     // Color overrides

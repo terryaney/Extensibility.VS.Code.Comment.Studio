@@ -117,6 +117,12 @@ function tryParseSingleLineCommentBlock(
     const trimmedLine = lineText.trimStart();
 
     if (!isValidDocCommentStart(trimmedLine, prefix)) {
+      // If blank, look ahead: if more /// lines follow before any real code,
+      // bridge the gap so an accidental blank line doesn't split the block.
+      if (trimmedLine.length === 0 && hasMoreCommentLinesAhead(lines, i + 1, prefix)) {
+        xmlContentParts.push('');
+        continue;
+      }
       break;
     }
 
@@ -236,6 +242,25 @@ function stripContinuationPrefix(line: string): string {
     return result;
   }
   return line;
+}
+
+/**
+ * Returns true if any line from `fromLine` onward is a valid doc comment line
+ * before encountering any non-blank, non-comment line. Used to bridge accidental
+ * blank lines inside a comment block.
+ */
+function hasMoreCommentLinesAhead(lines: string[], fromLine: number, prefix: string): boolean {
+  for (let i = fromLine; i < lines.length; i++) {
+    const trimmed = lines[i].trimStart();
+    if (isValidDocCommentStart(trimmed, prefix)) {
+      return true;
+    }
+    if (trimmed.length > 0) {
+      return false;
+    }
+    // blank line — keep looking
+  }
+  return false;
 }
 
 /**
