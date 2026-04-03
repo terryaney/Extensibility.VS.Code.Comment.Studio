@@ -13,6 +13,16 @@ export { computeMinimalEditRange } from './reflowUtils';
 // can skip clearing decorations and fold-state sync for programmatic edits.
 export let isAutoReflowEdit = false;
 
+/** Sets the auto-reflow-edit flag. Use to bracket manual reflow commands so
+ *  the change listener doesn't mark the block dirty and trigger a second pass. */
+export function setAutoReflowEdit(value: boolean): void {
+  isAutoReflowEdit = value;
+}
+
+// Singleton reference so extension.ts can call clearDirty without holding
+// an AutoReflowHandler instance directly.
+let activeHandler: AutoReflowHandler | undefined;
+
 interface BlockTracker {
   /** Start line of the last known block the cursor was in, or undefined if outside all blocks. */
   lastBlockStart: number | undefined;
@@ -31,12 +41,21 @@ export class AutoReflowHandler implements vscode.Disposable {
   private lastDocUri: string | undefined;
 
   constructor() {
+    activeHandler = this;
     this.changeListener = vscode.workspace.onDidChangeTextDocument(event => {
       this.handleChange(event);
     });
     this.selectionListener = vscode.window.onDidChangeTextEditorSelection(event => {
       this.handleSelectionChange(event);
     });
+  }
+
+  /** Clear dirty flag for a document so auto-reflow won't fire after a manual reflow. */
+  clearDirty(docUri: string): void {
+    const tracker = this.docTrackers.get(docUri);
+    if (tracker) {
+      tracker.isDirty = false;
+    }
   }
 
   private handleChange(event: vscode.TextDocumentChangeEvent): void {
@@ -189,6 +208,12 @@ export class AutoReflowHandler implements vscode.Disposable {
   dispose(): void {
     this.changeListener.dispose();
     this.selectionListener.dispose();
+    if (activeHandler === this) activeHandler = undefined;
   }
+}
+
+/** Clear the dirty tracker for a document so auto-reflow won't fire after manual reflow. */
+export function clearAutoReflowDirty(docUri: string): void {
+  activeHandler?.clearDirty(docUri);
 }
 

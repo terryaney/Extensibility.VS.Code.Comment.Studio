@@ -9,7 +9,7 @@ import { getConfiguration, onConfigurationChanged } from './configuration';
 import { reflowAllComments, reflowCurrentComment } from './reflow/reflowCommands';
 import { ReflowCodeActionProvider } from './reflow/reflowCodeAction';
 import { SmartPasteHandler } from './reflow/smartPaste';
-import { AutoReflowHandler } from './reflow/autoReflow';
+import { AutoReflowHandler, setAutoReflowEdit, clearAutoReflowDirty } from './reflow/autoReflow';
 import { watchEditorConfig } from './services/editorconfigService';
 import { CommentFoldingProvider, foldAllDocComments } from './rendering/commentFoldingProvider';
 import { AnchorDecorationManager } from './anchors/anchorDecorationManager';
@@ -127,17 +127,27 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('kat-comment-studio.toggleRendering', () => {
       decorationManager?.toggleRendering();
     }),
-    vscode.commands.registerCommand('kat-comment-studio.reflowComment', () => {
+    vscode.commands.registerCommand('kat-comment-studio.reflowComment', async () => {
       const editor = vscode.window.activeTextEditor;
       if (!editor) return;
       const cursorLine = editor.selection.active.line;
       const edits = reflowCurrentComment(editor.document, cursorLine);
       if (edits.length > 0) {
-        const edit = new vscode.WorkspaceEdit();
-        for (const e of edits) {
-          edit.replace(editor.document.uri, e.range, e.newText);
+        // Set the flag so the change listener treats this as our own programmatic
+        // edit — preventing auto-reflow from marking the block dirty and firing a
+        // second pass, which would break single-step undo.
+        setAutoReflowEdit(true);
+        try {
+          await editor.edit(
+            editBuilder => { for (const e of edits) editBuilder.replace(e.range, e.newText); },
+            { undoStopBefore: true, undoStopAfter: true },
+          );
+        } finally {
+          setAutoReflowEdit(false);
         }
-        void vscode.workspace.applyEdit(edit);
+        // Clear pre-existing dirty state so auto-reflow doesn't fire on the
+        // next cursor-leave — the block was just manually reflowed.
+        clearAutoReflowDirty(editor.document.uri.toString());
       } else {
         void vscode.window.showInformationMessage('Cursor is not inside an XML doc comment block.');
       }

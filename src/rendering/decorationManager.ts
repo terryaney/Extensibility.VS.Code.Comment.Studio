@@ -258,8 +258,13 @@ export class DecorationManager implements vscode.Disposable {
 
     const editor = event.textEditor;
     const docKey = editor.document.uri.toString();
-    const cursorLine = event.selections[0]?.active.line;
-    if (cursorLine === undefined) return;
+    const selection = event.selections[0];
+    if (!selection) return;
+
+    const cursorLine = selection.active.line;
+    // Full line span covered by the selection (anchor to active)
+    const selStartLine = Math.min(selection.anchor.line, selection.active.line);
+    const selEndLine = Math.max(selection.anchor.line, selection.active.line);
 
     const lines = editor.document.getText().split(/\r?\n/);
     const blocks = getCachedCommentBlocks(
@@ -291,16 +296,19 @@ export class DecorationManager implements vscode.Disposable {
       this.cancelAllExpandTimers(docKey);
     }
 
-    // Start refold timers for any expanded blocks the cursor has left
-    // and cancel expand timers for blocks the cursor is no longer in
+    // Start refold timers for any expanded blocks the selection has fully left.
+    // If any part of the selection (anchor → active) still overlaps the block, keep it expanded.
     for (const startLine of expanded) {
       const block = blocks.find(b => b.startLine === startLine);
       if (!block) continue;
 
-      const cursorInBlock = cursorLine >= block.startLine && cursorLine <= block.endLine;
-      if (!cursorInBlock) {
+      const selectionOverlapsBlock = selStartLine <= block.endLine && selEndLine >= block.startLine;
+      if (!selectionOverlapsBlock) {
         this.cancelExpandTimer(docKey, startLine);
         this.startRefoldTimer(editor, docKey, block);
+      } else {
+        // Selection still covers this block — cancel any pending refold
+        this.cancelRefoldTimer(docKey, startLine);
       }
     }
   }

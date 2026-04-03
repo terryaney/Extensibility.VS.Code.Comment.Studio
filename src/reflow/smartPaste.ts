@@ -5,6 +5,7 @@ import { reflowCommentBlock, ReflowOptions } from './reflowEngine';
 import { getConfiguration } from '../configuration';
 import { getEditorConfigSettings } from '../services/editorconfigService';
 import { computeMinimalEditRange } from './reflowUtils';
+import { isAutoReflowEdit } from './autoReflow';
 import { dbg } from '../diagnostics/debugLog';
 
 export let isSmartPasteEdit = false;
@@ -74,6 +75,13 @@ export class SmartPasteHandler implements vscode.Disposable {
     // Guard: ignore our own programmatic edits to prevent infinite self-triggering.
     if (isSmartPasteEdit) {
       dbg('smartPaste', 'handleChange SKIP own-edit');
+      return;
+    }
+
+    // Guard: ignore auto-reflow / manual-reflow programmatic edits — their multi-line
+    // replacements look like pastes but should not trigger a second reflow pass.
+    if (isAutoReflowEdit) {
+      dbg('smartPaste', 'handleChange SKIP auto-reflow-edit');
       return;
     }
 

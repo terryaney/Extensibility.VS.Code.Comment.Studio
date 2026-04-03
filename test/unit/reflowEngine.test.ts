@@ -77,15 +77,14 @@ describe('reflowXmlContent', () => {
     expect(result[2]).toBe('</summary>');
   });
 
-  it('should always expand single-line remarks to multi-line form', () => {
+  it('should keep single-line remarks on one line when short', () => {
     const lines = [
       '<remarks>Brief note.</remarks>',
     ];
 
     const result = reflowXmlContent(lines, 80, '', csharpStyle);
-    expect(result[0]).toBe('<remarks>');
-    expect(result[result.length - 1]).toBe('</remarks>');
-    expect(result.length).toBe(3);
+    expect(result).toHaveLength(1);
+    expect(result[0]).toBe('<remarks>Brief note.</remarks>');
   });
 
   it('should handle param tags', () => {
@@ -113,10 +112,8 @@ describe('reflowXmlContent', () => {
     expect(result[paraIdx - 1]).toBe('');
   });
 
-  it('<para> always starts on its own line after </para>', () => {
+  it('<para> follows immediately after </para> with no blank line between them', () => {
     // Both <para> blocks use standalone tags (tag alone on its own line).
-    // This matches the Issue 3 scenario: two consecutive <para> blocks separated
-    // only by their tags, with no blank lines in the source.
     const lines = [
       '<remarks>',
       '<para>',
@@ -133,8 +130,48 @@ describe('reflowXmlContent', () => {
     const secondOpen = result.indexOf('<para>', firstClose + 1);
     expect(firstClose).toBeGreaterThan(-1);
     expect(secondOpen).toBeGreaterThan(firstClose);
-    // There should be a blank line between </para> and <para>
-    expect(result[secondOpen - 1]).toBe('');
+    // No blank line between </para> and <para>
+    expect(result[secondOpen - 1]).not.toBe('');
+    expect(result[secondOpen - 1]).toBe('</para>');
+  });
+
+  it('inline </para> <para> on same line is split and reflowed correctly', () => {
+    // The original bug: multiple <para> elements concatenated on a single line
+    // caused runaway content duplication.
+    const lines = [
+      '<summary>',
+      '<para>First paragraph.</para> <para>Second paragraph.</para>',
+      '</summary>',
+    ];
+
+    const result = reflowXmlContent(lines, 80, '', csharpStyle);
+    expect(result[0]).toBe('<summary>');
+    expect(result[result.length - 1]).toBe('</summary>');
+    // Both paragraphs must appear exactly once
+    const allText = result.join('\n');
+    const firstCount = (allText.match(/First paragraph/g) ?? []).length;
+    const secondCount = (allText.match(/Second paragraph/g) ?? []).length;
+    expect(firstCount).toBe(1);
+    expect(secondCount).toBe(1);
+    // No blank line between the two <para> elements
+    const firstParaIdx = result.findIndex(l => l.includes('First paragraph'));
+    const secondParaIdx = result.findIndex(l => l.includes('Second paragraph'));
+    expect(secondParaIdx).toBe(firstParaIdx + 1);
+  });
+
+  it('inline-opened <para> wrapping to multiple lines keeps closing tag on last content line', () => {
+    const lines = [
+      '<remarks>',
+      '<para>This is a long paragraph that will need to be wrapped across multiple lines when the max width is small enough to force it.</para>',
+      '</remarks>',
+    ];
+
+    const result = reflowXmlContent(lines, 40, '', csharpStyle);
+    // No standalone </para> on its own line — it should be appended to last content line
+    expect(result).not.toContain('</para>');
+    expect(result.some(l => l.endsWith('</para>'))).toBe(true);
+    // Opening tag must carry the first content word
+    expect(result.some(l => l.startsWith('<para>'))).toBe(true);
   });
 
   it('plain-text loop stops when inline block-level open tag is encountered', () => {

@@ -11,6 +11,63 @@ const XML_CLOSE_TAG_REGEX = /^\s*<\/(\w+)>\s*$/;
 const XML_SELF_CLOSE_TAG_REGEX = /^\s*<(\w+)([^>]*)\s*\/>\s*$/;
 const BLOCK_TAGS = new Set(['summary', 'remarks', 'returns', 'param', 'typeparam', 'value', 'example', 'exception', 'code', 'para', 'list', 'item', 'term', 'description', 'seealso', 'inheritdoc']);
 
+/** Returns the first non-empty trimmed line at or after `start`, or undefined. */
+function findNextNonEmpty(lines: string[], start: number): string | undefined {
+  for (let j = start; j < lines.length; j++) {
+    const t = lines[j].trim();
+    if (t) return t;
+  }
+  return undefined;
+}
+
+/**
+ * Returns true if a blank separator should be inserted before a <para> element.
+ * Suppressed when the previous result entry is an opening block tag (e.g. <summary>)
+ * or ends with a closing block tag (e.g. </para>), so we never add blanks after
+ * container openings or between consecutive <para> blocks.
+ */
+function shouldInsertParaSeparator(result: string[]): boolean {
+  if (result.length === 0 || result[result.length - 1] === '') return false;
+  const prev = result[result.length - 1];
+  if (prev.match(XML_OPEN_TAG_REGEX)) return false;
+  const m = prev.match(/<\/(\w+)>\s*$/);
+  return !(m !== null && BLOCK_TAGS.has(m[1].toLowerCase()));
+}
+
+/**
+ * Splits lines where a closing block tag is followed by more content on the same line,
+ * e.g., "content</para> <para>more" → ["content</para>", "<para>more"].
+ * This normalises inline multi-element lines before the main reflow loop runs.
+ * Lines that require no splitting are returned unchanged (preserving leading whitespace
+ * for code blocks and other indented content).
+ */
+function normalizeLines(lines: string[]): string[] {
+  const result: string[] = [];
+  for (const raw of lines) {
+    const trimmed = raw.trim();
+    if (!trimmed) {
+      result.push(raw);  // preserve blank lines as-is
+      continue;
+    }
+    const parts: string[] = [];
+    let rest = trimmed;
+    for (;;) {
+      const m = rest.match(/^(.*?<\/(\w+)>)\s*(?=\S)/);
+      if (!m || !BLOCK_TAGS.has(m[2].toLowerCase())) break;
+      parts.push(m[1]);
+      rest = rest.slice(m[0].length);
+    }
+    if (parts.length > 0) {
+      // Splitting occurred; push trimmed segments (these are structural XML, not code)
+      if (rest.trim()) parts.push(rest.trim());
+      result.push(...parts);
+    } else {
+      result.push(raw);  // no split — preserve original (keeps indentation in <code> blocks)
+    }
+  }
+  return result;
+}
+
 /**
  * Reflows (wraps) XML documentation comment text to fit within a maximum line width.
  * Preserves XML structure, code blocks, and list formatting.
@@ -30,6 +87,10 @@ export function reflowXmlContent(
   indentation: string,
   commentStyle: LanguageCommentStyle,
 ): string[] {
+  // Normalise: split lines where a closing block tag is followed by more content
+  // (e.g. "text</para> <para>more") so the main loop always sees one element per line.
+  lines = normalizeLines(lines);
+
   const result: string[] = [];
   let i = 0;
 
@@ -40,8 +101,26 @@ export function reflowXmlContent(
   while (i < lines.length) {
     const line = lines[i].trim();
 
-    // Empty line - preserve as paragraph break
+    // Empty line - preserve as paragraph break, but skip blanks that fall
+    // between a closing block tag and an opening block tag (e.g. between
+    // consecutive <para> elements) since <para> itself provides separation.
     if (!line) {
+      const prevEntry = result.length > 0 ? result[result.length - 1] : '';
+      const nextLine = findNextNonEmpty(lines, i + 1);
+      const prevEndsWithBlockClose = (() => {
+        if (!prevEntry) return false;
+        const m = prevEntry.match(/<\/(\w+)>\s*$/);
+        return m !== null && BLOCK_TAGS.has(m[1].toLowerCase());
+      })();
+      const nextStartsWithBlockTag = (() => {
+        if (!nextLine) return false;
+        const m = nextLine.match(/^<(\w+)/);
+        return m !== null && BLOCK_TAGS.has(m[1].toLowerCase());
+      })();
+      if (prevEndsWithBlockClose && nextStartsWithBlockTag) {
+        i++;
+        continue;
+      }
       result.push('');
       i++;
       continue;
@@ -76,9 +155,10 @@ export function reflowXmlContent(
       }
 
       // Other block tags - put tag on its own line, reflow content.
-      // <para> must always start on its own line — insert a blank separator if
-      // the preceding result entry is non-empty (e.g. after </para> or text).
-      if (tagName === 'para' && result.length > 0 && result[result.length - 1] !== '') {
+      // <para> starts on its own line with a blank separator, but only when
+      // the preceding entry is plain text — not after an opening block tag
+      // (e.g. <summary>) or a closing block tag (e.g. </para>).
+      if (tagName === 'para' && shouldInsertParaSeparator(result)) {
         result.push('');
       }
       result.push(line);
@@ -136,88 +216,96 @@ export function reflowXmlContent(
       continue;
     }
 
-    // Opening tag with content on same line (e.g., "<summary>Some text")
+    // Opening tag with content on same line (e.g., "<param name="x">Some text")
     const inlineOpenMatch = line.match(/^<(\w+)([^>]*)>\s*(.+)$/);
     if (inlineOpenMatch && BLOCK_TAGS.has(inlineOpenMatch[1].toLowerCase())) {
       const tagName = inlineOpenMatch[1].toLowerCase();
       const tagAttrs = inlineOpenMatch[2];
       const afterContent = inlineOpenMatch[3].trim();
+      // Only <summary> is forced to multi-line form (standalone opening/closing tags)
+      // so the transparent-text opacity effect renders cleanly when collapsed.
+      const alwaysMultiLine = tagName === 'summary';
 
       // Check if closing tag is on same line
       const inlineCloseMatch = afterContent.match(new RegExp(`^(.*)<\\/${tagName}>\\s*$`));
       if (inlineCloseMatch) {
-        // Single line tag with content.
-        // <summary> and <remarks> always use multi-line form regardless of content length
-        // so the transparent-text opacity effect renders cleanly.
-        // <para> always starts on its own line — insert a blank separator if needed.
-        if (tagName === 'para' && result.length > 0 && result[result.length - 1] !== '') {
+        if (tagName === 'para' && shouldInsertParaSeparator(result)) {
           result.push('');
         }
         const content = inlineCloseMatch[1].trim();
         const wrapped = wrapParagraph(content, effectiveWidth);
-        const alwaysMultiLine = tagName === 'summary' || tagName === 'remarks';
-        if (wrapped.length === 1 && !alwaysMultiLine) {
-          result.push(`<${tagName}${tagAttrs}>${wrapped[0]}</${tagName}>`);
-        } else {
+        if (wrapped.length <= 1 && !alwaysMultiLine) {
+          // Short enough to stay on one line (or empty)
+          result.push(`<${tagName}${tagAttrs}>${wrapped[0] ?? ''}</${tagName}>`);
+        } else if (alwaysMultiLine) {
+          // Force standalone opening/closing (summary)
           result.push(`<${tagName}${tagAttrs}>`);
           result.push(...wrapped);
           result.push(`</${tagName}>`);
+        } else {
+          // Inline form: opening tag on the first content line, closing on the last.
+          // Rule: if content followed the opening tag in the source, the closing tag
+          // should follow the last line of content (not sit on its own line).
+          result.push(`<${tagName}${tagAttrs}>${wrapped[0]}`);
+          for (let wi = 1; wi < wrapped.length; wi++) result.push(wrapped[wi]);
+          result[result.length - 1] += `</${tagName}>`;
         }
         i++;
         continue;
       }
 
-      // Multi-line: split tag and content.
-      // <para> must always start on its own line — insert a blank separator if needed.
-      if (tagName === 'para' && result.length > 0 && result[result.length - 1] !== '') {
+      // Multi-line: opening tag has inline content but the closing tag is on a later line.
+      // Collect everything until the closing tag, then emit in the same style as above.
+      if (tagName === 'para' && shouldInsertParaSeparator(result)) {
         result.push('');
       }
-      result.push(`<${tagName}${tagAttrs}>`);
-      const contentLines: string[] = [afterContent];
+      const collectedContent: string[] = [afterContent];
+      let foundClose = false;
       i++;
 
       while (i < lines.length) {
         const contentLine = lines[i].trim();
-        const closeMatch = contentLine.match(XML_CLOSE_TAG_REGEX);
-        if (closeMatch && closeMatch[1].toLowerCase() === tagName) {
+
+        // Standalone closing tag on its own line
+        if (contentLine.match(XML_CLOSE_TAG_REGEX)?.[1]?.toLowerCase() === tagName) {
+          i++;
+          foundClose = true;
           break;
         }
 
-        // Check for closing tag at end of line
-        const endCloseMatch = contentLine.match(new RegExp(`^(.*)<\\/${tagName}>\\s*$`));
+        // Closing tag at end of line (preceded by content on the same line).
+        // Uses non-greedy `.*?` so it stops at the FIRST occurrence of </tagName>.
+        const endCloseMatch = contentLine.match(new RegExp(`^(.*?)<\\/${tagName}>\\s*$`));
         if (endCloseMatch) {
-          contentLines.push(endCloseMatch[1].trim());
+          const beforeClose = endCloseMatch[1].trim();
+          if (beforeClose) collectedContent.push(beforeClose);
           i++;
-          // Flush and add closing tag
-          if (contentLines.length > 0) {
-            const text = contentLines.filter(l => l).join(' ');
-            if (text) result.push(...wrapParagraph(text, effectiveWidth));
-          }
-          result.push(`</${tagName}>`);
+          foundClose = true;
+          break;  // fixed: was `continue`, which re-entered the loop past the closing tag
+        }
+
+        // Skip blank lines within inline-open block content
+        if (!contentLine) {
+          i++;
           continue;
         }
 
-        if (contentLine === '') {
-          if (contentLines.length > 0) {
-            const text = contentLines.filter(l => l).join(' ');
-            if (text) result.push(...wrapParagraph(text, effectiveWidth));
-            contentLines.length = 0;
-          }
-          result.push('');
-        } else {
-          contentLines.push(contentLine);
-        }
+        collectedContent.push(contentLine);
         i++;
       }
 
-      if (contentLines.length > 0) {
-        const text = contentLines.filter(l => l).join(' ');
-        if (text) result.push(...wrapParagraph(text, effectiveWidth));
-      }
-
-      if (i < lines.length) {
-        result.push(`</${tagName}>`);
-        i++;
+      const fullText = collectedContent.filter(l => l).join(' ');
+      const wrapped = wrapParagraph(fullText, effectiveWidth);
+      if (alwaysMultiLine) {
+        result.push(`<${tagName}${tagAttrs}>`);
+        if (wrapped.length > 0) result.push(...wrapped);
+        if (foundClose) result.push(`</${tagName}>`);
+      } else if (wrapped.length === 0) {
+        result.push(`<${tagName}${tagAttrs}>${foundClose ? `</${tagName}>` : ''}`);
+      } else {
+        result.push(`<${tagName}${tagAttrs}>${wrapped[0]}`);
+        for (let wi = 1; wi < wrapped.length; wi++) result.push(wrapped[wi]);
+        if (foundClose) result[result.length - 1] += `</${tagName}>`;
       }
       continue;
     }
