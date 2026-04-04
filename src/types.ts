@@ -16,6 +16,9 @@ export type LeftBorderMode = 'off' | 'multilineOnly' | 'inlineOnly' | 'always';
 /** CodeLens placement relative to the comment block */
 export type CodeLensPosition = 'inline' | 'ownLine';
 
+/** How the CodeLens click shows documentation content */
+export type PopupStyle = 'hover' | 'overlay';
+
 /** Extension configuration */
 export interface CommentStudioConfig {
   renderingMode: RenderingMode;
@@ -45,8 +48,10 @@ export interface CommentStudioConfig {
   preserveBlankLines: boolean;
   leftBorder: LeftBorderMode;
   codeLensPosition: CodeLensPosition;
+  codeLensMaxLength: number;
+  popupStyle: PopupStyle;
 
-  // Color overrides (empty string = use ThemeColor default)
+  // Color overrides(empty string = use ThemeColor default)
   colors: {
     // Anchor type colors
     todo: string;

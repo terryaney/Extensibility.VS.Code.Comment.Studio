@@ -420,7 +420,7 @@ export function generateAnchorsGridHtml(nonce: string, codiconsCssUri: string, c
     }
     .doc-overlay-card .example .section-body code {
       display: block;
-      background: var(--vscode-textBlockQuote-background, #1e1e1e);
+      background: var(--vscode-editor-background);
       border-left: 3px solid var(--vscode-textBlockQuote-border, #444);
       padding: 8px 12px;
       border-radius: 3px;
@@ -431,7 +431,7 @@ export function generateAnchorsGridHtml(nonce: string, codiconsCssUri: string, c
       font-family: var(--vscode-editor-font-family, 'Consolas', monospace);
       font-size: var(--vscode-editor-font-size, 13px);
       color: var(--vscode-textPreformat-foreground, #CE9178);
-      background: var(--vscode-textPreformat-background, rgba(255,255,255,0.06));
+      background: var(--vscode-editor-background);
       padding: 1px 4px;
       border-radius: 3px;
     }

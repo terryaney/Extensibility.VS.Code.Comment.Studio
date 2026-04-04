@@ -150,9 +150,9 @@ function parseElement(xml: string, start: number): ParseResult | undefined {
     while (k < xml.length && xml[k] !== '<') {
       k++;
     }
-    const text = xml.substring(textStart, k);
-    if (text) {
-      children.push({ text });
+    const rawText = xml.substring(textStart, k);
+    if (rawText) {
+      children.push({ text: decodeXmlEntities(rawText) });
     }
   }
 
@@ -160,6 +160,15 @@ function parseElement(xml: string, start: number): ParseResult | undefined {
     node: { tagName, attributes, children },
     endIndex: k,
   };
+}
+
+function decodeXmlEntities(text: string): string {
+  return text
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'")
+    .replace(/&amp;/g, '&'); // must be last to avoid double-decoding
 }
 
 /**

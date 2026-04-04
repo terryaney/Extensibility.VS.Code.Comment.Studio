@@ -3,6 +3,7 @@ import { DecorationManager } from './rendering/decorationManager';
 import { CommentCodeLensProvider } from './rendering/commentCodeLensProvider';
 import { renderToHtmlFragment } from './rendering/commentRenderer';
 import { getCachedCommentBlocks } from './parsing/commentParser';
+import { CommentHoverProvider } from './rendering/commentHoverProvider';
 
 import { PrefixHighlighter }from './rendering/prefixHighlighter';
 import { getConfiguration, onConfigurationChanged } from './configuration';
@@ -45,6 +46,7 @@ import {
 
 let decorationManager: DecorationManager | undefined;
 let codeLensProvider: CommentCodeLensProvider | undefined;
+let commentHoverProvider: CommentHoverProvider | undefined;
 let anchorDecorationManager: AnchorDecorationManager | undefined;
 let prefixHighlighter: PrefixHighlighter | undefined;
 let smartPasteHandler: SmartPasteHandler | undefined;
@@ -73,9 +75,17 @@ export function activate(context: vscode.ExtensionContext): void {
   const isRenderingOn = config.renderingMode === 'on';
   codeLensProvider.setEnabled(isRenderingOn);
   codeLensProvider.setCodeLensPosition(config.codeLensPosition);
+  codeLensProvider.setCodeLensMaxLength(config.codeLensMaxLength);
 
   context.subscriptions.push(
     vscode.languages.registerCodeLensProvider(SUPPORTED_LANGUAGES, codeLensProvider),
+  );
+
+  // Register comment hover provider (CodeLens-triggered rich tooltips)
+  commentHoverProvider = new CommentHoverProvider();
+  commentHoverProvider.setEnabled(isRenderingOn);
+  context.subscriptions.push(
+    vscode.languages.registerHoverProvider(SUPPORTED_LANGUAGES, commentHoverProvider),
   );
 
   // Register navigation providers (conditionally based on settings)
@@ -153,18 +163,29 @@ export function activate(context: vscode.ExtensionContext): void {
     vscode.commands.registerCommand('kat-comment-studio.showCommentTooltip', async (uri: vscode.Uri, startLine: number) => {
       const editor = vscode.window.activeTextEditor;
       if (!editor || editor.document.uri.toString() !== uri.toString()) return;
-      const lines = editor.document.getText().split(/\r?\n/);
-      const blocks = getCachedCommentBlocks(
-        editor.document.uri.toString(),
-        editor.document.version,
-        lines,
-        editor.document.languageId,
-      );
-      const block = blocks?.find(b => b.startLine === startLine);
-      if (!block) return;
-      const html = renderToHtmlFragment(block);
-      await vscode.commands.executeCommand('kat-comment-studio.anchorsGrid.focus');
-      anchorsGridProvider?.showDocOverlay(html);
+
+      const currentConfig = getConfiguration();
+      if (currentConfig.popupStyle === 'hover' && commentHoverProvider) {
+        // Arm the hover provider and trigger VS Code's hover at the comment location
+        commentHoverProvider.setPendingHover(uri, startLine);
+        decorationManager?.suppressNextAutoExpand();
+        editor.selection = new vscode.Selection(startLine, 0, startLine, 0);
+        await vscode.commands.executeCommand('editor.action.showHover');
+      } else {
+        // Overlay mode: show in anchors grid panel
+        const lines = editor.document.getText().split(/\r?\n/);
+        const blocks = getCachedCommentBlocks(
+          editor.document.uri.toString(),
+          editor.document.version,
+          lines,
+          editor.document.languageId,
+        );
+        const block = blocks?.find(b => b.startLine === startLine);
+        if (!block) return;
+        const html = renderToHtmlFragment(block);
+        await vscode.commands.executeCommand('kat-comment-studio.anchorsGrid.focus');
+        anchorsGridProvider?.showDocOverlay(html);
+      }
     }),
   );
 
@@ -200,6 +221,8 @@ export function activate(context: vscode.ExtensionContext): void {
       const renderingOn = newConfig.renderingMode === 'on';
       codeLensProvider?.setEnabled(renderingOn);
       codeLensProvider?.setCodeLensPosition(newConfig.codeLensPosition);
+      codeLensProvider?.setCodeLensMaxLength(newConfig.codeLensMaxLength);
+      commentHoverProvider?.setEnabled(renderingOn);
 
       vscode.commands.executeCommand('setContext', 'kat-comment-studio.renderingActive', newConfig.renderingMode !== 'off');
       updateRenderingStatusBar(renderingOn);

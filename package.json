@@ -252,7 +252,7 @@
         "category": "KAT Comment Studio"
       }
     ],
-    "keybindings": [
+    "keybindings.off": [
       {
         "command": "kat-comment-studio.toggleRendering",
         "key": "escape",
@@ -402,6 +402,19 @@
           ],
           "description": "Show a subtle vertical line on the left edge of rendered comments"
         },
+        "kat-comment-studio.popupStyle": {
+          "type": "string",
+          "default": "hover",
+          "enum": [
+            "hover",
+            "overlay"
+          ],
+          "enumDescriptions": [
+            "Show documentation as a rich hover tooltip in the editor (default)",
+            "Show documentation in the Code Anchors panel overlay"
+          ],
+          "description": "How clicking the summary CodeLens displays documentation content"
+        },
         "kat-comment-studio.codeLensPosition": {
           "type": "string",
           "default": "inline",
@@ -414,6 +427,13 @@
             "Place CodeLens on its own line immediately above the method declaration"
           ],
           "description": "Where to position the comment summary CodeLens relative to the comment block"
+        },
+        "kat-comment-studio.codeLensMaxLength": {
+          "type": "number",
+          "default": 100,
+          "minimum": 30,
+          "maximum": 500,
+          "description": "Maximum number of characters for the CodeLens summary text before truncation"
         },
         "kat-comment-studio.colors.todo": {
           "type": "string",

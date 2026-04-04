@@ -4,21 +4,49 @@ import { renderToMarkdown } from './commentRenderer';
 
 /**
  * Provides rich hover tooltips for XML doc comment blocks.
- * Shows full rendered documentation as Markdown when hovering
- * over lines within a doc comment range.
+ * Only shows content when explicitly triggered via CodeLens click
+ * (setPendingHover sets the target, provideHover checks it).
  */
 export class CommentHoverProvider implements vscode.HoverProvider {
   private enabled = true;
+  private _pendingUri: string | undefined;
+  private _pendingStartLine: number | undefined;
 
   setEnabled(enabled: boolean): void {
     this.enabled = enabled;
+  }
+
+  /**
+   * Arms the hover provider for a specific comment block.
+   * The next provideHover call matching this location will return content
+   * and clear the pending state.
+   */
+  setPendingHover(uri: vscode.Uri, startLine: number): void {
+    this._pendingUri = uri.toString();
+    this._pendingStartLine = startLine;
+  }
+
+  /** Clears any pending hover without showing it. */
+  clearPending(): void {
+    this._pendingUri = undefined;
+    this._pendingStartLine = undefined;
   }
 
   provideHover(
     document: vscode.TextDocument,
     position: vscode.Position,
   ): vscode.Hover | undefined {
-    if (!this.enabled) return undefined;
+    if (!this.enabled) {
+      this.clearPending();
+      return undefined;
+    }
+
+    // Only respond when armed via CodeLens click
+    if (this._pendingUri === undefined || this._pendingStartLine === undefined) return undefined;
+    if (document.uri.toString() !== this._pendingUri) {
+      this.clearPending();
+      return undefined;
+    }
 
     const lines = document.getText().split(/\r?\n/);
     const blocks = getCachedCommentBlocks(
@@ -28,14 +56,26 @@ export class CommentHoverProvider implements vscode.HoverProvider {
       document.languageId,
     );
 
-    if (!blocks || blocks.length === 0) return undefined;
+    if (!blocks || blocks.length === 0) {
+      this.clearPending();
+      return undefined;
+    }
 
-    // Find the block that contains the hover position
-    const block = blocks.find(b =>
-      position.line >= b.startLine && position.line <= b.endLine,
-    );
+    // Find the block matching the pending startLine
+    const block = blocks.find(b => b.startLine === this._pendingStartLine);
+    if (!block) {
+      this.clearPending();
+      return undefined;
+    }
 
-    if (!block) return undefined;
+    // Validate that the hover position is within the target block range
+    if (position.line < block.startLine || position.line > block.endLine) {
+      this.clearPending();
+      return undefined;
+    }
+
+    // Clear pending state (one-shot)
+    this.clearPending();
 
     const md = renderToMarkdown(block);
     if (!md) return undefined;

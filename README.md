@@ -444,6 +444,120 @@ All colors have **theme-aware defaults** for dark, light, and high-contrast them
 
 Leave any setting empty (`""`) to use the theme default automatically.
 
+### Hover Popup Code Block Backgrounds
+
+The hover popup (triggered by clicking the CodeLens summary) renders fenced code blocks using VS Code's Monaco tokenizer (`monaco-tokenized-source`). This is an internal rendering path — it is **not** controlled by the `textCodeBlock.background` or `textPreformat.background` workbench tokens. The background defaults to the hover widget background color (`editorHoverWidget.background`).
+
+There are two separate scenarios:
+
+#### Inline code ticks (`` `code` ``)
+
+Controlled by `textCodeBlock.background`. To match your editor background:
+
+1. **Find your editor background color:**
+   - Open the Command Palette (`Ctrl+Shift+P`) → `Developer: Generate Color Theme From Current Settings`
+   - This dumps all resolved token values for your active theme to a new editor tab
+   - Search for `editor.background` — copy that hex value
+   - ⚠️ This value is **theme-specific** and static. If you switch themes you'll need to update it manually.
+
+2. **Override the token** in `settings.json`:
+   ```json
+   "workbench.colorCustomizations": {
+       "textCodeBlock.background": "#222222"
+   }
+   ```
+   Replace `#222222` with the `editor.background` hex value from step 1.
+
+#### Fenced code blocks (` ```csharp ... ``` `)
+
+These use the Monaco tokenizer internally and are **not** affected by any workbench color token. The only way to style them is via custom CSS (and optionally JS) injection using the [Custom CSS and JS Loader](https://marketplace.visualstudio.com/items?itemName=be5invis.vscode-custom-css) extension by be5invis.
+
+**Step 1 — Install Custom CSS and JS Loader** from the VS Code marketplace.
+
+**Step 2 — Find your editor background color:**
+- Open the Command Palette (`Ctrl+Shift+P`) → `Developer: Generate Color Theme From Current Settings`
+- Search for `editor.background` in the generated output — copy that hex value
+- ⚠️ This is **theme-specific** and static. Update it manually if you switch themes.
+
+**Step 3 — Choose scoped (recommended) or simple:**
+
+---
+
+##### Option A — Scoped to KAT Comment Studio only (recommended)
+
+This uses a MutationObserver in custom JS to detect KAT Comment Studio's hover popup (which includes a unique invisible marker element) and tag it with a CSS class, enabling styling that won't affect IntelliSense or other extension hovers.
+
+Create a **CSS file** — e.g. `C:\Users\YourName\vscode-custom.css`:
+```css
+/* KAT Comment Studio — scoped fenced code block background */
+.kat-comment-hover .monaco-tokenized-source {
+    background-color: #222222 !important; /* replace with your editor.background */
+}
+```
+
+Create a **JS file** — e.g. `C:\Users\YourName\vscode-custom.js`:
+```javascript
+// KAT Comment Studio — tag hover popup for scoped CSS.
+// VS Code reuses the same .monaco-hover widget for all hovers (IntelliSense,
+// extensions, etc.) — only the content changes. KAT hovers are identified by
+// the presence of a $(book) codicon heading (rendered as .codicon-book), which
+// IntelliSense and other extension hovers won't produce. Skip unrelated
+// mutations (editor keystrokes, tree updates, etc.) to avoid unnecessary scanning.
+const katObserver = new MutationObserver((mutations) => {
+    const relevant = mutations.some(m =>
+        m.target.closest?.('.monaco-hover') ||
+        Array.from(m.addedNodes).some(n =>
+            n.nodeType === 1 &&
+            (n.classList?.contains('monaco-hover') || n.querySelector?.('.monaco-hover'))
+        )
+    );
+    if (!relevant) return;
+    document.querySelectorAll('.monaco-hover').forEach(h => {
+        const isKat = Array.from(h.querySelectorAll('strong > .codicon-book'))
+            .some(el => el.closest('strong').textContent.trim() === 'Example');
+        if (isKat) {
+            h.classList.add('kat-comment-hover');
+        } else {
+            h.classList.remove('kat-comment-hover');
+        }
+    });
+});
+katObserver.observe(document.body, { childList: true, subtree: true });
+```
+
+Configure both files in `settings.json`:
+```json
+"vscode_custom_css.imports": [
+    "file:///C:/Users/YourName/vscode-custom.css",
+    "file:///C:/Users/YourName/vscode-custom.js"
+]
+```
+On macOS/Linux use `file:///home/yourname/...` paths.
+
+---
+
+##### Option B — Simple (styles all Monaco hovers)
+
+If you're comfortable with all VS Code hover tooltips using your editor background for code blocks (often looks fine), this is simpler — no JS needed:
+
+```css
+/* All Monaco hovers — fenced code block background */
+.monaco-hover .monaco-tokenized-source {
+    background-color: #222222 !important; /* replace with your editor.background */
+}
+```
+
+---
+
+**Step 4 — Apply:** Open the Command Palette → `Enable Custom CSS and JS` → click **Restart** when prompted.
+
+**Step 5 — Dismiss the warning:** VS Code will show a yellow "corrupted installation" warning bar. This is expected and harmless — VS Code checksums its own files and any CSS injection triggers it. You can safely dismiss it.
+
+**Important caveats:**
+- Re-run `Enable Custom CSS and JS` after every VS Code update
+- Update the hex color in your CSS file if you switch themes
+- If you already use another custom CSS extension, add these rules to your existing files rather than creating new ones — multiple extensions patching the same workbench file can conflict
+
 ---
 
 ## Settings Reference

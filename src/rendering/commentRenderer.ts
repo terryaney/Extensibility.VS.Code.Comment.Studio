@@ -40,6 +40,20 @@ function colorizeAnchorTags(html: string): string {
   });
 }
 
+/**
+ * Colorizes anchor tags in plain text for MarkdownString output.
+ * Uses the restricted style attribute allowed in VS Code hovers.
+ */
+function colorizeAnchorTagsMarkdown(text: string): string {
+  const tagPattern = [...ANCHOR_TAG_COLORS.keys()].join('|');
+  const regex = new RegExp(`\\b(${tagPattern}):`, 'g');
+  return text.replace(regex, (match, tag) => {
+    const color = ANCHOR_TAG_COLORS.get(tag);
+    if (!color) return match;
+    return `<span style="color:${color};">${match}</span>`;
+  });
+}
+
 export const NO_SUMMARY_PLACEHOLDER = '(No summary provided)';
 
 /**
@@ -148,41 +162,210 @@ export function renderToMarkdown(block: XmlDocCommentBlock, repoInfo?: GitReposi
   md.isTrusted = true;
   md.supportHtml = true;
 
+  // KAT hovers are identified by the presence of a $(book) codicon heading
+  // (rendered as <span class="codicon codicon-book">) which IntelliSense and
+  // other extension hovers won't have. The MutationObserver detects it via
+  // querySelector and adds/removes 'kat-comment-hover' on the shared widget.
+
+  // Collect params/typeParams for table rendering
+  const paramSections = rendered.sections.filter(
+    s => (s.type === CommentSectionType.Param || s.type === CommentSectionType.TypeParam)
+      && s.lines.length > 0 && !s.lines.every(l => isBlankLine(l)),
+  );
+  let paramSectionsRendered = false;
+
   let isFirst = true;
   for (const section of rendered.sections) {
     if (section.lines.length === 0 || section.lines.every(l => isBlankLine(l))) continue;
 
-    if (!isFirst) {
-      md.appendMarkdown('\n\n---\n\n');
+    // Batch all param/typeParam sections into a single table
+    if (section.type === CommentSectionType.Param || section.type === CommentSectionType.TypeParam) {
+      if (paramSectionsRendered) continue;
+      paramSectionsRendered = true;
+      if (!isFirst) md.appendMarkdown('\n\n---\n\n');
+      isFirst = false;
+      md.appendMarkdown(renderParamTableMarkdown(paramSections));
+      continue;
     }
+
+    if (!isFirst) md.appendMarkdown('\n\n---\n\n');
     isFirst = false;
 
-    // Add section heading
-    const heading = getSectionMarkdownHeading(section);
-    if (heading) {
-      md.appendMarkdown(`**${heading}**\n\n`);
-    }
+    switch (section.type) {
+      case CommentSectionType.Summary:
+        md.appendMarkdown(sectionLinesToMarkdownRich(section));
+        break;
 
-    // Render section lines
-    const lineTexts: string[] = [];
-    for (const line of section.lines) {
-      if (isBlankLine(line)) {
-        lineTexts.push('');
-        continue;
+      case CommentSectionType.Returns:
+        md.appendMarkdown(sectionHeadingMarkdown('$(symbol-key) Returns'));
+        md.appendMarkdown(sectionLinesToMarkdownRich(section));
+        break;
+
+      case CommentSectionType.Value:
+        md.appendMarkdown(sectionHeadingMarkdown('$(symbol-value) Value'));
+        md.appendMarkdown(sectionLinesToMarkdownRich(section));
+        break;
+
+      case CommentSectionType.Remarks:
+        md.appendMarkdown(sectionHeadingMarkdown('$(comment-discussion) Remarks'));
+        md.appendMarkdown(sectionLinesToMarkdownRich(section));
+        break;
+
+      case CommentSectionType.Example:
+        md.appendMarkdown(sectionHeadingMarkdown('$(book) Example'));
+        md.appendMarkdown(sectionLinesToMarkdownRichExample(section));
+        break;
+
+      case CommentSectionType.Exception: {
+        const excName = section.name || 'Exception';
+        md.appendMarkdown(sectionHeadingMarkdown(`$(warning) Throws \`${excName}\``));
+        md.appendMarkdown(sectionLinesToMarkdownRich(section));
+        break;
       }
-      const lineText = line.segments.map(s => segmentToMarkdown(s)).join('');
-      lineTexts.push(lineText);
-    }
 
-    // Trim trailing blank lines
-    while (lineTexts.length > 0 && lineTexts[lineTexts.length - 1] === '') {
-      lineTexts.pop();
-    }
+      case CommentSectionType.SeeAlso:
+        md.appendMarkdown(sectionHeadingMarkdown('$(references) See Also'));
+        md.appendMarkdown(sectionLinesToMarkdownRich(section));
+        break;
 
-    md.appendMarkdown(lineTexts.join('  \n'));
+      default: {
+        const heading = section.heading;
+        if (heading) {
+          md.appendMarkdown(sectionHeadingMarkdown(heading));
+        }
+        md.appendMarkdown(sectionLinesToMarkdownRich(section));
+        break;
+      }
+    }
   }
 
   return md;
+}
+
+/**
+ * Renders a styled section heading for hover display.
+ * Uses a span with muted color for visual hierarchy.
+ */
+function sectionHeadingMarkdown(label: string): string {
+  return `<span style="color:var(--vscode-editorCodeLens-foreground);">**${label}**</span>\n\n`;
+}
+
+/**
+ * Renders param/typeParam sections as a formatted table.
+ */
+function renderParamTableMarkdown(sections: RenderedCommentSection[]): string {
+  const parts: string[] = [];
+  parts.push('<span style="color:var(--vscode-editorCodeLens-foreground);">**$(symbol-parameter) Parameters**</span>\n\n');
+  parts.push('| | |\n|---|---|\n');
+  for (const s of sections) {
+    const name = s.name || '?';
+    const desc = s.lines
+      .filter(l => !isBlankLine(l))
+      .map(l => l.segments.map(seg => segmentToMarkdownRich(seg)).join(''))
+      .join(' ');
+    parts.push(`| <span style="color:var(--vscode-symbolIcon-fieldForeground);">\`${name}\`</span> | ${desc} |\n`);
+  }
+  return parts.join('');
+}
+
+/**
+ * Returns a backtick fence string long enough that the content cannot break out.
+ * Finds the longest run of consecutive backticks in the text and adds one more.
+ */
+function safeFence(text: string): string {
+  let max = 0;
+  const re = /`+/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    if (m[0].length > max) max = m[0].length;
+  }
+  return '`'.repeat(Math.max(3, max + 1));
+}
+
+/**
+ * Renders section lines to rich markdown, merging consecutive code lines
+ * into fenced code blocks with syntax highlighting.
+ */
+function sectionLinesToMarkdownRich(section: RenderedCommentSection): string {
+  const parts: string[] = [];
+  let i = 0;
+  const lines = section.lines;
+  while (i < lines.length) {
+    const line = lines[i];
+    if (isBlankLine(line)) {
+      parts.push('\n');
+      i++;
+      continue;
+    }
+
+    // Merge consecutive Code-only lines into a fenced code block
+    if (line.segments.length === 1 && line.segments[0].type === SegmentType.Code) {
+      const codeTexts: string[] = [];
+      while (i < lines.length) {
+        const cl = lines[i];
+        if (cl.segments.length === 1 && cl.segments[0].type === SegmentType.Code) {
+          codeTexts.push(cl.segments[0].text);
+          i++;
+        } else {
+          break;
+        }
+      }
+      const codeBlock = codeTexts.join('\n');
+      // Use a fence longer than any backtick run in content to prevent breakout
+      const fence = safeFence(codeBlock);
+      parts.push(`\n${fence}csharp\n${codeBlock}\n${fence}\n`);
+      continue;
+    }
+
+    const lineText = line.segments.map(s => segmentToMarkdownRich(s)).join('');
+    parts.push(lineText + '  \n');
+    i++;
+  }
+  return parts.join('');
+}
+
+/**
+ * Renders example section lines, treating ALL content as a code block
+ * when there are code segments present.
+ */
+function sectionLinesToMarkdownRichExample(section: RenderedCommentSection): string {
+  // Check if section has any code-only lines
+  const hasCodeLines = section.lines.some(
+    l => l.segments.length === 1 && l.segments[0].type === SegmentType.Code,
+  );
+
+  if (!hasCodeLines) {
+    return sectionLinesToMarkdownRich(section);
+  }
+
+  // Render mixed: text lines as markdown, code lines as fenced block
+  return sectionLinesToMarkdownRich(section);
+}
+
+/**
+ * Converts a segment to rich markdown with color spans where applicable.
+ */
+function segmentToMarkdownRich(segment: RenderedSegment): string {
+  switch (segment.type) {
+    case SegmentType.Bold:
+    case SegmentType.Heading:
+      return `**${segment.text}**`;
+    case SegmentType.Italic:
+      return `*${segment.text}*`;
+    case SegmentType.Code:
+      return `\`${segment.text}\``;
+    case SegmentType.ParamRef:
+    case SegmentType.TypeParamRef:
+      return `<span style="color:var(--vscode-symbolIcon-fieldForeground);">\`${segment.text}\`</span>`;
+    case SegmentType.Link:
+    case SegmentType.IssueReference:
+      return segment.linkTarget ? `[${segment.text}](${segment.linkTarget})` : segment.text;
+    case SegmentType.Strikethrough:
+      return `~~${segment.text}~~`;
+    case SegmentType.Text:
+    default:
+      return colorizeAnchorTagsMarkdown(segment.text);
+  }
 }
 
 /**

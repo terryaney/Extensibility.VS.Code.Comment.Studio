@@ -30,6 +30,7 @@ export class DecorationManager implements vscode.Disposable {
   private visibleRangesDisposable: vscode.Disposable | undefined;
   private visibleRangesDebounceTimer: NodeJS.Timeout | undefined;
   private codeLensProvider: CommentCodeLensProvider | undefined;
+  private _suppressAutoExpand = false;
 
   constructor(config: CommentStudioConfig) {
     this.config = config;
@@ -42,6 +43,11 @@ export class DecorationManager implements vscode.Disposable {
 
   setCodeLensProvider(provider: CommentCodeLensProvider): void {
     this.codeLensProvider = provider;
+  }
+
+  /** Suppresses the next auto-expand triggered by cursor movement. One-shot. */
+  suppressNextAutoExpand(): void {
+    this._suppressAutoExpand = true;
   }
 
   updateConfiguration(config: CommentStudioConfig): void {
@@ -250,10 +256,11 @@ export class DecorationManager implements vscode.Disposable {
       // Cancel any refold timer for this block
       this.cancelRefoldTimer(docKey, containingBlock.startLine);
 
-      // If block is folded, start a debounced expand timer
-      if (!expanded.has(containingBlock.startLine)) {
+      // If block is folded, start a debounced expand timer (unless suppressed)
+      if (!expanded.has(containingBlock.startLine) && !this._suppressAutoExpand) {
         this.startExpandTimer(editor, docKey, containingBlock);
       }
+      this._suppressAutoExpand = false;
     } else {
       // Cursor is outside all comment blocks — cancel any pending expand timers
       this.cancelAllExpandTimers(docKey);
