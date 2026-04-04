@@ -42,6 +42,7 @@ import {
   normalizeAnchorViewState,
   resolveScopeRootPath,
 } from './anchors/anchorViewState';
+import { disposeDebugChannel } from './diagnostics/debugLog';
 
 let decorationManager: DecorationManager | undefined;
 let codeLensProvider: CommentCodeLensProvider | undefined;
@@ -718,4 +719,5 @@ export function deactivate(): void {
   autoReflowHandler = undefined;
   linkValidator?.dispose();
   linkValidator = undefined;
+  disposeDebugChannel();
 }

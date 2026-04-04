@@ -5,6 +5,9 @@ import { createDecorationStyles, disposeDecorationStyles, DecorationStyles } fro
 import { setRenderingMode } from '../configuration';
 import { foldAllDocComments, unfoldAllDocComments } from './commentFoldingProvider';
 import { CommentCodeLensProvider } from './commentCodeLensProvider';
+import { isAutoReflowEdit } from '../reflow/autoReflow';
+import { isSmartPasteEdit } from '../reflow/smartPaste';
+import { dbg, DEBUG } from '../diagnostics/debugLog';
 
 // Delay before auto-re-folding after cursor leaves a comment block (ms)
 const AUTO_REFOLD_DELAY = 500;
@@ -112,11 +115,58 @@ export class DecorationManager implements vscode.Disposable {
   }
 
   onDocumentChanged(editor: vscode.TextEditor, event: vscode.TextDocumentChangeEvent): void {
+    // Skip decoration clearing for our own programmatic reflow edits — they are
+    // whitespace-only reformatting of comments and should not disturb decoration state.
+    if (isAutoReflowEdit || isSmartPasteEdit) {
+      dbg('decorMgr', 'onDocumentChanged SKIP own-edit', { isAutoReflow: isAutoReflowEdit, isSmartPaste: isSmartPasteEdit });
+      return;
+    }
+
+    if (this.config.renderingMode === 'off') return;
+
     const docKey = editor.document.uri.toString();
 
-    // Suppress decorations temporarily during editing
+    // Only suppress decorations when the edit is actually inside a comment block.
+    // Edits in the method body (outside all comment blocks) must not disturb the
+    // transparent decoration on unrelated comment blocks — that causes the
+    // transparent → opaque → transparent flicker the user sees while typing code.
+    if (event.contentChanges.length === 0) return;
+    const lines = editor.document.getText().split(/\r?\n/);
+    const blocks = getCachedCommentBlocks(docKey, editor.document.version, lines, editor.document.languageId);
+    // Use interval overlap: a change starting before a block ends AND ending after a block starts.
+    // This handles range.start outside/range.end inside and vice versa, not just single-line changes.
+    const editInsideComment = blocks?.some(b =>
+      event.contentChanges.some(c => c.range.start.line <= b.endLine && c.range.end.line >= b.startLine)
+    ) ?? false;
+    if (!editInsideComment) {
+      dbg('decorMgr', 'onDocumentChanged SKIP outside-comment', {
+        changes: event.contentChanges.slice(0, 3).map(c => ({
+          startLine: c.range.start.line,
+          endLine: c.range.end.line,
+          text: c.text.slice(0, 15).replace(/\n/g, '↵'),
+        })),
+        blockRanges: blocks?.map(b => `${b.startLine}-${b.endLine}`) ?? [],
+      });
+      return;
+    }
+
+    dbg('decorMgr', 'onDocumentChanged CLEAR-AND-SUPPRESS', {
+      changes: event.contentChanges.slice(0, 3).map(c => ({
+        startLine: c.range.start.line,
+        endLine: c.range.end.line,
+        text: c.text.slice(0, 15).replace(/\n/g, '↵'),
+      })),
+    });
+
+    // Suppress decorations during editing inside a comment block.
+    // Only call clearDecorations() on the first keystroke of a typing burst —
+    // if already suppressed, decorations are already gone, so skip the redundant
+    // editor.setDecorations() API call on every subsequent keystroke.
+    const alreadySuppressed = this.suppressedEditors.has(docKey);
     this.suppressedEditors.add(docKey);
-    this.clearDecorations(editor);
+    if (!alreadySuppressed) {
+      this.clearDecorations(editor);
+    }
 
     // Clear existing timer
     const existingTimer = this.editTimers.get(docKey);
@@ -129,6 +179,7 @@ export class DecorationManager implements vscode.Disposable {
       this.suppressedEditors.delete(docKey);
       this.editTimers.delete(docKey);
       if (vscode.window.activeTextEditor?.document.uri.toString() === docKey) {
+        dbg('decorMgr', 'onDocumentChanged suppression-expired → updateDecorations');
         this.updateDecorations(vscode.window.activeTextEditor);
       }
     }, EDIT_SUPPRESSION_DELAY);
@@ -286,6 +337,9 @@ export class DecorationManager implements vscode.Disposable {
    */
   private onVisibleRangesChanged(event: vscode.TextEditorVisibleRangesChangeEvent): void {
     if (this.config.renderingMode !== 'on') return;
+    // Skip fold-state sync during our own programmatic edits — the transient
+    // visible-range change from editor.edit() would be misread as a gutter fold.
+    if (isAutoReflowEdit || isSmartPasteEdit) return;
 
     // Debounce to avoid thrashing during scroll
     if (this.visibleRangesDebounceTimer) {
@@ -564,6 +618,10 @@ export class DecorationManager implements vscode.Disposable {
   }
 
   private clearDecorations(editor: vscode.TextEditor): void {
+    if (DEBUG) {
+      const caller = new Error().stack?.split('\n').slice(2, 4).map(l => l.trim()).join(' | ') ?? '?';
+      dbg('decorMgr', 'clearDecorations', { caller });
+    }
     editor.setDecorations(this.styles.transparentComment, []);
     if (this.styles.leftBorder) {
       editor.setDecorations(this.styles.leftBorder, []);
