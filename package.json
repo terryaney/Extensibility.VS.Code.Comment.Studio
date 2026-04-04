@@ -1,0 +1,510 @@
+{
+  "name": "kat-comment-studio",
+  "displayName": "KAT Comment Studio",
+  "description": "XML documentation comment rendering, reflow, code anchors, and link navigation for VS Code",
+  "version": "0.1.0",
+  "publisher": "btr",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": [
+    "onLanguage:csharp",
+    "onLanguage:vb",
+    "onLanguage:fsharp",
+    "onLanguage:cpp",
+    "onLanguage:c",
+    "onLanguage:typescript",
+    "onLanguage:javascript",
+    "onLanguage:typescriptreact",
+    "onLanguage:javascriptreact",
+    "onLanguage:razor",
+    "onLanguage:sql",
+    "onLanguage:powershell"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "kat-comment-studio",
+          "title": "KAT Comment Studio",
+          "icon": "$(comment-discussion)"
+        }
+      ],
+      "panel": [
+        {
+          "id": "kat-comment-studio-panel",
+          "title": "KAT Comment Studio",
+          "icon": "$(comment-discussion)"
+        }
+      ]
+    },
+    "views": {
+      "kat-comment-studio": [
+        {
+          "id": "kat-comment-studio.anchorsView",
+          "name": "KAT Comment Studio"
+        }
+      ],
+      "kat-comment-studio-panel": [
+        {
+          "type": "webview",
+          "id": "kat-comment-studio.anchorsGrid",
+          "name": "KAT Comment Studio - Code Anchors"
+        }
+      ]
+    },
+    "submenus": [
+      {
+        "id": "kat-comment-studio.submenu",
+        "label": "KAT Comment Studio"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "submenu": "kat-comment-studio.submenu",
+          "group": "kat-comment-studio",
+          "when": "editorLangId =~ /^(csharp|vb|fsharp|cpp|c|typescript|javascript|typescriptreact|javascriptreact|razor|sql|powershell)$/"
+        }
+      ],
+      "kat-comment-studio.submenu": [
+        {
+          "command": "kat-comment-studio.toggleRendering",
+          "group": "1_rendering@1"
+        },
+        {
+          "command": "kat-comment-studio.cycleRenderingMode",
+          "group": "1_rendering@2"
+        },
+        {
+          "command": "kat-comment-studio.reflowComment",
+          "group": "2_reflow@1"
+        },
+        {
+          "command": "kat-comment-studio.removeCommentsInSelection",
+          "group": "3_remove@1",
+          "when": "editorHasSelection"
+        },
+        {
+          "command": "kat-comment-studio.removeAllComments",
+          "group": "3_remove@2"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "kat-comment-studio.scanAnchors",
+          "when": "view == kat-comment-studio.anchorsView",
+          "group": "navigation@1"
+        },
+        {
+          "command": "kat-comment-studio.refreshAnchors",
+          "when": "view == kat-comment-studio.anchorsView",
+          "group": "navigation@2"
+        },
+        {
+          "command": "kat-comment-studio.exportAnchors",
+          "when": "view == kat-comment-studio.anchorsView",
+          "group": "navigation@3"
+        },
+        {
+          "command": "kat-comment-studio.setAnchorScope",
+          "when": "view == kat-comment-studio.anchorsView",
+          "group": "navigation@4"
+        },
+        {
+          "command": "kat-comment-studio.filterAnchorTypes",
+          "when": "view == kat-comment-studio.anchorsView",
+          "group": "navigation@5"
+        },
+        {
+          "command": "kat-comment-studio.scanAnchors",
+          "when": "view == kat-comment-studio.anchorsGrid",
+          "group": "navigation@1"
+        },
+        {
+          "command": "kat-comment-studio.refreshAnchors",
+          "when": "view == kat-comment-studio.anchorsGrid",
+          "group": "navigation@2"
+        },
+        {
+          "command": "kat-comment-studio.exportAnchors",
+          "when": "view == kat-comment-studio.anchorsGrid",
+          "group": "navigation@3"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "kat-comment-studio.toggleRendering",
+        "title": "Toggle Comment Rendering",
+        "category": "KAT Comment Studio"
+      },
+      {
+        "command": "kat-comment-studio.cycleRenderingMode",
+        "title": "Cycle Rendering Mode (Off → On)",
+        "category": "KAT Comment Studio"
+      },
+      {
+        "command": "kat-comment-studio.reflowComment",
+        "title": "Reflow Comment",
+        "category": "KAT Comment Studio",
+        "icon": "$(wrap)"
+      },
+      {
+        "command": "kat-comment-studio.toggleCommentFold",
+        "title": "Toggle Comment Fold",
+        "category": "KAT Comment Studio"
+      },
+      {
+        "command": "kat-comment-studio.scanAnchors",
+        "title": "Scan Code Anchors",
+        "category": "KAT Comment Studio",
+        "icon": "$(search)"
+      },
+      {
+        "command": "kat-comment-studio.refreshAnchors",
+        "title": "Refresh Code Anchors",
+        "category": "KAT Comment Studio",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "kat-comment-studio.exportAnchors",
+        "title": "Export Code Anchors",
+        "category": "KAT Comment Studio",
+        "icon": "$(export)"
+      },
+      {
+        "command": "kat-comment-studio.showAnchorsGrid",
+        "title": "Show Code Anchors Grid",
+        "category": "KAT Comment Studio",
+        "icon": "$(table)"
+      },
+      {
+        "command": "kat-comment-studio.setAnchorScope",
+        "title": "Set Anchor Scope",
+        "category": "KAT Comment Studio",
+        "icon": "$(symbol-number)"
+      },
+      {
+        "command": "kat-comment-studio.filterAnchorTypes",
+        "title": "Filter Anchor Types",
+        "category": "KAT Comment Studio",
+        "icon": "$(filter)"
+      },
+      {
+        "command": "kat-comment-studio.nextAnchor",
+        "title": "Go to Next Anchor",
+        "category": "KAT Comment Studio"
+      },
+      {
+        "command": "kat-comment-studio.previousAnchor",
+        "title": "Go to Previous Anchor",
+        "category": "KAT Comment Studio"
+      },
+      {
+        "command": "kat-comment-studio.removeAllComments",
+        "title": "Remove All Comments",
+        "category": "KAT Comment Studio"
+      },
+      {
+        "command": "kat-comment-studio.removeCommentsInSelection",
+        "title": "Remove All Comments in Selection",
+        "category": "KAT Comment Studio"
+      },
+      {
+        "command": "kat-comment-studio.removeExceptXmlDoc",
+        "title": "Remove All Except XML Doc Comments",
+        "category": "KAT Comment Studio"
+      },
+      {
+        "command": "kat-comment-studio.removeExceptAnchors",
+        "title": "Remove All Except Anchors",
+        "category": "KAT Comment Studio"
+      },
+      {
+        "command": "kat-comment-studio.removeXmlDocOnly",
+        "title": "Remove XML Doc Comments Only",
+        "category": "KAT Comment Studio"
+      },
+      {
+        "command": "kat-comment-studio.removeAnchorsOnly",
+        "title": "Remove Anchors Only",
+        "category": "KAT Comment Studio"
+      },
+      {
+        "command": "kat-comment-studio.removeRegions",
+        "title": "Remove Regions",
+        "category": "KAT Comment Studio"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "kat-comment-studio.toggleRendering",
+        "key": "escape",
+        "when": "editorTextFocus && kat-comment-studio.renderingActive"
+      },
+      {
+        "command": "kat-comment-studio.nextAnchor",
+        "key": "alt+pagedown",
+        "when": "editorTextFocus"
+      },
+      {
+        "command": "kat-comment-studio.previousAnchor",
+        "key": "alt+pageup",
+        "when": "editorTextFocus"
+      }
+    ],
+    "configuration": {
+      "title": "KAT Comment Studio",
+      "properties": {
+        "kat-comment-studio.renderingMode": {
+          "type": "string",
+          "default": "on",
+          "enum": ["off", "on"],
+          "enumDescriptions": [
+            "Disable comment rendering",
+            "Show CodeLens summary, rich hover, and auto-fold for XML doc comments"
+          ],
+          "description": "How XML doc comments are rendered in the editor"
+        },
+        "kat-comment-studio.enabledLanguages": {
+          "type": "array",
+          "default": ["csharp", "vb", "fsharp", "cpp", "c", "typescript", "javascript", "typescriptreact", "javascriptreact", "razor", "sql", "powershell"],
+          "items": { "type": "string" },
+          "description": "Language IDs for which comment rendering is enabled"
+        },
+        "kat-comment-studio.dimOriginalComments": {
+          "type": "boolean",
+          "default": true,
+          "description": "Dim original comment text when rendering is active"
+        },
+        "kat-comment-studio.dimOpacity": {
+          "type": "number",
+          "default": 0.4,
+          "minimum": 0.1,
+          "maximum": 1.0,
+          "description": "Opacity for dimmed original comments (0.1 to 1.0)"
+        },
+        "kat-comment-studio.maxLineLength": {
+          "type": "number",
+          "default": 120,
+          "minimum": 40,
+          "maximum": 500,
+          "description": "Maximum line width for comment reflow. Can be overridden by .editorconfig max_line_length."
+        },
+        "kat-comment-studio.enableReflowOnFormat": {
+          "type": "boolean",
+          "default": true,
+          "description": "Reflow XML doc comments when Format Document/Selection is invoked"
+        },
+        "kat-comment-studio.customTags": {
+          "type": "string",
+          "default": "",
+          "description": "Comma-separated custom anchor tags (e.g., 'PERF, SECURITY, DEBT'). Highlighted in Goldenrod and appear in Code Anchors tree."
+        },
+        "kat-comment-studio.tagPrefixes": {
+          "type": "string",
+          "default": "@, $",
+          "description": "Comma-separated prefix characters for anchor tags (e.g., '@, $'). @TODO treated same as TODO."
+        },
+        "kat-comment-studio.enableTagHighlighting": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable inline color highlighting of anchor tags (TODO, HACK, etc.)"
+        },
+        "kat-comment-studio.enablePrefixHighlighting": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable Better Comments-style prefix highlighting (! ? * // - >)"
+        },
+        "kat-comment-studio.enableIssueLinks": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable clickable issue links (#123 → GitHub/GitLab/etc.)"
+        },
+        "kat-comment-studio.enableReflowOnPaste": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically reflow doc comment blocks when pasting text into them"
+        },
+        "kat-comment-studio.enableReflowWhileTyping": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically reflow when a doc comment line exceeds max length while typing (300ms delay)"
+        },
+        "kat-comment-studio.collapseByDefault": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically collapse XML doc comments when opening files"
+        },
+        "kat-comment-studio.preserveBlankLines": {
+          "type": "boolean",
+          "default": true,
+          "description": "Preserve intentional blank lines within comment blocks during reflow"
+        },
+        "kat-comment-studio.scanOnLoad": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically scan workspace for code anchors on activation"
+        },
+        "kat-comment-studio.fileExtensionsToScan": {
+          "type": "string",
+          "default": "cs,vb,fs,cpp,c,h,ts,tsx,js,jsx,razor,cshtml,sql,ps1,psm1",
+          "description": "Comma-separated file extensions to scan for code anchors"
+        },
+        "kat-comment-studio.foldersToIgnore": {
+          "type": "string",
+          "default": "node_modules,bin,obj,.git,dist,out,build,.vs,.vscode-test",
+          "description": "Comma-separated folder names to ignore when scanning for code anchors"
+        },
+        "kat-comment-studio.leftBorder": {
+          "type": "string",
+          "default": "off",
+          "enum": ["off", "multilineOnly", "inlineOnly", "always"],
+          "enumDescriptions": [
+            "No left border indicator",
+            "Show left border on multiline comment blocks only",
+            "Show left border on inline comments only",
+            "Always show left border on comments"
+          ],
+          "description": "Show a subtle vertical line on the left edge of rendered comments"
+        },
+        "kat-comment-studio.colors.todo": {
+          "type": "string",
+          "default": "",
+          "description": "Override color for TODO anchors (hex, e.g., '#FF8C00'). Empty = use theme default."
+        },
+        "kat-comment-studio.colors.hack": {
+          "type": "string",
+          "default": "",
+          "description": "Override color for HACK anchors (hex). Empty = use theme default."
+        },
+        "kat-comment-studio.colors.note": {
+          "type": "string",
+          "default": "",
+          "description": "Override color for NOTE anchors (hex). Empty = use theme default."
+        },
+        "kat-comment-studio.colors.bug": {
+          "type": "string",
+          "default": "",
+          "description": "Override color for BUG anchors (hex). Empty = use theme default."
+        },
+        "kat-comment-studio.colors.fixme": {
+          "type": "string",
+          "default": "",
+          "description": "Override color for FIXME anchors (hex). Empty = use theme default."
+        },
+        "kat-comment-studio.colors.undone": {
+          "type": "string",
+          "default": "",
+          "description": "Override color for UNDONE anchors (hex). Empty = use theme default."
+        },
+        "kat-comment-studio.colors.review": {
+          "type": "string",
+          "default": "",
+          "description": "Override color for REVIEW anchors (hex). Empty = use theme default."
+        },
+        "kat-comment-studio.colors.anchor": {
+          "type": "string",
+          "default": "",
+          "description": "Override color for ANCHOR anchors (hex). Empty = use theme default."
+        },
+        "kat-comment-studio.colors.custom": {
+          "type": "string",
+          "default": "#DAA520",
+          "description": "Color for custom anchor tags (hex, default: Goldenrod)"
+        },
+        "kat-comment-studio.colors.renderedText": {
+          "type": "string",
+          "default": "",
+          "description": "Override color for rendered comment text (hex). Empty = use theme default."
+        },
+        "kat-comment-studio.colors.renderedHeading": {
+          "type": "string",
+          "default": "",
+          "description": "Override color for rendered comment headings (hex). Empty = use theme default."
+        },
+        "kat-comment-studio.colors.renderedCode": {
+          "type": "string",
+          "default": "",
+          "description": "Override color for rendered inline code (hex). Empty = use theme default."
+        },
+        "kat-comment-studio.colors.renderedLink": {
+          "type": "string",
+          "default": "",
+          "description": "Override color for rendered links (hex). Empty = use theme default."
+        },
+        "kat-comment-studio.colors.prefixAlert": {
+          "type": "string",
+          "default": "",
+          "description": "Override color for // ! alert comments (hex). Empty = use theme default."
+        },
+        "kat-comment-studio.colors.prefixQuestion": {
+          "type": "string",
+          "default": "",
+          "description": "Override color for // ? question comments (hex). Empty = use theme default."
+        },
+        "kat-comment-studio.colors.prefixHighlight": {
+          "type": "string",
+          "default": "",
+          "description": "Override color for // * highlight comments (hex). Empty = use theme default."
+        },
+        "kat-comment-studio.colors.prefixStrikethrough": {
+          "type": "string",
+          "default": "",
+          "description": "Override color for // // strikethrough comments (hex). Empty = use theme default."
+        },
+        "kat-comment-studio.colors.prefixDisabled": {
+          "type": "string",
+          "default": "",
+          "description": "Override color for // - disabled comments (hex). Empty = use theme default."
+        },
+        "kat-comment-studio.colors.prefixQuote": {
+          "type": "string",
+          "default": "",
+          "description": "Override color for // > quote comments (hex). Empty = use theme default."
+        }
+      }
+    },
+    "colors": [
+      { "id": "katCommentStudio.anchorTodo", "description": "TODO anchor color", "defaults": { "dark": "#FF8C00", "light": "#CC7000", "highContrast": "#FFB347" } },
+      { "id": "katCommentStudio.anchorHack", "description": "HACK anchor color", "defaults": { "dark": "#DC143C", "light": "#B01030", "highContrast": "#FF4060" } },
+      { "id": "katCommentStudio.anchorNote", "description": "NOTE anchor color", "defaults": { "dark": "#4169E1", "light": "#3050B0", "highContrast": "#6090FF" } },
+      { "id": "katCommentStudio.anchorBug", "description": "BUG anchor color", "defaults": { "dark": "#FF0000", "light": "#CC0000", "highContrast": "#FF4040" } },
+      { "id": "katCommentStudio.anchorFixme", "description": "FIXME anchor color", "defaults": { "dark": "#FF4500", "light": "#CC3800", "highContrast": "#FF6530" } },
+      { "id": "katCommentStudio.anchorUndone", "description": "UNDONE anchor color", "defaults": { "dark": "#808080", "light": "#606060", "highContrast": "#A0A0A0" } },
+      { "id": "katCommentStudio.anchorReview", "description": "REVIEW anchor color", "defaults": { "dark": "#9370DB", "light": "#7050B0", "highContrast": "#B090FF" } },
+      { "id": "katCommentStudio.anchorAnchor", "description": "ANCHOR anchor color", "defaults": { "dark": "#20B2AA", "light": "#108880", "highContrast": "#40D0C8" } },
+      { "id": "katCommentStudio.anchorCustom", "description": "Custom anchor tag color", "defaults": { "dark": "#DAA520", "light": "#B8860B", "highContrast": "#FFD700" } },
+      { "id": "katCommentStudio.renderedText", "description": "Rendered comment text color", "defaults": { "dark": "#D4D4D4", "light": "#333333", "highContrast": "#FFFFFF" } },
+      { "id": "katCommentStudio.renderedHeading", "description": "Rendered comment heading color", "defaults": { "dark": "#569CD6", "light": "#0000FF", "highContrast": "#6090FF" } },
+      { "id": "katCommentStudio.renderedCode", "description": "Rendered inline code color", "defaults": { "dark": "#CE9178", "light": "#A31515", "highContrast": "#FFB090" } },
+      { "id": "katCommentStudio.renderedLink", "description": "Rendered link color", "defaults": { "dark": "#3794FF", "light": "#006AB1", "highContrast": "#3794FF" } },
+      { "id": "katCommentStudio.prefixAlert", "description": "Alert prefix (!) comment color", "defaults": { "dark": "#FF2D00", "light": "#CC0000", "highContrast": "#FF4040" } },
+      { "id": "katCommentStudio.prefixQuestion", "description": "Question prefix (?) comment color", "defaults": { "dark": "#3498DB", "light": "#2070B0", "highContrast": "#60A0FF" } },
+      { "id": "katCommentStudio.prefixHighlight", "description": "Highlight prefix (*) comment color", "defaults": { "dark": "#98C379", "light": "#008000", "highContrast": "#80FF80" } },
+      { "id": "katCommentStudio.prefixStrikethrough", "description": "Strikethrough prefix (//) comment color", "defaults": { "dark": "#808080", "light": "#999999", "highContrast": "#A0A0A0" } },
+      { "id": "katCommentStudio.prefixDisabled", "description": "Disabled prefix (-) comment color", "defaults": { "dark": "#505050", "light": "#AAAAAA", "highContrast": "#707070" } },
+      { "id": "katCommentStudio.prefixQuote", "description": "Quote prefix (>) comment color", "defaults": { "dark": "#C586C0", "light": "#800080", "highContrast": "#D070D0" } }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.0",
+    "vitest": "^2.0.0",
+    "@typescript-eslint/eslint-plugin": "^7.0.0",
+    "@typescript-eslint/parser": "^7.0.0",
+    "eslint": "^8.56.0"
+  }
+}
