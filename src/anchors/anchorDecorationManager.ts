@@ -22,6 +22,7 @@ function resolveAnchorColor(
 
 export class AnchorDecorationManager implements vscode.Disposable {
   private decorationTypes: AnchorDecorationEntry[] = [];
+  private linkDecorationType: vscode.TextEditorDecorationType | undefined;
   private config: CommentStudioConfig | undefined;
 
   constructor(config?: CommentStudioConfig) {
@@ -69,6 +70,12 @@ export class AnchorDecorationManager implements vscode.Disposable {
         });
       }
     }
+
+    // LINK: keyword decoration
+    this.linkDecorationType = vscode.window.createTextEditorDecorationType({
+      color: new vscode.ThemeColor('textLink.foreground'),
+      fontWeight: 'bold',
+    });
   }
 
   updateDecorations(editor: vscode.TextEditor): void {
@@ -96,7 +103,7 @@ export class AnchorDecorationManager implements vscode.Disposable {
       for (const entry of this.decorationTypes) {
         const tag = entry.tag;
         // Case-sensitive search for ALL-CAPS tag
-        const tagIdx = commentPortion.indexOf(tag);
+        const tagIdx = commentPortion.toUpperCase().indexOf(tag);
         if (tagIdx < 0) continue;
 
         const absIdx = commentIdx + tagIdx;
@@ -114,14 +121,37 @@ export class AnchorDecorationManager implements vscode.Disposable {
           continue; // Must be preceded by non-word char (word boundary)
         }
 
-        // Must be immediately followed by ':'
+        // Must be immediately followed by ':' or optional metadata group then ':'
         const afterIdx = absIdx + tag.length;
-        if (afterIdx >= line.length || line[afterIdx] !== ':') continue;
+        let colonIdx = afterIdx;
 
-        // Colorize prefix + TAG: (tag + colon)
+        // Skip optional whitespace before metadata container (consistent with regex \s?)
+        if (colonIdx < line.length && line[colonIdx] === ' ') {
+          colonIdx++;
+        }
+
+        let hasMetadata = false;
+
+        // Skip optional (...) or [...] metadata group before colon
+        if (colonIdx < line.length && (line[colonIdx] === '(' || line[colonIdx] === '[')) {
+          const openIdx = colonIdx;
+          const closeChar = line[colonIdx] === '(' ? ')' : ']';
+          const closeIdx = line.indexOf(closeChar, colonIdx + 1);
+          if (closeIdx >= 0) {
+            hasMetadata = closeIdx > openIdx + 1; // empty () or [] doesn't count
+            colonIdx = closeIdx + 1;
+          }
+        }
+
+        if (colonIdx >= line.length || line[colonIdx] !== ':') continue;
+
+        // ANCHOR without metadata group is invalid (requires a name)
+        if (tag === 'ANCHOR' && !hasMetadata) continue;
+
+        // Colorize prefix + TAG(metadata): through the colon
         const ranges = rangesMap.get(tag);
         if (ranges) {
-          ranges.push(new vscode.Range(i, decorationStart, i, afterIdx + 1));
+          ranges.push(new vscode.Range(i, decorationStart, i, colonIdx + 1));
         }
       }
     }
@@ -130,11 +160,32 @@ export class AnchorDecorationManager implements vscode.Disposable {
       const ranges = rangesMap.get(entry.tag) || [];
       editor.setDecorations(entry.decorationType, ranges);
     }
+
+    // Colorize LINK: keywords in comment portions
+    if (this.linkDecorationType) {
+      const linkRanges: vscode.Range[] = [];
+      const linkRegex = /\bLINK:/g;
+      for (let i = 0; i < lines.length; i++) {
+        const commentIdx = findCommentStart(lines[i]);
+        if (commentIdx < 0) continue;
+        const commentPortion = lines[i].substring(commentIdx);
+        linkRegex.lastIndex = 0;
+        let linkMatch: RegExpExecArray | null;
+        while ((linkMatch = linkRegex.exec(commentPortion)) !== null) {
+          const absStart = commentIdx + linkMatch.index;
+          linkRanges.push(new vscode.Range(i, absStart, i, absStart + linkMatch[0].length));
+        }
+      }
+      editor.setDecorations(this.linkDecorationType, linkRanges);
+    }
   }
 
   clearDecorations(editor: vscode.TextEditor): void {
     for (const entry of this.decorationTypes) {
       editor.setDecorations(entry.decorationType, []);
+    }
+    if (this.linkDecorationType) {
+      editor.setDecorations(this.linkDecorationType, []);
     }
   }
 
@@ -143,6 +194,8 @@ export class AnchorDecorationManager implements vscode.Disposable {
       entry.decorationType.dispose();
     }
     this.decorationTypes = [];
+    this.linkDecorationType?.dispose();
+    this.linkDecorationType = undefined;
   }
 
   dispose(): void {

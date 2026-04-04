@@ -57,7 +57,7 @@ export class LinkValidator implements vscode.Disposable {
             `LINK target not found: ${target.targetPath}`,
             vscode.DiagnosticSeverity.Warning,
           );
-          diagnostic.source = 'Comment Studio';
+          diagnostic.source = 'KAT Comment Studio';
           diagnostic.code = 'broken-link';
           diagnostics.push(diagnostic);
         }

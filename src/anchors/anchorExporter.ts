@@ -2,26 +2,17 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { AnchorMatch } from './anchorService';
 
-export type ExportFormat = 'tsv' | 'csv' | 'markdown' | 'json';
+export type ExportFormat = 'csv' | 'markdown' | 'json';
 
 /**
  * Exports anchors to the specified format.
  */
 export function exportAnchors(anchors: AnchorMatch[], format: ExportFormat): string {
   switch (format) {
-    case 'tsv': return exportTsv(anchors);
     case 'csv': return exportCsv(anchors);
     case 'markdown': return exportMarkdown(anchors);
     case 'json': return exportJson(anchors);
   }
-}
-
-function exportTsv(anchors: AnchorMatch[]): string {
-  const header = 'Type\tFile\tLine\tOwner\tIssue\tDue Date\tDescription';
-  const rows = anchors.map(a =>
-    `${a.tag}\t${relativePath(a.filePath)}\t${a.lineNumber + 1}\t${a.owner || ''}\t${a.issueRef || ''}\t${a.dueDate || ''}\t${a.description}`
-  );
-  return [header, ...rows].join('\n');
 }
 
 function exportCsv(anchors: AnchorMatch[]): string {
@@ -77,13 +68,18 @@ function relativePath(filePath: string): string {
   return filePath;
 }
 
+const FORMAT_LANGUAGE_MAP: Record<ExportFormat, string> = {
+  json: 'json',
+  markdown: 'markdown',
+  csv: 'plaintext',
+};
+
 /**
- * Prompts the user to save exported anchors.
+ * Exports anchors to an untitled editor document for review.
  */
 export async function exportAnchorsToFile(anchors: AnchorMatch[]): Promise<void> {
   const format = await vscode.window.showQuickPick(
     [
-      { label: 'TSV (Tab-separated)', value: 'tsv' as ExportFormat },
       { label: 'CSV (Comma-separated)', value: 'csv' as ExportFormat },
       { label: 'Markdown', value: 'markdown' as ExportFormat },
       { label: 'JSON', value: 'json' as ExportFormat },
@@ -94,17 +90,7 @@ export async function exportAnchorsToFile(anchors: AnchorMatch[]): Promise<void>
   if (!format) return;
 
   const content = exportAnchors(anchors, format.value);
-  const ext = format.value === 'markdown' ? 'md' : format.value;
-
-  const uri = await vscode.window.showSaveDialog({
-    defaultUri: vscode.Uri.file(`code-anchors.${ext}`),
-    filters: {
-      'All files': ['*'],
-    },
-  });
-
-  if (uri) {
-    await vscode.workspace.fs.writeFile(uri, Buffer.from(content, 'utf-8'));
-    vscode.window.showInformationMessage(`Exported ${anchors.length} anchors to ${path.basename(uri.fsPath)}`);
-  }
+  const language = FORMAT_LANGUAGE_MAP[format.value];
+  const document = await vscode.workspace.openTextDocument({ content, language });
+  await vscode.window.showTextDocument(document);
 }

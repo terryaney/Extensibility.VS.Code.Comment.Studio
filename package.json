@@ -7,7 +7,9 @@
   "engines": {
     "vscode": "^1.85.0"
   },
-  "categories": ["Other"],
+  "categories": [
+    "Other"
+  ],
   "activationEvents": [
     "onLanguage:csharp",
     "onLanguage:vb",
@@ -99,24 +101,19 @@
           "group": "navigation@1"
         },
         {
-          "command": "kat-comment-studio.refreshAnchors",
+          "command": "kat-comment-studio.exportAnchors",
           "when": "view == kat-comment-studio.anchorsView",
           "group": "navigation@2"
         },
         {
-          "command": "kat-comment-studio.exportAnchors",
+          "command": "kat-comment-studio.setAnchorScope",
           "when": "view == kat-comment-studio.anchorsView",
           "group": "navigation@3"
         },
         {
-          "command": "kat-comment-studio.setAnchorScope",
-          "when": "view == kat-comment-studio.anchorsView",
-          "group": "navigation@4"
-        },
-        {
           "command": "kat-comment-studio.filterAnchorTypes",
           "when": "view == kat-comment-studio.anchorsView",
-          "group": "navigation@5"
+          "group": "navigation@4"
         },
         {
           "command": "kat-comment-studio.scanAnchors",
@@ -124,14 +121,9 @@
           "group": "navigation@1"
         },
         {
-          "command": "kat-comment-studio.refreshAnchors",
-          "when": "view == kat-comment-studio.anchorsGrid",
-          "group": "navigation@2"
-        },
-        {
           "command": "kat-comment-studio.exportAnchors",
           "when": "view == kat-comment-studio.anchorsGrid",
-          "group": "navigation@3"
+          "group": "navigation@2"
         }
       ]
     },
@@ -166,8 +158,7 @@
       {
         "command": "kat-comment-studio.refreshAnchors",
         "title": "Refresh Code Anchors",
-        "category": "KAT Comment Studio",
-        "icon": "$(refresh)"
+        "category": "KAT Comment Studio"
       },
       {
         "command": "kat-comment-studio.exportAnchors",
@@ -219,6 +210,11 @@
         "category": "KAT Comment Studio"
       },
       {
+        "command": "kat-comment-studio.navigateLink",
+        "title": "Navigate to LINK Target",
+        "category": "KAT Comment Studio"
+      },
+      {
         "command": "kat-comment-studio.removeExceptAnchors",
         "title": "Remove All Except Anchors",
         "category": "KAT Comment Studio"
@@ -262,7 +258,10 @@
         "kat-comment-studio.renderingMode": {
           "type": "string",
           "default": "on",
-          "enum": ["off", "on"],
+          "enum": [
+            "off",
+            "on"
+          ],
           "enumDescriptions": [
             "Disable comment rendering",
             "Show CodeLens summary, rich hover, and auto-fold for XML doc comments"
@@ -271,8 +270,23 @@
         },
         "kat-comment-studio.enabledLanguages": {
           "type": "array",
-          "default": ["csharp", "vb", "fsharp", "cpp", "c", "typescript", "javascript", "typescriptreact", "javascriptreact", "razor", "sql", "powershell"],
-          "items": { "type": "string" },
+          "default": [
+            "csharp",
+            "vb",
+            "fsharp",
+            "cpp",
+            "c",
+            "typescript",
+            "javascript",
+            "typescriptreact",
+            "javascriptreact",
+            "razor",
+            "sql",
+            "powershell"
+          ],
+          "items": {
+            "type": "string"
+          },
           "description": "Language IDs for which comment rendering is enabled"
         },
         "kat-comment-studio.dimOriginalComments": {
@@ -284,7 +298,7 @@
           "type": "number",
           "default": 0.4,
           "minimum": 0.1,
-          "maximum": 1.0,
+          "maximum": 1,
           "description": "Opacity for dimmed original comments (0.1 to 1.0)"
         },
         "kat-comment-studio.maxLineLength": {
@@ -362,7 +376,12 @@
         "kat-comment-studio.leftBorder": {
           "type": "string",
           "default": "off",
-          "enum": ["off", "multilineOnly", "inlineOnly", "always"],
+          "enum": [
+            "off",
+            "multilineOnly",
+            "inlineOnly",
+            "always"
+          ],
           "enumDescriptions": [
             "No left border indicator",
             "Show left border on multiline comment blocks only",
@@ -469,25 +488,177 @@
       }
     },
     "colors": [
-      { "id": "katCommentStudio.anchorTodo", "description": "TODO anchor color", "defaults": { "dark": "#FF8C00", "light": "#CC7000", "highContrast": "#FFB347" } },
-      { "id": "katCommentStudio.anchorHack", "description": "HACK anchor color", "defaults": { "dark": "#DC143C", "light": "#B01030", "highContrast": "#FF4060" } },
-      { "id": "katCommentStudio.anchorNote", "description": "NOTE anchor color", "defaults": { "dark": "#4169E1", "light": "#3050B0", "highContrast": "#6090FF" } },
-      { "id": "katCommentStudio.anchorBug", "description": "BUG anchor color", "defaults": { "dark": "#FF0000", "light": "#CC0000", "highContrast": "#FF4040" } },
-      { "id": "katCommentStudio.anchorFixme", "description": "FIXME anchor color", "defaults": { "dark": "#FF4500", "light": "#CC3800", "highContrast": "#FF6530" } },
-      { "id": "katCommentStudio.anchorUndone", "description": "UNDONE anchor color", "defaults": { "dark": "#808080", "light": "#606060", "highContrast": "#A0A0A0" } },
-      { "id": "katCommentStudio.anchorReview", "description": "REVIEW anchor color", "defaults": { "dark": "#9370DB", "light": "#7050B0", "highContrast": "#B090FF" } },
-      { "id": "katCommentStudio.anchorAnchor", "description": "ANCHOR anchor color", "defaults": { "dark": "#20B2AA", "light": "#108880", "highContrast": "#40D0C8" } },
-      { "id": "katCommentStudio.anchorCustom", "description": "Custom anchor tag color", "defaults": { "dark": "#DAA520", "light": "#B8860B", "highContrast": "#FFD700" } },
-      { "id": "katCommentStudio.renderedText", "description": "Rendered comment text color", "defaults": { "dark": "#D4D4D4", "light": "#333333", "highContrast": "#FFFFFF" } },
-      { "id": "katCommentStudio.renderedHeading", "description": "Rendered comment heading color", "defaults": { "dark": "#569CD6", "light": "#0000FF", "highContrast": "#6090FF" } },
-      { "id": "katCommentStudio.renderedCode", "description": "Rendered inline code color", "defaults": { "dark": "#CE9178", "light": "#A31515", "highContrast": "#FFB090" } },
-      { "id": "katCommentStudio.renderedLink", "description": "Rendered link color", "defaults": { "dark": "#3794FF", "light": "#006AB1", "highContrast": "#3794FF" } },
-      { "id": "katCommentStudio.prefixAlert", "description": "Alert prefix (!) comment color", "defaults": { "dark": "#FF2D00", "light": "#CC0000", "highContrast": "#FF4040" } },
-      { "id": "katCommentStudio.prefixQuestion", "description": "Question prefix (?) comment color", "defaults": { "dark": "#3498DB", "light": "#2070B0", "highContrast": "#60A0FF" } },
-      { "id": "katCommentStudio.prefixHighlight", "description": "Highlight prefix (*) comment color", "defaults": { "dark": "#98C379", "light": "#008000", "highContrast": "#80FF80" } },
-      { "id": "katCommentStudio.prefixStrikethrough", "description": "Strikethrough prefix (//) comment color", "defaults": { "dark": "#808080", "light": "#999999", "highContrast": "#A0A0A0" } },
-      { "id": "katCommentStudio.prefixDisabled", "description": "Disabled prefix (-) comment color", "defaults": { "dark": "#505050", "light": "#AAAAAA", "highContrast": "#707070" } },
-      { "id": "katCommentStudio.prefixQuote", "description": "Quote prefix (>) comment color", "defaults": { "dark": "#C586C0", "light": "#800080", "highContrast": "#D070D0" } }
+      {
+        "id": "katCommentStudio.anchorTodo",
+        "description": "TODO anchor color",
+        "defaults": {
+          "dark": "#FF8C00",
+          "light": "#CC7000",
+          "highContrast": "#FFB347"
+        }
+      },
+      {
+        "id": "katCommentStudio.anchorHack",
+        "description": "HACK anchor color",
+        "defaults": {
+          "dark": "#DC143C",
+          "light": "#B01030",
+          "highContrast": "#FF4060"
+        }
+      },
+      {
+        "id": "katCommentStudio.anchorNote",
+        "description": "NOTE anchor color",
+        "defaults": {
+          "dark": "#4169E1",
+          "light": "#3050B0",
+          "highContrast": "#6090FF"
+        }
+      },
+      {
+        "id": "katCommentStudio.anchorBug",
+        "description": "BUG anchor color",
+        "defaults": {
+          "dark": "#FF0000",
+          "light": "#CC0000",
+          "highContrast": "#FF4040"
+        }
+      },
+      {
+        "id": "katCommentStudio.anchorFixme",
+        "description": "FIXME anchor color",
+        "defaults": {
+          "dark": "#FF4500",
+          "light": "#CC3800",
+          "highContrast": "#FF6530"
+        }
+      },
+      {
+        "id": "katCommentStudio.anchorUndone",
+        "description": "UNDONE anchor color",
+        "defaults": {
+          "dark": "#808080",
+          "light": "#606060",
+          "highContrast": "#A0A0A0"
+        }
+      },
+      {
+        "id": "katCommentStudio.anchorReview",
+        "description": "REVIEW anchor color",
+        "defaults": {
+          "dark": "#9370DB",
+          "light": "#7050B0",
+          "highContrast": "#B090FF"
+        }
+      },
+      {
+        "id": "katCommentStudio.anchorAnchor",
+        "description": "ANCHOR anchor color",
+        "defaults": {
+          "dark": "#20B2AA",
+          "light": "#108880",
+          "highContrast": "#40D0C8"
+        }
+      },
+      {
+        "id": "katCommentStudio.anchorCustom",
+        "description": "Custom anchor tag color",
+        "defaults": {
+          "dark": "#DAA520",
+          "light": "#B8860B",
+          "highContrast": "#FFD700"
+        }
+      },
+      {
+        "id": "katCommentStudio.renderedText",
+        "description": "Rendered comment text color",
+        "defaults": {
+          "dark": "#D4D4D4",
+          "light": "#333333",
+          "highContrast": "#FFFFFF"
+        }
+      },
+      {
+        "id": "katCommentStudio.renderedHeading",
+        "description": "Rendered comment heading color",
+        "defaults": {
+          "dark": "#569CD6",
+          "light": "#0000FF",
+          "highContrast": "#6090FF"
+        }
+      },
+      {
+        "id": "katCommentStudio.renderedCode",
+        "description": "Rendered inline code color",
+        "defaults": {
+          "dark": "#CE9178",
+          "light": "#A31515",
+          "highContrast": "#FFB090"
+        }
+      },
+      {
+        "id": "katCommentStudio.renderedLink",
+        "description": "Rendered link color",
+        "defaults": {
+          "dark": "#3794FF",
+          "light": "#006AB1",
+          "highContrast": "#3794FF"
+        }
+      },
+      {
+        "id": "katCommentStudio.prefixAlert",
+        "description": "Alert prefix (!) comment color",
+        "defaults": {
+          "dark": "#FF2D00",
+          "light": "#CC0000",
+          "highContrast": "#FF4040"
+        }
+      },
+      {
+        "id": "katCommentStudio.prefixQuestion",
+        "description": "Question prefix (?) comment color",
+        "defaults": {
+          "dark": "#3498DB",
+          "light": "#2070B0",
+          "highContrast": "#60A0FF"
+        }
+      },
+      {
+        "id": "katCommentStudio.prefixHighlight",
+        "description": "Highlight prefix (*) comment color",
+        "defaults": {
+          "dark": "#98C379",
+          "light": "#008000",
+          "highContrast": "#80FF80"
+        }
+      },
+      {
+        "id": "katCommentStudio.prefixStrikethrough",
+        "description": "Strikethrough prefix (//) comment color",
+        "defaults": {
+          "dark": "#808080",
+          "light": "#999999",
+          "highContrast": "#A0A0A0"
+        }
+      },
+      {
+        "id": "katCommentStudio.prefixDisabled",
+        "description": "Disabled prefix (-) comment color",
+        "defaults": {
+          "dark": "#505050",
+          "light": "#AAAAAA",
+          "highContrast": "#707070"
+        }
+      },
+      {
+        "id": "katCommentStudio.prefixQuote",
+        "description": "Quote prefix (>) comment color",
+        "defaults": {
+          "dark": "#C586C0",
+          "light": "#800080",
+          "highContrast": "#D070D0"
+        }
+      }
     ]
   },
   "scripts": {
@@ -501,10 +672,13 @@
   "devDependencies": {
     "@types/node": "^20.11.0",
     "@types/vscode": "^1.85.0",
-    "typescript": "^5.3.0",
-    "vitest": "^2.0.0",
     "@typescript-eslint/eslint-plugin": "^7.0.0",
     "@typescript-eslint/parser": "^7.0.0",
-    "eslint": "^8.56.0"
+    "eslint": "^8.56.0",
+    "typescript": "^5.3.0",
+    "vitest": "^2.0.0"
+  },
+  "dependencies": {
+    "@vscode/codicons": "^0.0.45"
   }
 }

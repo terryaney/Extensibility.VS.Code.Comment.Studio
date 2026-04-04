@@ -1,24 +1,51 @@
 import * as vscode from 'vscode';
 import { AnchorMatch } from './anchorService';
 import { generateAnchorsGridHtml } from './anchorsGridWebview';
+import { AnchorScopeId, AnchorScopeOption, AnchorViewState, createDefaultAnchorViewState } from './anchorViewState';
+
+export interface AnchorsGridModel {
+  anchors: AnchorMatch[];
+  availableTypes: string[];
+  filteredCount: number;
+  totalCount: number;
+  scopeLabel: string;
+  scopeOptions: AnchorScopeOption[];
+  state: AnchorViewState;
+  scopeRootPath?: string;
+}
 
 /**
  * WebviewViewProvider for the Code Anchors grid panel.
  * Displays anchors in a sortable, filterable HTML table
  * in the bottom panel alongside Problems, Output, etc.
  */
-export class AnchorsGridProvider implements vscode.WebviewViewProvider {
+export class AnchorsGridProvider implements vscode.WebviewViewProvider, vscode.Disposable {
   public static readonly viewType = 'kat-comment-studio.anchorsGrid';
 
   private view: vscode.WebviewView | undefined;
-  private anchors: AnchorMatch[] = [];
-  private scopeLabel = 'Workspace';
+  private model: AnchorsGridModel = {
+    anchors: [],
+    availableTypes: [],
+    filteredCount: 0,
+    totalCount: 0,
+    scopeLabel: 'Workspace',
+    scopeOptions: [],
+    state: createDefaultAnchorViewState(),
+    scopeRootPath: undefined,
+  };
 
   constructor(
+    private readonly extensionUri: vscode.Uri,
     private readonly onNavigate: (filePath: string, lineNumber: number) => void,
     private readonly onRequestScan: () => void,
     private readonly onRequestRefresh: () => void,
     private readonly onRequestExport: () => void,
+    private readonly onScopeChange: (scopeId: AnchorScopeId) => void,
+    private readonly onTypeFilterChange: (includedTypes?: string[]) => void,
+    private readonly onSearchQueryChange: (searchQuery: string) => void,
+    private readonly onPersistGridState: (state: Partial<AnchorViewState>) => void,
+    private readonly onCopyRow: (anchor: AnchorMatch) => void,
+    private readonly onCopyText: (text: string) => void,
   ) {}
 
   resolveWebviewView(
@@ -30,12 +57,18 @@ export class AnchorsGridProvider implements vscode.WebviewViewProvider {
 
     webviewView.webview.options = {
       enableScripts: true,
+      localResourceRoots: [
+        vscode.Uri.joinPath(this.extensionUri, 'node_modules', '@vscode', 'codicons'),
+      ],
     };
 
     const nonce = getNonce();
-    webviewView.webview.html = generateAnchorsGridHtml(nonce);
+    const codiconsCssUri = webviewView.webview.asWebviewUri(
+      vscode.Uri.joinPath(this.extensionUri, 'node_modules', '@vscode', 'codicons', 'dist', 'codicon.css'),
+    );
+    const cspSource = webviewView.webview.cspSource;
+    webviewView.webview.html = generateAnchorsGridHtml(nonce, codiconsCssUri.toString(), cspSource);
 
-    // Handle messages from webview
     webviewView.webview.onDidReceiveMessage(message => {
       switch (message.type) {
         case 'navigateTo':
@@ -46,60 +79,98 @@ export class AnchorsGridProvider implements vscode.WebviewViewProvider {
           break;
         case 'requestRefresh':
           this.onRequestRefresh();
-          // Send current data to webview
-          this.pushAnchors();
           break;
         case 'requestExport':
           this.onRequestExport();
           break;
+        case 'setScope':
+          this.onScopeChange(message.scopeId);
+          break;
+        case 'setTypeFilter':
+          this.onTypeFilterChange(message.includedTypes);
+          break;
+        case 'setSearchQuery':
+          this.onSearchQueryChange(message.searchQuery ?? '');
+          break;
+        case 'persistGridState':
+          this.onPersistGridState(message.state ?? {});
+          break;
+        case 'copyRow':
+          this.onCopyRow(message.anchor);
+          break;
+        case 'copyCell':
+          this.onCopyText(message.text ?? '');
+          break;
       }
     });
 
-    // When the view becomes visible again, re-send data
     webviewView.onDidChangeVisibility(() => {
       if (webviewView.visible) {
-        this.pushAnchors();
+        this.pushModel();
       }
     });
 
-    // Send initial data
-    this.pushAnchors();
+    this.applyViewMetadata();
+    this.pushModel();
   }
 
-  /**
-   * Updates the grid with new anchor data.
-   */
-  updateAnchors(anchors: AnchorMatch[]): void {
-    this.anchors = anchors;
-    this.pushAnchors();
-  }
-
-  /**
-   * Updates the scope label shown in the toolbar.
-   */
-  updateScope(scope: string): void {
-    this.scopeLabel = scope;
-    this.view?.webview.postMessage({ type: 'updateScope', scope });
-  }
-
-  private pushAnchors(): void {
-    if (this.view?.visible) {
-      this.view.webview.postMessage({
-        type: 'updateAnchors',
-        anchors: this.anchors,
-      });
-    }
+  updateModel(model: AnchorsGridModel): void {
+    this.model = model;
+    this.applyViewMetadata();
+    this.pushModel();
   }
 
   dispose(): void {
     this.view = undefined;
+  }
+
+  private applyViewMetadata(): void {
+    if (!this.view) {
+      return;
+    }
+
+    this.view.title = 'KAT Comment Studio - Code Anchors';
+
+    const isFiltered = this.isFilterActive();
+    const displayCount = this.model.filteredCount;
+
+    this.view.description = isFiltered
+      ? `⊜ ${this.model.scopeLabel}`
+      : this.model.scopeLabel;
+
+    this.view.badge = displayCount > 0
+      ? {
+          tooltip: isFiltered
+            ? `Code Anchors (filtered ${displayCount} of ${this.model.totalCount})`
+            : 'Code Anchors',
+          value: displayCount,
+        }
+      : undefined;
+  }
+
+  private isFilterActive(): boolean {
+    const { state } = this.model;
+    return state.scopeId !== 'workspace'
+      || state.includedTypes !== undefined
+      || state.searchQuery.trim().length > 0;
+  }
+
+  private pushModel(): void {
+    if (!this.view) {
+      return;
+    }
+
+    void this.view.webview.postMessage({
+      type: 'updateModel',
+      model: this.model,
+    });
   }
 }
 
 function getNonce(): string {
   let text = '';
   const possible = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  for (let i = 0; i < 32; i++) {
+  for (let index = 0; index < 32; index++) {
     text += possible.charAt(Math.floor(Math.random() * possible.length));
   }
   return text;

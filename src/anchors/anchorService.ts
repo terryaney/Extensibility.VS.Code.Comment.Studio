@@ -6,6 +6,12 @@ export interface AnchorType {
   themeColorId: string; // registered theme color ID for tree view icons
 }
 
+export interface AnchorScopeEntity {
+  id: string;
+  label: string;
+  path: string;
+}
+
 export interface AnchorMatch {
   /** The anchor tag (e.g., "TODO", "HACK") */
   tag: string;
@@ -27,6 +33,12 @@ export interface AnchorMatch {
   lineNumber: number;
   /** Column offset (0-based) */
   column: number;
+  /** Workspace folder containing this anchor, when applicable */
+  workspaceFolder?: AnchorScopeEntity;
+  /** Git repository containing this anchor, when applicable */
+  repository?: AnchorScopeEntity;
+  /** Nearest .csproj containing this anchor, when applicable */
+  project?: AnchorScopeEntity;
 }
 
 // Built-in anchor types
@@ -38,11 +50,15 @@ export const BUILTIN_ANCHOR_TYPES: ReadonlyMap<string, AnchorType> = new Map([
   ['FIXME', { tag: 'FIXME', displayName: 'Fix Me', icon: 'wrench', color: '#FF4500', themeColorId: 'katCommentStudio.anchorFixme' }],
   ['UNDONE', { tag: 'UNDONE', displayName: 'Undone', icon: 'circle-slash', color: '#808080', themeColorId: 'katCommentStudio.anchorUndone' }],
   ['REVIEW', { tag: 'REVIEW', displayName: 'Review', icon: 'eye', color: '#9370DB', themeColorId: 'katCommentStudio.anchorReview' }],
-  ['ANCHOR', { tag: 'ANCHOR', displayName: 'Anchor', icon: 'pin', color: '#20B2AA', themeColorId: 'katCommentStudio.anchorAnchor' }],
+  ['ANCHOR', { tag: 'ANCHOR', displayName: 'Anchor', icon: 'link', color: '#20B2AA', themeColorId: 'katCommentStudio.anchorAnchor' }],
 ]);
 
 /**
  * Builds the anchor detection regex from the given tags and optional prefixes.
+ *
+ * Metadata delimiters `()` and `[]` are interchangeable. Tokens inside are
+ * comma-separated and parsed by type: `@owner`, `#issue`, `yyyy-MM-dd` date,
+ * or plain name (ANCHOR only).
  */
 export function buildAnchorRegex(tags: string[], tagPrefixes?: string[]): RegExp {
   const escapedTags = tags.map(t => escapeRegex(t));
@@ -54,13 +70,13 @@ export function buildAnchorRegex(tags: string[], tagPrefixes?: string[]): RegExp
     prefixPattern = `(?:${escapedPrefixes.join('|')})?`;
   }
 
-  // Require colon after tag (case-sensitive, no 'i' flag)
+  // Single optional metadata group: either (...) or [...]
+  // Captures comma-separated tokens parsed in findAnchorsInLine
   return new RegExp(
     `\\b${prefixPattern}(${tagPattern})` +
-    `(?:\\(([^)]+)\\))?` +       // optional (name) or (@owner) for ANCHOR
-    `(?:\\s*\\[#(\\d+)\\])?` +   // optional [#123]
-    `(?:\\s*\\(@([^)]+)\\))?` +  // optional (@owner) if not captured above
-    `:\\s*(.*)$`,                // colon + description
+    `(?:\\s?[\\(\\[]([^\\)\\]]+)[\\)\\]])?` + // optional (tokens) or [tokens], with optional space
+    `:\\s*(.*)$`,                           // colon + description
+    'i',
   );
 }
 
@@ -77,42 +93,40 @@ export function findAnchorsInLine(
   if (!match) return undefined;
 
   const tag = match[1].toUpperCase();
-  const group2 = match[2]?.trim();
-  const issueRef = match[3];
-  const group4 = match[4]?.trim();
-  const description = match[5]?.trim() || '';
+  const metadataGroup = match[2]?.trim();
+  const description = match[3]?.trim() || '';
 
   let owner: string | undefined;
   let anchorName: string | undefined;
   let dueDate: string | undefined;
+  let issueRef: string | undefined;
 
-  // For ANCHOR tag, group2 is the anchor name
-  // For other tags, group2 starting with @ is an owner
-  if (tag === 'ANCHOR' && group2 && !group2.startsWith('@')) {
-    anchorName = group2;
-  } else if (group2) {
-    // group2 may contain comma-separated metadata: @owner, #1234, 2026-02-01
-    const tokens = group2.split(',').map(t => t.trim());
+  if (metadataGroup) {
+    const tokens = metadataGroup.split(',').map(t => t.trim());
     for (const token of tokens) {
       if (token.startsWith('@')) {
         owner = token.substring(1);
+      } else if (/^#\d+$/.test(token)) {
+        issueRef = token;
       } else if (/^\d{4}-\d{2}-\d{2}$/.test(token)) {
         dueDate = token;
+      } else if (tag === 'ANCHOR' && !anchorName) {
+        // Plain text token is an anchor name only for ANCHOR tag
+        anchorName = token;
       }
-      // #issue handled by regex group3 already
     }
   }
 
-  // group4 is always an owner (@owner)
-  if (group4) {
-    owner = group4;
+  // ANCHOR requires a name — skip if no anchorName parsed
+  if (tag === 'ANCHOR' && !anchorName) {
+    return undefined;
   }
 
   return {
     tag,
     fullText: match[0],
     owner,
-    issueRef: issueRef ? `#${issueRef}` : undefined,
+    issueRef,
     anchorName,
     dueDate,
     description,

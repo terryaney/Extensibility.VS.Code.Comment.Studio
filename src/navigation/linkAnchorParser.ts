@@ -152,20 +152,54 @@ export function resolveLinkTarget(target: LinkAnchorTarget, baseFilePath: string
   if (target.isLocalAnchor) return baseFilePath;
 
   const pathModule = require('path');
+  const vscode = require('vscode');
+  const fsModule = require('fs');
 
+  // Relative paths: ./ or ../
   if (target.targetPath.startsWith('./') || target.targetPath.startsWith('../')) {
-    // Relative path
     return pathModule.resolve(pathModule.dirname(baseFilePath), target.targetPath);
   }
 
+  // Solution/workspace-relative: /path — strip leading / and resolve against workspace folders
+  if (target.targetPath.startsWith('/')) {
+    const relativePath = target.targetPath.substring(1);
+    const workspaceFolders = vscode.workspace?.workspaceFolders;
+    if (workspaceFolders) {
+      for (const folder of workspaceFolders) {
+        const resolved = pathModule.join(folder.uri.fsPath, relativePath);
+        try {
+          if (fsModule.existsSync(resolved)) return resolved;
+        } catch {
+          // Continue
+        }
+      }
+      // No match found — fall back to first workspace folder
+      return pathModule.join(workspaceFolders[0].uri.fsPath, relativePath);
+    }
+    return pathModule.resolve(pathModule.dirname(baseFilePath), relativePath);
+  }
+
+  // Project-relative: @/path — resolve against nearest containing .csproj directory
+  if (target.targetPath.startsWith('@/')) {
+    const relativePath = target.targetPath.substring(2);
+    const projectRoot = findNearestProjectRoot(baseFilePath);
+    if (projectRoot) {
+      return pathModule.join(projectRoot, relativePath);
+    }
+    // Fall back to workspace-relative
+    const workspaceFolders = vscode.workspace?.workspaceFolders;
+    if (workspaceFolders) {
+      return pathModule.join(workspaceFolders[0].uri.fsPath, relativePath);
+    }
+    return pathModule.resolve(pathModule.dirname(baseFilePath), relativePath);
+  }
+
   // Try workspace-relative
-  const vscode = require('vscode');
   const workspaceFolders = vscode.workspace?.workspaceFolders;
   if (workspaceFolders) {
     for (const folder of workspaceFolders) {
       const resolved = pathModule.join(folder.uri.fsPath, target.targetPath);
       try {
-        const fsModule = require('fs');
         if (fsModule.existsSync(resolved)) return resolved;
       } catch {
         // Continue
@@ -175,4 +209,91 @@ export function resolveLinkTarget(target: LinkAnchorTarget, baseFilePath: string
 
   // Fall back to relative to current file
   return pathModule.resolve(pathModule.dirname(baseFilePath), target.targetPath);
+}
+
+/**
+ * Resolves a partial LINK: path to its base directory and remaining subpath.
+ * Used by both the link resolver and the completion provider.
+ */
+export function resolvePathBase(
+    partialPath: string,
+    documentFilePath: string,
+): { baseDir: string; remainingPath: string; prefix: string } | undefined {
+    const pathModule = require('path');
+
+    // Project-relative: @/path
+    if (partialPath.startsWith('@/')) {
+        const remaining = partialPath.substring(2);
+        const projectRoot = findNearestProjectRoot(documentFilePath);
+        if (projectRoot) {
+            return { baseDir: projectRoot, remainingPath: remaining, prefix: '@/' };
+        }
+        const vscode = require('vscode');
+        const workspaceFolders = vscode.workspace?.workspaceFolders;
+        if (workspaceFolders?.length > 0) {
+            return { baseDir: workspaceFolders[0].uri.fsPath, remainingPath: remaining, prefix: '@/' };
+        }
+        return undefined;
+    }
+
+    // Solution/workspace-relative: /path
+    if (partialPath.startsWith('/')) {
+        const remaining = partialPath.substring(1);
+        const vscode = require('vscode');
+        const workspaceFolders = vscode.workspace?.workspaceFolders;
+        if (workspaceFolders?.length > 0) {
+            return { baseDir: workspaceFolders[0].uri.fsPath, remainingPath: remaining, prefix: '/' };
+        }
+        return undefined;
+    }
+
+    // Absolute Windows path: X:/ or X:\
+    if (/^[a-zA-Z]:[/\\]/.test(partialPath)) {
+        const drive = partialPath.substring(0, 3);
+        const remaining = partialPath.substring(3);
+        return { baseDir: drive, remainingPath: remaining, prefix: drive };
+    }
+
+    // Relative: ./ or ../
+    if (partialPath.startsWith('./') || partialPath.startsWith('../')) {
+        const baseDir = pathModule.dirname(documentFilePath);
+        const match = partialPath.match(/^((?:\.\.?\/)+)(.*)/);
+        if (match) {
+            const prefixPart = match[1];
+            const remaining = match[2];
+            const resolved = pathModule.resolve(baseDir, prefixPart);
+            return { baseDir: resolved, remainingPath: remaining, prefix: prefixPart };
+        }
+        return { baseDir, remainingPath: partialPath, prefix: '' };
+    }
+
+    // Bare path: relative to document directory
+    const baseDir = pathModule.dirname(documentFilePath);
+    return { baseDir, remainingPath: partialPath, prefix: '' };
+}
+
+/**
+ * Walks up from a file path to find the nearest directory containing a .csproj file.
+ */
+export function findNearestProjectRoot(filePath: string): string | undefined {
+  const pathModule = require('path');
+  const fsModule = require('fs');
+
+  let dir = pathModule.dirname(filePath);
+  const root = pathModule.parse(dir).root;
+
+  while (dir !== root) {
+    try {
+      const entries = fsModule.readdirSync(dir);
+      if (entries.some((e: string) => e.endsWith('.csproj'))) {
+        return dir;
+      }
+    } catch {
+      // Can't read directory, stop
+      break;
+    }
+    dir = pathModule.dirname(dir);
+  }
+
+  return undefined;
 }

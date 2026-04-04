@@ -5,6 +5,7 @@ import { parseLinkAnchors, resolveLinkTarget, LinkAnchorTarget } from './linkAnc
 
 /**
  * Provides clickable links for LINK: syntax in comments.
+ * Uses command URIs so navigateToLinkTarget() handles all navigation.
  */
 export class LinkAnchorLinkProvider implements vscode.DocumentLinkProvider {
   provideDocumentLinks(document: vscode.TextDocument, _token: vscode.CancellationToken): vscode.DocumentLink[] {
@@ -19,13 +20,9 @@ export class LinkAnchorLinkProvider implements vscode.DocumentLinkProvider {
         const range = new vscode.Range(lineNum, target.pathStart, lineNum, target.pathStart + target.pathLength);
         const resolvedPath = resolveLinkTarget(target, document.uri.fsPath);
 
-        let uri: vscode.Uri;
-        if (target.isLocalAnchor) {
-          // Local anchor - navigate within same file
-          uri = document.uri.with({ fragment: `anchor:${target.anchorName}` });
-        } else {
-          uri = vscode.Uri.file(resolvedPath);
-        }
+        // Use command URI so navigateToLinkTarget handles line/anchor navigation
+        const commandArgs = encodeURIComponent(JSON.stringify([target, document.uri.fsPath]));
+        const uri = vscode.Uri.parse(`command:kat-comment-studio.navigateLink?${commandArgs}`);
 
         const link = new vscode.DocumentLink(range, uri);
         link.tooltip = buildTooltip(target, resolvedPath);
@@ -82,11 +79,11 @@ export async function navigateToLinkTarget(target: LinkAnchorTarget, baseFilePat
   const resolvedPath = resolveLinkTarget(target, baseFilePath);
 
   if (target.isLocalAnchor && target.anchorName) {
-    // Search for ANCHOR(name) in current document
+    // Search for ANCHOR(name) or ANCHOR[name] in current document
     const editor = vscode.window.activeTextEditor;
     if (editor) {
       const text = editor.document.getText();
-      const anchorRegex = new RegExp(`\\bANCHOR\\(${escapeRegex(target.anchorName)}\\)`, 'i');
+      const anchorRegex = new RegExp(`\\bANCHOR[\\(\\[]${escapeRegex(target.anchorName)}[\\)\\]]`, 'i');
       const match = anchorRegex.exec(text);
       if (match) {
         const pos = editor.document.positionAt(match.index);
@@ -105,22 +102,22 @@ export async function navigateToLinkTarget(target: LinkAnchorTarget, baseFilePat
   const doc = await vscode.workspace.openTextDocument(resolvedPath);
   const editor = await vscode.window.showTextDocument(doc);
 
-  if (target.lineNumber) {
-    const line = Math.max(0, target.lineNumber - 1);
-    const endLine = target.endLineNumber ? Math.max(0, target.endLineNumber - 1) : line;
-    const range = new vscode.Range(line, 0, endLine, doc.lineAt(endLine).text.length);
-    editor.selection = new vscode.Selection(range.start, range.end);
-    editor.revealRange(range, vscode.TextEditorRevealType.InCenter);
-  } else if (target.anchorName) {
-    // Search for ANCHOR(name) in target file
+  // Anchor takes precedence over line number (more specific/intentional)
+  if (target.anchorName) {
     const text = doc.getText();
-    const anchorRegex = new RegExp(`\\bANCHOR\\(${escapeRegex(target.anchorName)}\\)`, 'i');
+    const anchorRegex = new RegExp(`\\bANCHOR[\\(\\[]${escapeRegex(target.anchorName)}[\\)\\]]`, 'i');
     const match = anchorRegex.exec(text);
     if (match) {
       const pos = doc.positionAt(match.index);
       editor.selection = new vscode.Selection(pos, pos);
       editor.revealRange(new vscode.Range(pos, pos), vscode.TextEditorRevealType.InCenter);
     }
+  } else if (target.lineNumber) {
+    const line = Math.max(0, target.lineNumber - 1);
+    const endLine = target.endLineNumber ? Math.max(0, target.endLineNumber - 1) : line;
+    const range = new vscode.Range(line, 0, endLine, doc.lineAt(endLine).text.length);
+    editor.selection = new vscode.Selection(range.start, range.end);
+    editor.revealRange(range, vscode.TextEditorRevealType.InCenter);
   }
 }
 

@@ -1,8 +1,9 @@
-import * as vscode from 'vscode';
 import * as path from 'path';
+import * as vscode from 'vscode';
 import { AnchorMatch, BUILTIN_ANCHOR_TYPES } from './anchorService';
+import { AnchorFilterContext, AnchorScopeId, AnchorViewState, createDefaultAnchorViewState, filterAnchors } from './anchorViewState';
 
-export type AnchorScope = 'workspace' | 'folder' | 'document' | 'openDocuments';
+export type AnchorScope = AnchorScopeId;
 
 export class AnchorTreeItem extends vscode.TreeItem {
   constructor(
@@ -25,7 +26,6 @@ export class AnchorTreeItem extends vscode.TreeItem {
       if (anchorType) {
         this.iconPath = new vscode.ThemeIcon(anchorType.icon, new vscode.ThemeColor(anchorType.themeColorId));
       } else {
-        // Custom tag — use tag icon with custom color
         this.iconPath = new vscode.ThemeIcon('tag', new vscode.ThemeColor('katCommentStudio.anchorCustom'));
       }
 
@@ -68,36 +68,33 @@ export class AnchorTreeItem extends vscode.TreeItem {
 }
 
 export class AnchorTreeProvider implements vscode.TreeDataProvider<AnchorTreeItem> {
-  private _onDidChangeTreeData = new vscode.EventEmitter<AnchorTreeItem | undefined>();
-  readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
+  private readonly onDidChangeTreeDataEmitter = new vscode.EventEmitter<AnchorTreeItem | undefined>();
+  readonly onDidChangeTreeData = this.onDidChangeTreeDataEmitter.event;
 
   private anchors: AnchorMatch[] = [];
-  private scope: AnchorScope = 'workspace';
-  private typeFilter: Set<string> | undefined;
-  private searchQuery = '';
+  private viewState = createDefaultAnchorViewState();
+  private context: AnchorFilterContext = {
+    activeFilePath: undefined,
+    openDocumentPaths: [],
+    workspaceFolders: [],
+  };
 
   setAnchors(anchors: AnchorMatch[]): void {
     this.anchors = anchors;
-    this._onDidChangeTreeData.fire(undefined);
+    this.onDidChangeTreeDataEmitter.fire(undefined);
   }
 
-  setScope(scope: AnchorScope): void {
-    this.scope = scope;
-    this._onDidChangeTreeData.fire(undefined);
-  }
-
-  setTypeFilter(types: string[] | undefined): void {
-    this.typeFilter = types ? new Set(types) : undefined;
-    this._onDidChangeTreeData.fire(undefined);
-  }
-
-  setSearchQuery(query: string): void {
-    this.searchQuery = query.toLowerCase();
-    this._onDidChangeTreeData.fire(undefined);
+  updateViewState(state: Pick<AnchorViewState, 'scopeId' | 'includedTypes' | 'searchQuery'>, context: AnchorFilterContext): void {
+    this.viewState = {
+      ...this.viewState,
+      ...state,
+    };
+    this.context = context;
+    this.onDidChangeTreeDataEmitter.fire(undefined);
   }
 
   refresh(): void {
-    this._onDidChangeTreeData.fire(undefined);
+    this.onDidChangeTreeDataEmitter.fire(undefined);
   }
 
   getTreeItem(element: AnchorTreeItem): vscode.TreeItem {
@@ -106,76 +103,55 @@ export class AnchorTreeProvider implements vscode.TreeDataProvider<AnchorTreeIte
 
   getChildren(element?: AnchorTreeItem): AnchorTreeItem[] {
     if (!element) {
-      // Root level: group by file
       return this.getFileGroups();
     }
 
     if (element.isFileGroup && element.label) {
-      // File group: show anchors in this file
-      const filePath = typeof element.label === 'string' ? element.label : '';
+      const relativePath = typeof element.label === 'string' ? element.label : '';
       return this.getFilteredAnchors()
-        .filter(a => this.getRelativePath(a.filePath) === filePath)
-        .map(a => new AnchorTreeItem(a, false));
+        .filter(anchor => this.getRelativePath(anchor.filePath) === relativePath)
+        .sort((left, right) => left.lineNumber - right.lineNumber)
+        .map(anchor => new AnchorTreeItem(anchor, false));
     }
 
     return [];
   }
 
   private getFileGroups(): AnchorTreeItem[] {
-    const filtered = this.getFilteredAnchors();
     const byFile = new Map<string, AnchorMatch[]>();
 
-    for (const anchor of filtered) {
-      const relPath = this.getRelativePath(anchor.filePath);
-      const existing = byFile.get(relPath) || [];
-      existing.push(anchor);
-      byFile.set(relPath, existing);
+    for (const anchor of this.getFilteredAnchors()) {
+      const relativePath = this.getRelativePath(anchor.filePath);
+      const fileAnchors = byFile.get(relativePath) ?? [];
+      fileAnchors.push(anchor);
+      byFile.set(relativePath, fileAnchors);
     }
 
-    return [...byFile.entries()].map(([filePath, anchors]) => {
-      const item = new AnchorTreeItem(
-        undefined,
-        true,
-        filePath,
-        vscode.TreeItemCollapsibleState.Expanded,
-      );
-      item.description = `(${anchors.length})`;
-      item.iconPath = vscode.ThemeIcon.File;
-      return item;
-    });
+    return [...byFile.entries()]
+      .sort((left, right) => left[0].localeCompare(right[0]))
+      .map(([relativePath, anchors]) => {
+        const item = new AnchorTreeItem(
+          undefined,
+          true,
+          relativePath,
+          vscode.TreeItemCollapsibleState.Expanded,
+        );
+        item.description = `(${anchors.length})`;
+        item.iconPath = vscode.ThemeIcon.File;
+        return item;
+      });
   }
 
   private getFilteredAnchors(): AnchorMatch[] {
-    let filtered = this.anchors;
-
-    if (this.typeFilter) {
-      filtered = filtered.filter(a => this.typeFilter!.has(a.tag));
-    }
-
-    if (this.searchQuery) {
-      filtered = filtered.filter(a =>
-        a.description.toLowerCase().includes(this.searchQuery) ||
-        a.tag.toLowerCase().includes(this.searchQuery) ||
-        (a.owner && a.owner.toLowerCase().includes(this.searchQuery)),
-      );
-    }
-
-    return filtered;
+    return filterAnchors(this.anchors, this.viewState, this.context);
   }
 
   private getRelativePath(filePath: string): string {
-    const workspaceFolders = vscode.workspace.workspaceFolders;
-    if (workspaceFolders) {
-      for (const folder of workspaceFolders) {
-        if (filePath.startsWith(folder.uri.fsPath)) {
-          return path.relative(folder.uri.fsPath, filePath);
-        }
-      }
-    }
-    return filePath;
+    const workspaceRelativePath = vscode.workspace.asRelativePath(filePath, false);
+    return workspaceRelativePath || filePath;
   }
 
   dispose(): void {
-    this._onDidChangeTreeData.dispose();
+    this.onDidChangeTreeDataEmitter.dispose();
   }
 }

@@ -105,10 +105,48 @@ line 2
       expect(results[0].tag).toBe('PERF');
     });
 
-    it('should be case sensitive (all-caps only)', () => {
+    it('should match case-insensitively', () => {
       const text = '// todo: lowercase anchor';
       const results = findAnchorsInText(text, 'test.cs');
+      expect(results).toHaveLength(1);
+      expect(results[0].tag).toBe('TODO'); // normalized to uppercase
+      expect(results[0].description).toBe('lowercase anchor');
+    });
+
+    it('should match mixed-case tags', () => {
+      const text = '// Todo: Mixed case tag';
+      const results = findAnchorsInText(text, 'test.cs');
+      expect(results).toHaveLength(1);
+      expect(results[0].tag).toBe('TODO');
+    });
+
+    it('should match lowercase tags with metadata', () => {
+      const text = '// hack(@terry): quick fix';
+      const results = findAnchorsInText(text, 'test.cs');
+      expect(results).toHaveLength(1);
+      expect(results[0].tag).toBe('HACK');
+      expect(results[0].owner).toBe('terry');
+    });
+
+    it('should skip ANCHOR without name metadata', () => {
+      const text = '// ANCHOR: no name provided';
+      const results = findAnchorsInText(text, 'test.cs');
       expect(results).toHaveLength(0);
+    });
+
+    it('should match ANCHOR with name (case-insensitive)', () => {
+      const text = '// anchor(MySection): start of section';
+      const results = findAnchorsInText(text, 'test.cs');
+      expect(results).toHaveLength(1);
+      expect(results[0].tag).toBe('ANCHOR');
+      expect(results[0].anchorName).toBe('MySection');
+    });
+
+    it('should allow optional space before metadata container', () => {
+      const text = '// TODO (@terry): spaced metadata';
+      const results = findAnchorsInText(text, 'test.cs');
+      expect(results).toHaveLength(1);
+      expect(results[0].owner).toBe('terry');
     });
 
     it('should not match tag without colon', () => {
@@ -121,6 +159,60 @@ line 2
       const text = "warningSummary = \"Please review the following warnings:\";";
       const results = findAnchorsInText(text, 'test.cs');
       expect(results).toHaveLength(0);
+    });
+
+    // Phase 4: interchangeable () and [] delimiters
+    it('should extract owner from square brackets', () => {
+      const text = '// TODO[@terry]: Fix this';
+      const results = findAnchorsInText(text, 'test.cs');
+      expect(results).toHaveLength(1);
+      expect(results[0].owner).toBe('terry');
+    });
+
+    it('should extract issue ref from parens', () => {
+      const text = '// TODO(#456): Fix this bug';
+      const results = findAnchorsInText(text, 'test.cs');
+      expect(results).toHaveLength(1);
+      expect(results[0].issueRef).toBe('#456');
+    });
+
+    it('should extract issue ref from square brackets', () => {
+      const text = '// TODO[#789]: Fix this bug';
+      const results = findAnchorsInText(text, 'test.cs');
+      expect(results).toHaveLength(1);
+      expect(results[0].issueRef).toBe('#789');
+    });
+
+    it('should find ANCHOR with name in square brackets', () => {
+      const text = '// ANCHOR[MySection]: Start of section';
+      const results = findAnchorsInText(text, 'test.cs');
+      expect(results).toHaveLength(1);
+      expect(results[0].tag).toBe('ANCHOR');
+      expect(results[0].anchorName).toBe('MySection');
+    });
+
+    it('should extract comma-separated metadata', () => {
+      const text = '// TODO(@terry, 2026-03-27): Fix this';
+      const results = findAnchorsInText(text, 'test.cs');
+      expect(results).toHaveLength(1);
+      expect(results[0].owner).toBe('terry');
+      expect(results[0].dueDate).toBe('2026-03-27');
+    });
+
+    it('should extract comma-separated metadata in square brackets', () => {
+      const text = '// REVIEW[@jane, #42, 2026-04-01]: Check algorithm';
+      const results = findAnchorsInText(text, 'test.cs');
+      expect(results).toHaveLength(1);
+      expect(results[0].owner).toBe('jane');
+      expect(results[0].issueRef).toBe('#42');
+      expect(results[0].dueDate).toBe('2026-04-01');
+    });
+
+    it('should extract date metadata from parens', () => {
+      const text = '// REVIEW(2026-03-27): Check this';
+      const results = findAnchorsInText(text, 'test.cs');
+      expect(results).toHaveLength(1);
+      expect(results[0].dueDate).toBe('2026-03-27');
     });
   });
 

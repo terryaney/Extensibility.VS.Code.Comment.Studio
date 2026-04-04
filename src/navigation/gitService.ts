@@ -5,6 +5,13 @@ import { GitRepositoryInfo, GitHostingProvider } from '../types';
 const repoCache = new Map<string, GitRepositoryInfo | null>();
 const gitDirCache = new Map<string, string | null>();
 
+export interface RepositoryDescriptor {
+  id: string;
+  label: string;
+  rootPath: string;
+  info?: GitRepositoryInfo;
+}
+
 /**
  * Clears all cached repository information.
  */
@@ -39,6 +46,23 @@ export async function getRepositoryInfo(filePath: string): Promise<GitRepository
   } catch {
     return undefined;
   }
+}
+
+export async function getRepositoryDescriptor(filePath: string): Promise<RepositoryDescriptor | undefined> {
+  if (!filePath) return undefined;
+
+  const gitDir = findGitDirectory(filePath);
+  if (!gitDir) return undefined;
+
+  const rootPath = path.dirname(gitDir);
+  const info = await getRepositoryInfo(filePath);
+
+  return {
+    id: normalizePath(rootPath),
+    label: path.basename(rootPath),
+    rootPath,
+    info,
+  };
 }
 
 /**
@@ -243,4 +267,8 @@ function getProviderFromHost(host: string, segmentCount: number): GitHostingProv
 function trimGitSuffix(name: string): string {
   if (!name) return name;
   return name.endsWith('.git') ? name.slice(0, -4) : name;
+}
+
+function normalizePath(value: string): string {
+  return value.replace(/[\\/]+$/, '').replace(/\//g, '\\').toLowerCase();
 }

@@ -148,12 +148,15 @@ Code anchors are specially tagged comments that mark items of interest across yo
 | `FIXME` | 🔴 Orange-Red | 🔧 | Must be fixed |
 | `UNDONE` | ⚫ Gray | ⊘ | Reverted or incomplete |
 | `REVIEW` | 🟣 Purple | 👁️ | Needs review |
-| `ANCHOR` | 🩵 Teal | 📌 | Named navigation target |
+| `ANCHOR` | 🩵 Teal | 🔗 | Named navigation target |
 
 ### Basic Syntax
 
+Tags are **case-insensitive** — `todo`, `Todo`, and `TODO` are all recognized and normalized to uppercase in all views.
+
 ```
 // TODO: Add input validation
+// todo: also works — normalized to TODO
 // HACK: Temporary workaround until v2
 // BUG: Off-by-one in edge case
 // FIXME: This crashes on null input
@@ -179,6 +182,8 @@ Metadata can be embedded directly after the tag in parentheses:
 | Issue reference | `[#123]` | Linked issue number |
 | Due date | `(yyyy-MM-dd)` | ISO date shown in tree and grid |
 | Anchor name | `ANCHOR(name)` | Named target for `LINK:` navigation |
+
+> **Note:** `ANCHOR:` without a name (e.g., `// ANCHOR:`) is silently ignored — a name is required for the anchor to have any purpose as a navigation target.
 
 ### Custom Tags
 
@@ -212,15 +217,17 @@ The **KAT Comment Studio** activity bar panel shows a tree of all anchors groupe
 | ⊟ Set Scope | Filter by scope |
 | ≡ Filter Types | Toggle which anchor types are shown |
 
-**Scope options** (Command Palette → `Comment Studio: Set Anchor Scope`):
+**Scope options** (Command Palette → `Comment Studio: Set Anchor Scope` or the grid dropdown):
 
 - **Workspace** — all files in the workspace
-- **Current Folder** — active file's workspace folder
+- **Current Folder** — the active file's workspace folder. In a single-folder window this is the root folder; in a multi-root workspace it is disabled until an active workspace document exists.
 - **Current Document** — only the active file
 - **Open Documents** — all currently open files
+- **Repo: _name_** — only files inside a discovered Git repository
+- **Project: _name_** — only files inside a discovered `.csproj`
 
 **Type filter** (Command Palette → `Comment Studio: Filter Anchor Types`):
-Multi-select picker to show/hide specific anchor types.
+Multi-select picker to show/hide specific anchor types. The tree view and bottom grid now share the same scope, search text, and type filter state so refreshes and rescans do not reset the active view.
 
 ### Bottom Panel Grid
 
@@ -229,9 +236,13 @@ A sortable, filterable grid panel (**KAT Comment Studio - Code Anchors**) is ava
 **Columns:** Type · Description · File · Line · Owner · Issue · Due Date
 
 - Click a column header to sort ascending/descending
-- Free-text search filters across description, file, and owner
-- Type filter dropdown per anchor type
+- Free-text search filters across description, file, owner, repo, and project metadata
+- Scope dropdown stays synchronized with the tree view
+- Type filter dropdown uses explicit include/exclude checkboxes and persists across refresh/rescan
+- Drag column edges to resize; widths persist across view reloads and restarts
+- Type cells render icon + text with anchor semantic colors
 - Click any row to navigate to the anchor in the editor
+- Right-click a row to copy a deterministic row summary; right-click a cell to copy the cell value
 - Overdue dates are highlighted
 
 Access via: Command Palette → `Comment Studio: Show Code Anchors Grid`
@@ -251,7 +262,6 @@ Export all visible anchors to a file. Supported formats:
 
 | Format | Description |
 |---|---|
-| **TSV** | Tab-separated (for Excel/spreadsheets) |
 | **CSV** | Comma-separated |
 | **Markdown** | GitHub-flavored Markdown table |
 | **JSON** | Structured JSON array |
@@ -300,18 +310,31 @@ Disable with `kat-comment-studio.enableIssueLinks: false`.
 
 The `LINK:` syntax creates navigable cross-references directly in comments. Hover for a preview or `Ctrl+Click` to jump.
 
+### Path Prefixes
+
+| Prefix | Resolves from | Example |
+|---|---|---|
+| `@/` | Nearest `.csproj` directory | `@/Services/UserService.cs` |
+| `/` | First workspace folder root | `/Core/Domain/src/Models/User.cs` |
+| `./` | Current file's directory | `./Helpers/StringHelper.cs` |
+| `../` | Current file's parent directory | `../Common/BaseEntity.cs` |
+| `X:/` or `X:\` | Absolute Windows path | `C:/BTR/Camelot/Core/Domain/src/User.cs` |
+| _(bare)_ | Current file's directory | `Models/User.cs` |
+
 ### Supported Forms
 
 ```
-// LINK: MyFile.cs
-// LINK: ./relative/path/to/file.cs
-// LINK: ../sibling/file.ts
-// LINK: /workspace-root-relative/file.cs
-// LINK: MyFile.cs:42                          → jump to line 42
+// LINK: MyFile.cs                              → bare, relative to current file's dir
+// LINK: ./relative/path/to/file.cs             → explicit relative
+// LINK: ../sibling/folder/file.ts              → parent-relative
+// LINK: @/Services/UserService.cs              → project-relative (nearest .csproj dir)
+// LINK: /Core/Domain/src/Models/User.cs        → workspace-root-relative (first folder)
+// LINK: C:/BTR/Camelot/Core/Domain/src/User.cs → absolute path
+// LINK: MyFile.cs:42                           → jump to line 42
 // LINK: MyFile.cs:10-20                        → highlight lines 10–20
-// LINK: MyFile.cs#AnchorName                   → jump to named ANCHOR
+// LINK: MyFile.cs#AnchorName                   → jump to named ANCHOR in target file
 // LINK: #LocalAnchorInThisFile                 → jump to ANCHOR in current file
-// LINK: path with spaces/file.cs:5
+// LINK: path with spaces/file.cs:5             → spaces in path are supported
 ```
 
 **Hover** over any `LINK:` reference to see the resolved path and whether the target exists.
@@ -320,9 +343,16 @@ The `LINK:` syntax creates navigable cross-references directly in comments. Hove
 
 ### IntelliSense Completions
 
-Type `LINK: ` inside a comment to get completions for:
-- File paths relative to the current file and workspace root
-- Named `ANCHOR` tags found across the workspace
+Type `LINK: ` inside a comment to get path completions. The completion provider recognizes all path prefixes:
+
+- `LINK: @/` — browse from the nearest `.csproj` directory
+- `LINK: /` — browse from the first workspace folder root
+- `LINK: ./` — browse from the current file's directory
+- `LINK: ../` — browse from the current file's parent directory
+- `LINK: C:/` — browse an absolute Windows path
+- `LINK: someFolder/` — browse from the current file's directory (bare path)
+
+Selecting a **directory** in the completion list re-triggers suggestions so you can drill deeper without retyping. Named `ANCHOR` tags found across the workspace are also offered as completions for `LINK: #` references.
 
 ### Validation (Diagnostics)
 
