@@ -10,6 +10,7 @@ import {
 } from '../types';
 import { parseXmlContent, isElement, isText, XmlNode, XmlElement, getAttr, extractText } from '../parsing/xmlDocParser';
 import { processMarkdownInText } from './markdownProcessor';
+import { BUILTIN_ANCHOR_TYPES } from '../anchors/anchorService';
 
 // vscode is only available at runtime in the extension host, not in unit tests.
 // We use a lazy import pattern so renderToMarkdown works in the extension
@@ -20,6 +21,23 @@ try {
   vscodeModule = require('vscode');
 } catch {
   // Running in test environment without vscode
+}
+
+// Static color lookup for anchor tags — used to colorize TODO:, HACK:, etc. in rendered HTML
+const ANCHOR_TAG_COLORS: ReadonlyMap<string, string> = new Map(
+  [...BUILTIN_ANCHOR_TYPES.entries()].map(([tag, type]) => [tag, type.color]),
+);
+
+function colorizeAnchorTags(html: string): string {
+  // Match anchor tags at word boundaries: TODO:, HACK:, NOTE:, BUG:, etc.
+  // The html parameter is already HTML-escaped text, so no tags to worry about.
+  const tagPattern = [...ANCHOR_TAG_COLORS.keys()].join('|');
+  const regex = new RegExp(`\\b(${tagPattern}):`, 'g');
+  return html.replace(regex, (match, tag) => {
+    const color = ANCHOR_TAG_COLORS.get(tag);
+    if (!color) return match;
+    return `<span style="color:${color};font-weight:600">${match}</span>`;
+  });
 }
 
 export const NO_SUMMARY_PLACEHOLDER = '(No summary provided)';
@@ -827,10 +845,10 @@ function stripXmlTags(xml: string): string {
 }
 
 /**
- * Renders an XML doc comment block as a styled HTML document for display in a WebviewPanel.
- * Uses VS Code theme CSS variables for consistent theming.
+ * Renders an XML doc comment block as an HTML fragment (body content only, no document wrapper).
+ * Suitable for embedding in an existing webview such as the documentation overlay.
  */
-export function renderToHtml(block: XmlDocCommentBlock, repoInfo?: GitRepositoryInfo): string {
+export function renderToHtmlFragment(block: XmlDocCommentBlock, repoInfo?: GitRepositoryInfo): string {
   const rendered = renderCommentBlock(block, repoInfo);
   const htmlParts: string[] = [];
 
@@ -916,7 +934,15 @@ export function renderToHtml(block: XmlDocCommentBlock, repoInfo?: GitRepository
     }
   }
 
-  const body = htmlParts.join('\n');
+  return htmlParts.join('\n');
+}
+
+/**
+ * Renders an XML doc comment block as a styled HTML document for display in a WebviewPanel.
+ * Uses VS Code theme CSS variables for consistent theming.
+ */
+export function renderToHtml(block: XmlDocCommentBlock, repoInfo?: GitRepositoryInfo): string {
+  const body = renderToHtmlFragment(block, repoInfo);
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -1016,13 +1042,35 @@ ${body}
 
 function sectionLinesToHtml(section: RenderedCommentSection): string {
   const htmlLines: string[] = [];
-  for (const line of section.lines) {
+  let i = 0;
+  const lines = section.lines;
+  while (i < lines.length) {
+    const line = lines[i];
     if (isBlankLine(line)) {
       htmlLines.push('<div class="blank-line"></div>');
+      i++;
       continue;
     }
+
+    // Merge consecutive Code-only lines into a single <code> block
+    if (line.segments.length === 1 && line.segments[0].type === SegmentType.Code) {
+      const codeTexts: string[] = [];
+      while (i < lines.length) {
+        const cl = lines[i];
+        if (cl.segments.length === 1 && cl.segments[0].type === SegmentType.Code) {
+          codeTexts.push(escapeHtml(cl.segments[0].text));
+          i++;
+        } else {
+          break;
+        }
+      }
+      htmlLines.push(`<code>${codeTexts.join('\n')}</code>`);
+      continue;
+    }
+
     const lineHtml = line.segments.map(s => segmentToHtml(s)).join('');
     htmlLines.push(`<div>${lineHtml}</div>`);
+    i++;
   }
   return htmlLines.join('\n');
 }
@@ -1043,14 +1091,19 @@ function segmentToHtml(segment: RenderedSegment): string {
       return `<span class="seg-strike">${text}</span>`;
     case SegmentType.Link:
     case SegmentType.IssueReference:
-      if (segment.linkTarget) {
+      if (segment.linkTarget && isSafeUrl(segment.linkTarget)) {
         return `<a href="${escapeHtml(segment.linkTarget)}">${text}</a>`;
       }
       return text;
     case SegmentType.Text:
     default:
-      return text;
+      return colorizeAnchorTags(text);
   }
+}
+
+function isSafeUrl(url: string): boolean {
+  const trimmed = url.trim().toLowerCase();
+  return trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('#');
 }
 
 function escapeHtml(text: string): string {
@@ -1090,6 +1143,11 @@ function extractPlainText(element: XmlElement): string {
         case 'c': {
           const code = extractText(child.children);
           if (code) parts.push(`\`${code}\``);
+          break;
+        }
+        case 'para': {
+          const paraText = extractPlainText(child);
+          if (paraText) parts.push(' ' + paraText);
           break;
         }
         default:

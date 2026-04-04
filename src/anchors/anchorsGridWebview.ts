@@ -331,6 +331,122 @@ export function generateAnchorsGridHtml(nonce: string, codiconsCssUri: string, c
       border-radius: 2px;
     }
 
+    /* Documentation overlay */
+    .doc-overlay-backdrop {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.3);
+      z-index: 100;
+    }
+    .doc-overlay-backdrop.open {
+      display: block;
+    }
+    .doc-overlay-card {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      background: var(--vscode-editor-background);
+      border: 1px solid var(--vscode-panel-border, var(--vscode-editorGroup-border));
+      border-radius: 6px;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+      width: 80%;
+      max-height: 80vh;
+      overflow-y: auto;
+      padding: 16px 20px;
+    }
+    .doc-overlay-close {
+      position: absolute;
+      top: 8px;
+      right: 10px;
+      background: none;
+      border: none;
+      color: var(--vscode-descriptionForeground);
+      cursor: pointer;
+      font-size: 16px;
+      padding: 2px 6px;
+      border-radius: 3px;
+    }
+    .doc-overlay-close:hover {
+      background: var(--vscode-toolbar-hoverBackground, rgba(255,255,255,0.1));
+      color: var(--vscode-editor-foreground);
+    }
+    /* Doc overlay content styles */
+    .doc-overlay-card .summary {
+      margin-bottom: 10px;
+      color: var(--vscode-descriptionForeground);
+      font-size: 1.05em;
+    }
+    .doc-overlay-card .param-row {
+      display: flex;
+      gap: 8px;
+      padding: 2px 0 2px 16px;
+      align-items: baseline;
+    }
+    .doc-overlay-card .param-name {
+      color: var(--vscode-symbolIcon-fieldForeground, #9CDCFE);
+      font-family: var(--vscode-editor-font-family, 'Consolas', monospace);
+      font-size: var(--vscode-editor-font-size, 13px);
+      white-space: nowrap;
+    }
+    .doc-overlay-card .param-sep {
+      color: var(--vscode-descriptionForeground);
+      opacity: 0.6;
+    }
+    .doc-overlay-card .param-desc {
+      color: var(--vscode-editor-foreground);
+    }
+    .doc-overlay-card .section {
+      margin: 8px 0;
+    }
+    .doc-overlay-card .section.labeled {
+      margin: 12px 0 8px 0;
+    }
+    .doc-overlay-card .section-label {
+      display: block;
+      font-weight: 600;
+      color: var(--vscode-editorCodeLens-foreground, #999);
+      font-size: 0.92em;
+      margin-bottom: 4px;
+    }
+    .doc-overlay-card .section-body {
+      padding-left: 16px;
+      color: var(--vscode-editor-foreground);
+    }
+    .doc-overlay-card .example .section-body {
+      padding-left: 16px;
+      color: var(--vscode-editor-foreground);
+    }
+    .doc-overlay-card .example .section-body code {
+      display: block;
+      background: var(--vscode-textBlockQuote-background, #1e1e1e);
+      border-left: 3px solid var(--vscode-textBlockQuote-border, #444);
+      padding: 8px 12px;
+      border-radius: 3px;
+      white-space: pre-wrap;
+      margin: 4px 0;
+    }
+    .doc-overlay-card code {
+      font-family: var(--vscode-editor-font-family, 'Consolas', monospace);
+      font-size: var(--vscode-editor-font-size, 13px);
+      color: var(--vscode-textPreformat-foreground, #CE9178);
+      background: var(--vscode-textPreformat-background, rgba(255,255,255,0.06));
+      padding: 1px 4px;
+      border-radius: 3px;
+    }
+    .doc-overlay-card a {
+      color: var(--vscode-textLink-foreground);
+      text-decoration: none;
+    }
+    .doc-overlay-card a:hover {
+      text-decoration: underline;
+    }
+    .doc-overlay-card .seg-bold { font-weight: 600; }
+    .doc-overlay-card .seg-italic { font-style: italic; }
+    .doc-overlay-card .seg-strike { text-decoration: line-through; }
+    .doc-overlay-card .blank-line { height: 0.5em; }
+
   </style>
 </head>
 <body>
@@ -374,6 +490,12 @@ export function generateAnchorsGridHtml(nonce: string, codiconsCssUri: string, c
     <button class="menu-button" id="copyRowBtn">Copy Row</button>
     <button class="menu-button" id="copyCellBtn">Copy Cell</button>
   </div>
+  <div class="doc-overlay-backdrop" id="docOverlayBackdrop">
+    <div class="doc-overlay-card" id="docOverlayCard">
+      <button class="doc-overlay-close" id="docOverlayClose" title="Close">✕</button>
+      <div id="docOverlayContent"></div>
+    </div>
+  </div>
 
   <script nonce="${nonce}">
     const vscode = acquireVsCodeApi();
@@ -412,8 +534,12 @@ export function generateAnchorsGridHtml(nonce: string, codiconsCssUri: string, c
     const contextMenu = document.getElementById('contextMenu');
     const copyRowBtn = document.getElementById('copyRowBtn');
     const copyCellBtn = document.getElementById('copyCellBtn');
+    const docOverlayBackdrop = document.getElementById('docOverlayBackdrop');
+    const docOverlayCard = document.getElementById('docOverlayCard');
+    const docOverlayClose = document.getElementById('docOverlayClose');
+    const docOverlayContent = document.getElementById('docOverlayContent');
 
-    searchInput.addEventListener('keydown', (event) => {
+    searchInput.addEventListener('keydown',(event) => {
       event.stopPropagation();
     });
 
@@ -468,8 +594,44 @@ export function generateAnchorsGridHtml(nonce: string, codiconsCssUri: string, c
       hideContextMenu();
     });
 
+    function showDocOverlay(html) {
+      docOverlayContent.innerHTML = html;
+      docOverlayBackdrop.classList.add('open');
+
+      // Intercept link clicks to prevent in-place navigation that would destroy the grid
+      docOverlayContent.querySelectorAll('a[href]').forEach((link) => {
+        link.addEventListener('click', (event) => {
+          event.preventDefault();
+          const href = link.getAttribute('href');
+          if (href) {
+            vscode.postMessage({ type: 'openExternal', url: href });
+          }
+        });
+      });
+    }
+
+    function hideDocOverlay() {
+      docOverlayBackdrop.classList.remove('open');
+      docOverlayContent.innerHTML = '';
+      vscode.postMessage({ type: 'overlayDismissed' });
+    }
+
+    docOverlayBackdrop.addEventListener('click', (event) => {
+      if (event.target === docOverlayBackdrop) {
+        hideDocOverlay();
+      }
+    });
+
+    docOverlayClose.addEventListener('click', () => {
+      hideDocOverlay();
+    });
+
     document.addEventListener('keydown', (event) => {
       if (event.key === 'Escape') {
+        if (docOverlayBackdrop.classList.contains('open')) {
+          hideDocOverlay();
+          return;
+        }
         hideContextMenu();
         filterDropdown.classList.remove('open');
       }
@@ -917,6 +1079,12 @@ export function generateAnchorsGridHtml(nonce: string, codiconsCssUri: string, c
       const message = event.data;
       if (message.type === 'updateModel') {
         updateModel(message.model || model);
+      } else if (message.type === 'showDocOverlay') {
+        showDocOverlay(message.html || '');
+      } else if (message.type === 'hideDocOverlay') {
+        // Dismiss overlay without posting overlayDismissed (focus already moved externally)
+        docOverlayBackdrop.classList.remove('open');
+        docOverlayContent.innerHTML = '';
       }
     });
 

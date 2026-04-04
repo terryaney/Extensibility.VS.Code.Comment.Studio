@@ -91,10 +91,11 @@ export class CommentCodeLensProvider implements vscode.CodeLensProvider {
         arguments: [document.uri, block.startLine],
       }));
 
-      // CodeLens 2: Summary text — click to show rich HTML documentation panel
+      // CodeLens 2: Summary text — click to show documentation overlay
       const summary = getStrippedSummary(block);
       lenses.push(new vscode.CodeLens(range, {
         title: summary,
+        tooltip: '',
         command: 'kat-comment-studio.showCommentTooltip',
         arguments: [document.uri, block.startLine],
       }));

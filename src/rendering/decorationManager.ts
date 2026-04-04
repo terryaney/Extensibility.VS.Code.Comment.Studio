@@ -321,12 +321,19 @@ export class DecorationManager implements vscode.Disposable {
         this.codeLensProvider?.setFoldState(docKey, block.startLine, false);
         stateChanged = true;
       } else if (!interiorVisible && wasExpanded) {
-        // Block was expanded but interior is no longer visible → gutter fold detected
-        expanded.delete(block.startLine);
-        this.codeLensProvider?.setFoldState(docKey, block.startLine, true);
-        // Cancel any pending expand timer
-        this.cancelExpandTimer(docKey, block.startLine);
-        stateChanged = true;
+        // Only treat as gutter-fold if the start line IS visible but interior is NOT.
+        // If the start line is also off-screen, the block is just scrolled away — don't change state.
+        const startLineVisible = visibleRanges.some(vr =>
+          vr.start.line <= block.startLine && vr.end.line >= block.startLine,
+        );
+        if (startLineVisible) {
+          // Block was expanded but interior is no longer visible → gutter fold detected
+          expanded.delete(block.startLine);
+          this.codeLensProvider?.setFoldState(docKey, block.startLine, true);
+          // Cancel any pending expand timer
+          this.cancelExpandTimer(docKey, block.startLine);
+          stateChanged = true;
+        }
       }
     }
 
@@ -486,12 +493,28 @@ export class DecorationManager implements vscode.Disposable {
         this.expandedBlocks.delete(docKey);
       }
 
-      const savedSelections = editor.selections;
+      // Look up the block to find endLine for cursor placement
+      const lines = editor.document.getText().split(/\r?\n/);
+      const blocks = getCachedCommentBlocks(docKey, editor.document.version, lines, editor.document.languageId);
+      const block = blocks?.find(b => b.startLine === startLine);
+
       await vscode.commands.executeCommand('editor.fold', {
         selectionLines: [startLine],
         levels: 1,
       });
-      editor.selections = savedSelections;
+
+      // Move cursor outside the comment block so auto-expand doesn't retrigger
+      if (block) {
+        let targetLine: number;
+        if (block.endLine + 1 < editor.document.lineCount) {
+          targetLine = block.endLine + 1;
+        } else if (block.startLine > 0) {
+          targetLine = block.startLine - 1;
+        } else {
+          targetLine = block.startLine; // entire file is one comment — nowhere to escape
+        }
+        editor.selections = [new vscode.Selection(targetLine, 0, targetLine, 0)];
+      }
 
       this.codeLensProvider?.setFoldState(docKey, startLine, true);
     } else {

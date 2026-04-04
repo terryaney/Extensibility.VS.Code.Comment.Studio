@@ -1,8 +1,10 @@
 import * as vscode from 'vscode';
 import { DecorationManager } from './rendering/decorationManager';
 import { CommentCodeLensProvider } from './rendering/commentCodeLensProvider';
+import { renderToHtmlFragment } from './rendering/commentRenderer';
+import { getCachedCommentBlocks } from './parsing/commentParser';
 
-import { PrefixHighlighter } from './rendering/prefixHighlighter';
+import { PrefixHighlighter }from './rendering/prefixHighlighter';
 import { getConfiguration, onConfigurationChanged } from './configuration';
 import { reflowAllComments } from './reflow/reflowCommands';
 import { ReflowCodeActionProvider } from './reflow/reflowCodeAction';
@@ -60,6 +62,7 @@ export function activate(context: vscode.ExtensionContext): void {
   katOutput = vscode.window.createOutputChannel('KAT Comment Studio');
   context.subscriptions.push(katOutput);
   const config = getConfiguration();
+  const DECORATION_UPDATE_DELAY = 500;
   const anchorViewStateStorageKey = 'kat-comment-studio.anchorViewState';
   decorationManager = new DecorationManager(config);
 
@@ -147,8 +150,21 @@ export function activate(context: vscode.ExtensionContext): void {
         await decorationManager?.toggleFold(editor, startLine);
       }
     }),
-    vscode.commands.registerCommand('kat-comment-studio.showCommentTooltip', async (_uri: vscode.Uri, _startLine: number) => {
-      // Placeholder — tooltip rendering will be re-implemented
+    vscode.commands.registerCommand('kat-comment-studio.showCommentTooltip', async (uri: vscode.Uri, startLine: number) => {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor || editor.document.uri.toString() !== uri.toString()) return;
+      const lines = editor.document.getText().split(/\r?\n/);
+      const blocks = getCachedCommentBlocks(
+        editor.document.uri.toString(),
+        editor.document.version,
+        lines,
+        editor.document.languageId,
+      );
+      const block = blocks?.find(b => b.startLine === startLine);
+      if (!block) return;
+      const html = renderToHtmlFragment(block);
+      await vscode.commands.executeCommand('kat-comment-studio.anchorsGrid.focus');
+      anchorsGridProvider?.showDocOverlay(html);
     }),
   );
 
@@ -220,8 +236,18 @@ export function activate(context: vscode.ExtensionContext): void {
       const editor = vscode.window.activeTextEditor;
       if (editor && event.document === editor.document) {
         decorationManager?.onDocumentChanged(editor, event);
-        anchorDecorationManager?.updateDecorations(editor);
-        prefixHighlighter?.updateDecorations(editor);
+        
+        clearTimeout(anchorDecUpdateTimer);
+        anchorDecUpdateTimer = setTimeout(() => {
+          const currentEditor = vscode.window.activeTextEditor;
+          if (currentEditor) anchorDecorationManager?.updateDecorations(currentEditor);
+        }, DECORATION_UPDATE_DELAY);
+        
+        clearTimeout(prefixDecUpdateTimer);
+        prefixDecUpdateTimer = setTimeout(() => {
+          const currentEditor = vscode.window.activeTextEditor;
+          if (currentEditor) prefixHighlighter?.updateDecorations(currentEditor);
+        }, DECORATION_UPDATE_DELAY);
       }
 
       // Debounced anchor rescan — updates pane while typing, not just on save
@@ -259,6 +285,8 @@ export function activate(context: vscode.ExtensionContext): void {
   // --- Code Anchors ---
   const anchorCache = new AnchorCache();
   let anchorRescanTimer: ReturnType<typeof setTimeout> | undefined;
+  let anchorDecUpdateTimer: ReturnType<typeof setTimeout> | undefined;
+  let prefixDecUpdateTimer: ReturnType<typeof setTimeout> | undefined;
   let anchorSearchDebounceTimer: ReturnType<typeof setTimeout> | undefined;
   let anchorSearchLatestQuery = '';  // always reflects the most recent keystroke
   let anchorViewState = normalizeAnchorViewState({
@@ -365,6 +393,13 @@ export function activate(context: vscode.ExtensionContext): void {
   );
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(AnchorsGridProvider.viewType, anchorsGridProvider),
+  );
+
+  // Dismiss the doc overlay when the user clicks back into any editor
+  context.subscriptions.push(
+    vscode.window.onDidChangeTextEditorSelection(() => {
+      anchorsGridProvider.hideOverlay();
+    }),
   );
 
   function getCurrentAnchorFilterContext(): AnchorFilterContext {
