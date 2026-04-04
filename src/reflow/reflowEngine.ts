@@ -219,6 +219,15 @@ export function reflowXmlContent(
     if (contentLines.length > 0) {
       result.push(...wrapParagraph(contentLines.join(' '), effectiveWidth));
     }
+
+    // Safety: if no handler consumed the current line, skip it to prevent infinite loop
+    if (contentLines.length === 0 && i < lines.length) {
+      const skippedLine = lines[i].trim();
+      if (skippedLine) {
+        result.push(skippedLine);
+      }
+      i++;
+    }
   }
 
   return result;

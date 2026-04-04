@@ -63,7 +63,7 @@ export function normalizeAnchorViewState(value: Partial<AnchorViewState> | undef
   return {
     scopeId: value?.scopeId ?? defaults.scopeId,
     includedTypes,
-    searchQuery: value?.searchQuery?.trim() ?? defaults.searchQuery,
+    searchQuery: value?.searchQuery ?? defaults.searchQuery,
     columnWidths: {
       ...DEFAULT_COLUMN_WIDTHS,
       ...(value?.columnWidths ?? {}),
@@ -284,7 +284,7 @@ function applyTypeFilter(anchors: readonly AnchorMatch[], includedTypes?: string
 }
 
 function applySearchFilter(anchors: readonly AnchorMatch[], searchQuery: string): AnchorMatch[] {
-  const normalizedQuery = searchQuery.trim().toLowerCase();
+  const normalizedQuery = searchQuery.toLowerCase();
   if (!normalizedQuery) {
     return [...anchors];
   }

@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { CommentStudioConfig, RenderingMode, LeftBorderMode } from './types';
+import { CommentStudioConfig, RenderingMode, LeftBorderMode, CodeLensPosition } from './types';
 
 const SECTION = 'kat-comment-studio';
 
@@ -17,7 +17,6 @@ export function getConfiguration(): CommentStudioConfig {
 
     // Reflow
     maxLineLength: config.get<number>('maxLineLength', 120),
-    enableReflowOnFormat: config.get<boolean>('enableReflowOnFormat', true),
 
     // Anchors
     customTags: config.get<string>('customTags', ''),
@@ -37,6 +36,7 @@ export function getConfiguration(): CommentStudioConfig {
     // Visual
     preserveBlankLines: config.get<boolean>('preserveBlankLines', true),
     leftBorder: config.get<LeftBorderMode>('leftBorder', 'off'),
+    codeLensPosition: config.get<CodeLensPosition>('codeLensPosition', 'inline'),
 
     // Color overrides
     colors: {

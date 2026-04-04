@@ -6,8 +6,8 @@ import { getConfiguration } from '../configuration';
 import { getEditorConfigSettings } from '../services/editorconfigService';
 
 /**
- * CodeActionProvider that offers "Reflow comment" as a light bulb action
- * when the cursor is inside an XML doc comment block.
+ * CodeActionProvider that offers "Reflow comment" and "Reflow all comments"
+ * as light bulb actions when the cursor is inside an XML doc comment block.
  */
 export class ReflowCodeActionProvider implements vscode.CodeActionProvider {
   static readonly providedCodeActionKinds = [vscode.CodeActionKind.RefactorRewrite];
@@ -33,6 +33,9 @@ export class ReflowCodeActionProvider implements vscode.CodeActionProvider {
     const editorConfigSettings = getEditorConfigSettings(document.uri.fsPath);
     const maxLineWidth = editorConfigSettings.maxLineLength ?? config.maxLineLength;
 
+    const actions: vscode.CodeAction[] = [];
+
+    // "Reflow comment" for the current block
     const reflowOptions: ReflowOptions = {
       maxLineWidth,
       commentStyle,
@@ -44,14 +47,23 @@ export class ReflowCodeActionProvider implements vscode.CodeActionProvider {
     const blockRange = new vscode.Range(block.startLine, 0, block.endLine, lines[block.endLine].length);
     const oldText = document.getText(blockRange);
 
-    // Only offer if reflow would change something
-    if (newText === oldText) return;
+    if (newText !== oldText) {
+      const action = new vscode.CodeAction('Reflow comment', vscode.CodeActionKind.RefactorRewrite);
+      action.edit = new vscode.WorkspaceEdit();
+      action.edit.replace(document.uri, blockRange, newText);
+      action.isPreferred = false;
+      actions.push(action);
+    }
 
-    const action = new vscode.CodeAction('Reflow comment', vscode.CodeActionKind.RefactorRewrite);
-    action.edit = new vscode.WorkspaceEdit();
-    action.edit.replace(document.uri, blockRange, newText);
-    action.isPreferred = false;
+    // "Reflow all comments" for the whole document
+    const allAction = new vscode.CodeAction('Reflow all comments', vscode.CodeActionKind.RefactorRewrite);
+    allAction.command = {
+      title: 'Reflow all comments',
+      command: 'kat-comment-studio.reflowAllComments',
+    };
+    allAction.isPreferred = false;
+    actions.push(allAction);
 
-    return [action];
+    return actions.length > 0 ? actions : undefined;
   }
 }

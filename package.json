@@ -22,7 +22,9 @@
     "onLanguage:javascriptreact",
     "onLanguage:razor",
     "onLanguage:sql",
-    "onLanguage:powershell"
+    "onLanguage:powershell",
+    "onView:kat-comment-studio.anchorsView",
+    "onView:kat-comment-studio.anchorsGrid"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -31,14 +33,14 @@
         {
           "id": "kat-comment-studio",
           "title": "KAT Comment Studio",
-          "icon": "$(comment-discussion)"
+          "icon": "$(code-oss)"
         }
       ],
       "panel": [
         {
           "id": "kat-comment-studio-panel",
           "title": "KAT Comment Studio",
-          "icon": "$(comment-discussion)"
+          "icon": "$(code-oss)"
         }
       ]
     },
@@ -83,6 +85,10 @@
         {
           "command": "kat-comment-studio.reflowComment",
           "group": "2_reflow@1"
+        },
+        {
+          "command": "kat-comment-studio.reflowAllComments",
+          "group": "2_reflow@2"
         },
         {
           "command": "kat-comment-studio.removeCommentsInSelection",
@@ -150,10 +156,21 @@
         "category": "KAT Comment Studio"
       },
       {
+        "command": "kat-comment-studio.reflowAllComments",
+        "title": "Reflow All Comments",
+        "category": "KAT Comment Studio",
+        "icon": "$(wrap)"
+      },
+      {
+        "command": "kat-comment-studio.showCommentTooltip",
+        "title": "Show Comment Tooltip",
+        "category": "KAT Comment Studio"
+      },
+      {
         "command": "kat-comment-studio.scanAnchors",
         "title": "Scan Code Anchors",
         "category": "KAT Comment Studio",
-        "icon": "$(search)"
+        "icon": "$(refresh)"
       },
       {
         "command": "kat-comment-studio.refreshAnchors",
@@ -296,10 +313,10 @@
         },
         "kat-comment-studio.dimOpacity": {
           "type": "number",
-          "default": 0.4,
-          "minimum": 0.1,
+          "default": 0.05,
+          "minimum": 0.01,
           "maximum": 1,
-          "description": "Opacity for dimmed original comments (0.1 to 1.0)"
+          "description": "Opacity for dimmed original comments (0.01 to 1.0)"
         },
         "kat-comment-studio.maxLineLength": {
           "type": "number",
@@ -307,11 +324,6 @@
           "minimum": 40,
           "maximum": 500,
           "description": "Maximum line width for comment reflow. Can be overridden by .editorconfig max_line_length."
-        },
-        "kat-comment-studio.enableReflowOnFormat": {
-          "type": "boolean",
-          "default": true,
-          "description": "Reflow XML doc comments when Format Document/Selection is invoked"
         },
         "kat-comment-studio.customTags": {
           "type": "string",
@@ -389,6 +401,19 @@
             "Always show left border on comments"
           ],
           "description": "Show a subtle vertical line on the left edge of rendered comments"
+        },
+        "kat-comment-studio.codeLensPosition": {
+          "type": "string",
+          "default": "inline",
+          "enum": [
+            "inline",
+            "ownLine"
+          ],
+          "enumDescriptions": [
+            "Place CodeLens on the method declaration line alongside other providers (References, etc.)",
+            "Place CodeLens on its own line immediately above the method declaration"
+          ],
+          "description": "Where to position the comment summary CodeLens relative to the comment block"
         },
         "kat-comment-studio.colors.todo": {
           "type": "string",

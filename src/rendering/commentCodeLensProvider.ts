@@ -1,12 +1,13 @@
 import * as vscode from 'vscode';
-import { XmlDocCommentBlock } from '../types';
+import { XmlDocCommentBlock, CodeLensPosition } from '../types';
 import { getCachedCommentBlocks } from '../parsing/commentParser';
 import { getStrippedSummary } from './commentRenderer';
 
 /**
  * Provides CodeLens items above XML doc comment blocks.
- * When folded: shows "📖 {summary text}" — click to unfold.
- * When expanded: shows "📖 Collapse XML Comments" — click to fold.
+ * Each block gets two CodeLens items on the same line:
+ *   1. "Expand"/"Collapse" — toggles the fold
+ *   2. "{summary text}" — plain-text tooltip on hover, click shows rich preview
  */
 export class CommentCodeLensProvider implements vscode.CodeLensProvider {
   private _onDidChangeCodeLenses = new vscode.EventEmitter<void>();
@@ -15,15 +16,18 @@ export class CommentCodeLensProvider implements vscode.CodeLensProvider {
   // Track fold state per document URI → Map of startLine → folded
   private foldState = new Map<string, Map<number, boolean>>();
   private enabled = true;
+  private codeLensPosition: CodeLensPosition = 'inline';
 
   setEnabled(enabled: boolean): void {
     this.enabled = enabled;
     this._onDidChangeCodeLenses.fire();
   }
 
-  /**
-   * Marks a block as folded or unfolded and refreshes CodeLens.
-   */
+  setCodeLensPosition(position: CodeLensPosition): void {
+    this.codeLensPosition = position;
+    this._onDidChangeCodeLenses.fire();
+  }
+
   setFoldState(documentUri: string, startLine: number, folded: boolean): void {
     let docState = this.foldState.get(documentUri);
     if (!docState) {
@@ -34,9 +38,6 @@ export class CommentCodeLensProvider implements vscode.CodeLensProvider {
     this._onDidChangeCodeLenses.fire();
   }
 
-  /**
-   * Sets all blocks in a document as folded.
-   */
   setAllFolded(documentUri: string, blocks: XmlDocCommentBlock[]): void {
     const docState = new Map<number, boolean>();
     for (const block of blocks) {
@@ -48,9 +49,6 @@ export class CommentCodeLensProvider implements vscode.CodeLensProvider {
     this._onDidChangeCodeLenses.fire();
   }
 
-  /**
-   * Sets all blocks in a document as unfolded.
-   */
   setAllUnfolded(documentUri: string): void {
     this.foldState.delete(documentUri);
     this._onDidChangeCodeLenses.fire();
@@ -80,29 +78,61 @@ export class CommentCodeLensProvider implements vscode.CodeLensProvider {
     const lenses: vscode.CodeLens[] = [];
 
     for (const block of blocks) {
-      // Only provide CodeLens for multi-line blocks
       if (block.endLine <= block.startLine) continue;
 
-      const range = new vscode.Range(block.startLine, 0, block.startLine, 0);
+      const targetLine = this.findCodeLensLine(block, lines, document.lineCount);
+      const range = new vscode.Range(targetLine, 0, targetLine, 0);
       const folded = this.isFolded(document.uri.toString(), block.startLine);
 
-      if (folded) {
-        const summary = getStrippedSummary(block);
-        lenses.push(new vscode.CodeLens(range, {
-          title: `📖 ${summary}`,
-          command: 'kat-comment-studio.toggleCommentFold',
-          arguments: [document.uri, block.startLine],
-        }));
-      } else {
-        lenses.push(new vscode.CodeLens(range, {
-          title: '📖 Collapse XML Comments',
-          command: 'kat-comment-studio.toggleCommentFold',
-          arguments: [document.uri, block.startLine],
-        }));
-      }
+      // CodeLens 1: Expand/Collapse toggle
+      lenses.push(new vscode.CodeLens(range, {
+        title: folded ? 'Expand Xml' : 'Collapse Xml',
+        command: 'kat-comment-studio.toggleCommentFold',
+        arguments: [document.uri, block.startLine],
+      }));
+
+      // CodeLens 2: Summary text — click to show rich HTML documentation panel
+      const summary = getStrippedSummary(block);
+      lenses.push(new vscode.CodeLens(range, {
+        title: summary,
+        command: 'kat-comment-studio.showCommentTooltip',
+        arguments: [document.uri, block.startLine],
+      }));
     }
 
     return lenses;
+  }
+
+  /**
+   * Finds the line where the CodeLens should be placed based on the codeLensPosition setting.
+   * Scans forward from the end of the comment block, skipping blank lines and attribute lines,
+   * to find the method declaration line.
+   */
+  private findCodeLensLine(block: XmlDocCommentBlock, lines: string[], lineCount: number): number {
+    let declarationLine = block.endLine + 1;
+    while (declarationLine < lineCount) {
+      const lineText = lines[declarationLine].trim();
+      if (lineText === '') {
+        declarationLine++;
+        continue;
+      }
+      if (lineText.startsWith('[') && lineText.includes(']')) {
+        declarationLine++;
+        continue;
+      }
+      break;
+    }
+
+    if (declarationLine >= lineCount) {
+      return block.endLine;
+    }
+
+    if (this.codeLensPosition === 'inline') {
+      return declarationLine;
+    }
+
+    const ownLine = declarationLine - 1;
+    return ownLine > block.endLine ? ownLine : block.endLine + 1;
   }
 
   dispose(): void {

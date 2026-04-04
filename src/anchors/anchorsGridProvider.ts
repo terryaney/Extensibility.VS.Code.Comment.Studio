@@ -23,6 +23,7 @@ export class AnchorsGridProvider implements vscode.WebviewViewProvider, vscode.D
   public static readonly viewType = 'kat-comment-studio.anchorsGrid';
 
   private view: vscode.WebviewView | undefined;
+  private _lastBadgeCount = 0;
   private model: AnchorsGridModel = {
     anchors: [],
     availableTypes: [],
@@ -46,6 +47,8 @@ export class AnchorsGridProvider implements vscode.WebviewViewProvider, vscode.D
     private readonly onPersistGridState: (state: Partial<AnchorViewState>) => void,
     private readonly onCopyRow: (anchor: AnchorMatch) => void,
     private readonly onCopyText: (text: string) => void,
+    private readonly log: (message: string) => void = console.log,
+    private readonly onViewResolved: () => void = () => {},
   ) {}
 
   resolveWebviewView(
@@ -54,6 +57,7 @@ export class AnchorsGridProvider implements vscode.WebviewViewProvider, vscode.D
     _token: vscode.CancellationToken,
   ): void {
     this.view = webviewView;
+    this.log(`[KAT] resolveWebviewView called, model has ${this.model.anchors.length} anchors`);
 
     webviewView.webview.options = {
       enableScripts: true,
@@ -71,6 +75,10 @@ export class AnchorsGridProvider implements vscode.WebviewViewProvider, vscode.D
 
     webviewView.webview.onDidReceiveMessage(message => {
       switch (message.type) {
+        case 'webviewReady':
+          this.log('[KAT] webviewReady received, pushing model');
+          this.pushModel();
+          break;
         case 'navigateTo':
           this.onNavigate(message.filePath, message.lineNumber);
           break;
@@ -90,7 +98,11 @@ export class AnchorsGridProvider implements vscode.WebviewViewProvider, vscode.D
           this.onTypeFilterChange(message.includedTypes);
           break;
         case 'setSearchQuery':
+          this.log(`[KAT-BADGE] provider received setSearchQuery: '${message.searchQuery ?? ''}'`);
           this.onSearchQueryChange(message.searchQuery ?? '');
+          break;
+        case 'debugLog':
+          this.log(message.message as string);
           break;
         case 'persistGridState':
           this.onPersistGridState(message.state ?? {});
@@ -106,18 +118,26 @@ export class AnchorsGridProvider implements vscode.WebviewViewProvider, vscode.D
 
     webviewView.onDidChangeVisibility(() => {
       if (webviewView.visible) {
+        this.applyBadge(this._lastBadgeCount);
         this.pushModel();
       }
     });
 
     this.applyViewMetadata();
-    this.pushModel();
+    this.applyBadge(this._lastBadgeCount);
+    this.onViewResolved();
   }
 
   updateModel(model: AnchorsGridModel): void {
-    this.model = model;
+    this.log(`[KAT-BADGE] updateModel called, searchQuery='${model.state.searchQuery}', filteredCount=${model.filteredCount}`);
+    this.model = { ...model };
     this.applyViewMetadata();
+    this.log(`[KAT-BADGE] pushModel called with searchQuery='${this.model.state.searchQuery}'`);
     this.pushModel();
+  }
+
+  get isViewResolved(): boolean {
+    return this.view !== undefined;
   }
 
   dispose(): void {
@@ -132,27 +152,37 @@ export class AnchorsGridProvider implements vscode.WebviewViewProvider, vscode.D
     this.view.title = 'KAT Comment Studio - Code Anchors';
 
     const isFiltered = this.isFilterActive();
-    const displayCount = this.model.filteredCount;
 
     this.view.description = isFiltered
       ? `⊜ ${this.model.scopeLabel}`
       : this.model.scopeLabel;
+  }
 
-    this.view.badge = displayCount > 0
-      ? {
-          tooltip: isFiltered
-            ? `Code Anchors (filtered ${displayCount} of ${this.model.totalCount})`
-            : 'Code Anchors',
-          value: displayCount,
-        }
-      : undefined;
+  applyBadge(count: number): void {
+    this._lastBadgeCount = count;
+    if (!this.view) {
+      return;
+    }
+
+    // Always set a ViewBadge object — never undefined.
+    // WebviewView.badge = undefined is unreliable (VS Code doesn't always clear the UI).
+    // { value: 0 } causes VS Code to hide the badge naturally.
+    const isFiltered = this.isFilterActive();
+    this.view.badge = {
+      tooltip: count > 0
+        ? (isFiltered
+            ? `Code Anchors (filtered ${count} of ${this.model.totalCount})`
+            : `${count} code anchor${count === 1 ? '' : 's'}`)
+        : '',
+      value: count,
+    };
   }
 
   private isFilterActive(): boolean {
     const { state } = this.model;
     return state.scopeId !== 'workspace'
       || state.includedTypes !== undefined
-      || state.searchQuery.trim().length > 0;
+      || state.searchQuery.length > 0;
   }
 
   private pushModel(): void {

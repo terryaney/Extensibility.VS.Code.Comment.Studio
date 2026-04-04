@@ -168,6 +168,109 @@ export function renderToMarkdown(block: XmlDocCommentBlock, repoInfo?: GitReposi
 }
 
 /**
+ * Renders a plain-text tooltip for CodeLens hover display.
+ * VS Code CodeLens Command.tooltip only supports plain strings.
+ * Format:
+ *   Summary text
+ *       param1 — Description
+ *   Returns: Description
+ *   Example: code
+ */
+export function renderTooltipPlainText(block: XmlDocCommentBlock, repoInfo?: GitRepositoryInfo): string {
+  const rendered = renderCommentBlock(block, repoInfo);
+  const lines: string[] = [];
+
+  // Summary
+  const summarySection = rendered.sections.find(s => s.type === CommentSectionType.Summary);
+  if (summarySection) {
+    const summaryText = sectionLinesToPlainText(summarySection);
+    if (summaryText) {
+      lines.push(summaryText);
+    }
+  }
+
+  // Parameters
+  const paramSections = rendered.sections.filter(s => s.type === CommentSectionType.Param);
+  const hasParamDescriptions = paramSections.some(s => sectionLinesToPlainText(s).trim().length > 0);
+  if (paramSections.length > 0 && hasParamDescriptions) {
+    lines.push('');
+    for (const param of paramSections) {
+      const paramName = param.name || '?';
+      const desc = sectionLinesToPlainText(param);
+      lines.push(`    ${paramName} — ${desc}`);
+    }
+  }
+
+  // Type parameters
+  const typeParamSections = rendered.sections.filter(s => s.type === CommentSectionType.TypeParam);
+  const hasTypeParamDescriptions = typeParamSections.some(s => sectionLinesToPlainText(s).trim().length > 0);
+  if (typeParamSections.length > 0 && hasTypeParamDescriptions) {
+    lines.push('');
+    for (const tp of typeParamSections) {
+      const tpName = tp.name || '?';
+      const desc = sectionLinesToPlainText(tp);
+      lines.push(`    ${tpName} — ${desc}`);
+    }
+  }
+
+  // Returns
+  const returnsSection = rendered.sections.find(s => s.type === CommentSectionType.Returns);
+  if (returnsSection) {
+    const returnsText = sectionLinesToPlainText(returnsSection);
+    if (returnsText.trim()) {
+      lines.push('');
+      lines.push(`Returns: ${returnsText}`);
+    }
+  }
+
+  // Remarks
+  const remarksSection = rendered.sections.find(s => s.type === CommentSectionType.Remarks);
+  if (remarksSection) {
+    const remarksText = sectionLinesToPlainText(remarksSection);
+    if (remarksText.trim()) {
+      lines.push('');
+      lines.push('Remarks:');
+      for (const line of remarksText.split('\n')) {
+        lines.push(`    ${line}`);
+      }
+    }
+  }
+
+  // Example
+  const exampleSection = rendered.sections.find(s => s.type === CommentSectionType.Example);
+  if (exampleSection) {
+    const exampleText = sectionLinesToPlainText(exampleSection);
+    if (exampleText.trim()) {
+      lines.push('');
+      lines.push('Example:');
+      for (const line of exampleText.split('\n')) {
+        lines.push(`    ${line}`);
+      }
+    }
+  }
+
+  // Exceptions
+  const exceptionSections = rendered.sections.filter(s => s.type === CommentSectionType.Exception);
+  for (const exc of exceptionSections) {
+    const excName = exc.name || 'Exception';
+    const excText = sectionLinesToPlainText(exc);
+    lines.push(`Throws ${excName}: ${excText}`);
+  }
+
+  return lines.join('\n');
+}
+
+function sectionLinesToPlainText(section: RenderedCommentSection): string {
+  const parts: string[] = [];
+  for (const line of section.lines) {
+    if (isBlankLine(line)) continue;
+    const lineText = line.segments.map(s => s.text).join('');
+    parts.push(lineText);
+  }
+  return parts.join(' ').trim();
+}
+
+/**
  * Converts a rendered comment to a plain markdown string (no vscode dependency).
  * Used for testing.
  */
@@ -721,6 +824,241 @@ function stripXmlTags(xml: string): string {
   let text = xml.replace(/<[^>]+>/g, ' ');
   text = text.replace(/\s+/g, ' ');
   return text.trim();
+}
+
+/**
+ * Renders an XML doc comment block as a styled HTML document for display in a WebviewPanel.
+ * Uses VS Code theme CSS variables for consistent theming.
+ */
+export function renderToHtml(block: XmlDocCommentBlock, repoInfo?: GitRepositoryInfo): string {
+  const rendered = renderCommentBlock(block, repoInfo);
+  const htmlParts: string[] = [];
+
+  for (const section of rendered.sections) {
+    if (section.lines.length === 0 || section.lines.every(l => isBlankLine(l))) continue;
+
+    switch (section.type) {
+      case CommentSectionType.Summary:
+        htmlParts.push(`<div class="section summary">${sectionLinesToHtml(section)}</div>`);
+        break;
+
+      case CommentSectionType.Param:
+      case CommentSectionType.TypeParam: {
+        const label = section.type === CommentSectionType.TypeParam ? 'T' : '';
+        const paramName = section.name || '?';
+        const desc = sectionLinesToHtml(section);
+        htmlParts.push(
+          `<div class="param-row">` +
+          `<span class="param-name">${label}${escapeHtml(paramName)}</span>` +
+          `<span class="param-sep">—</span>` +
+          `<span class="param-desc">${desc}</span>` +
+          `</div>`,
+        );
+        break;
+      }
+
+      case CommentSectionType.Returns:
+        htmlParts.push(
+          `<div class="section labeled"><span class="section-label">Returns</span>` +
+          `<div class="section-body">${sectionLinesToHtml(section)}</div></div>`,
+        );
+        break;
+
+      case CommentSectionType.Value:
+        htmlParts.push(
+          `<div class="section labeled"><span class="section-label">Value</span>` +
+          `<div class="section-body">${sectionLinesToHtml(section)}</div></div>`,
+        );
+        break;
+
+      case CommentSectionType.Remarks:
+        htmlParts.push(
+          `<div class="section labeled"><span class="section-label">Remarks</span>` +
+          `<div class="section-body">${sectionLinesToHtml(section)}</div></div>`,
+        );
+        break;
+
+      case CommentSectionType.Example:
+        htmlParts.push(
+          `<div class="section labeled example"><span class="section-label">Example</span>` +
+          `<div class="section-body">${sectionLinesToHtml(section)}</div></div>`,
+        );
+        break;
+
+      case CommentSectionType.Exception: {
+        const excName = section.name || 'Exception';
+        htmlParts.push(
+          `<div class="section labeled"><span class="section-label">Throws <code>${escapeHtml(excName)}</code></span>` +
+          `<div class="section-body">${sectionLinesToHtml(section)}</div></div>`,
+        );
+        break;
+      }
+
+      case CommentSectionType.SeeAlso:
+        htmlParts.push(
+          `<div class="section labeled"><span class="section-label">See Also</span>` +
+          `<div class="section-body">${sectionLinesToHtml(section)}</div></div>`,
+        );
+        break;
+
+      default: {
+        const heading = section.heading;
+        if (heading) {
+          htmlParts.push(
+            `<div class="section labeled"><span class="section-label">${escapeHtml(heading)}</span>` +
+            `<div class="section-body">${sectionLinesToHtml(section)}</div></div>`,
+          );
+        } else {
+          htmlParts.push(`<div class="section">${sectionLinesToHtml(section)}</div>`);
+        }
+        break;
+      }
+    }
+  }
+
+  const body = htmlParts.join('\n');
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  body {
+    font-family: var(--vscode-font-family, 'Segoe UI', sans-serif);
+    font-size: var(--vscode-font-size, 13px);
+    color: var(--vscode-editor-foreground);
+    background: var(--vscode-editor-background);
+    padding: 12px 16px;
+    line-height: 1.5;
+    margin: 0;
+  }
+  .summary {
+    margin-bottom: 10px;
+    color: var(--vscode-descriptionForeground);
+    font-size: 1.05em;
+  }
+  .param-row {
+    display: flex;
+    gap: 8px;
+    padding: 2px 0 2px 16px;
+    align-items: baseline;
+  }
+  .param-name {
+    color: var(--vscode-symbolIcon-fieldForeground, #9CDCFE);
+    font-family: var(--vscode-editor-font-family, 'Consolas', monospace);
+    font-size: var(--vscode-editor-font-size, 13px);
+    white-space: nowrap;
+  }
+  .param-sep {
+    color: var(--vscode-descriptionForeground);
+    opacity: 0.6;
+  }
+  .param-desc {
+    color: var(--vscode-editor-foreground);
+  }
+  .section {
+    margin: 8px 0;
+  }
+  .section.labeled {
+    margin: 12px 0 8px 0;
+  }
+  .section-label {
+    display: block;
+    font-weight: 600;
+    color: var(--vscode-editorCodeLens-foreground, #999);
+    text-transform: uppercase;
+    font-size: 0.85em;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+    border-bottom: 1px solid var(--vscode-widget-border, #333);
+    padding-bottom: 2px;
+  }
+  .section-body {
+    padding-left: 16px;
+    color: var(--vscode-editor-foreground);
+  }
+  .example .section-body {
+    background: var(--vscode-textBlockQuote-background, #1e1e1e);
+    border-left: 3px solid var(--vscode-textBlockQuote-border, #444);
+    padding: 8px 12px;
+    border-radius: 3px;
+    font-family: var(--vscode-editor-font-family, 'Consolas', monospace);
+    font-size: var(--vscode-editor-font-size, 13px);
+    white-space: pre-wrap;
+  }
+  code {
+    font-family: var(--vscode-editor-font-family, 'Consolas', monospace);
+    font-size: var(--vscode-editor-font-size, 13px);
+    color: var(--vscode-textPreformat-foreground, #CE9178);
+    background: var(--vscode-textPreformat-background, rgba(255,255,255,0.06));
+    padding: 1px 4px;
+    border-radius: 3px;
+  }
+  a {
+    color: var(--vscode-textLink-foreground);
+    text-decoration: none;
+  }
+  a:hover {
+    text-decoration: underline;
+  }
+  .seg-bold { font-weight: 600; }
+  .seg-italic { font-style: italic; }
+  .seg-strike { text-decoration: line-through; }
+  .blank-line { height: 0.5em; }
+</style>
+</head>
+<body>
+${body}
+</body>
+</html>`;
+}
+
+function sectionLinesToHtml(section: RenderedCommentSection): string {
+  const htmlLines: string[] = [];
+  for (const line of section.lines) {
+    if (isBlankLine(line)) {
+      htmlLines.push('<div class="blank-line"></div>');
+      continue;
+    }
+    const lineHtml = line.segments.map(s => segmentToHtml(s)).join('');
+    htmlLines.push(`<div>${lineHtml}</div>`);
+  }
+  return htmlLines.join('\n');
+}
+
+function segmentToHtml(segment: RenderedSegment): string {
+  const text = escapeHtml(segment.text);
+  switch (segment.type) {
+    case SegmentType.Bold:
+    case SegmentType.Heading:
+      return `<span class="seg-bold">${text}</span>`;
+    case SegmentType.Italic:
+      return `<span class="seg-italic">${text}</span>`;
+    case SegmentType.Code:
+    case SegmentType.ParamRef:
+    case SegmentType.TypeParamRef:
+      return `<code>${text}</code>`;
+    case SegmentType.Strikethrough:
+      return `<span class="seg-strike">${text}</span>`;
+    case SegmentType.Link:
+    case SegmentType.IssueReference:
+      if (segment.linkTarget) {
+        return `<a href="${escapeHtml(segment.linkTarget)}">${text}</a>`;
+      }
+      return text;
+    case SegmentType.Text:
+    default:
+      return text;
+  }
+}
+
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
 
 /**

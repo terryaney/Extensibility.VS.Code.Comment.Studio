@@ -10,11 +10,10 @@ export interface DecorationStyles {
 /**
  * Creates the set of decoration types used by the extension.
  */
-export function createDecorationStyles(leftBorder: LeftBorderMode = 'off'): DecorationStyles {
+export function createDecorationStyles(leftBorder: LeftBorderMode = 'off', dimOpacity = 0.05): DecorationStyles {
   return {
     transparentComment: vscode.window.createTextEditorDecorationType({
-      color: 'transparent',
-      opacity: '0',
+      opacity: String(dimOpacity),
     }),
     leftBorder: leftBorder !== 'off'
       ? vscode.window.createTextEditorDecorationType({

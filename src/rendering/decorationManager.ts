@@ -8,6 +8,8 @@ import { CommentCodeLensProvider } from './commentCodeLensProvider';
 
 // Delay before auto-re-folding after cursor leaves a comment block (ms)
 const AUTO_REFOLD_DELAY = 500;
+// Delay before auto-expanding when cursor enters a folded comment block (ms)
+const AUTO_EXPAND_DELAY = 500;
 // Debounce delay for edit suppression (ms)
 const EDIT_SUPPRESSION_DELAY = 1500;
 
@@ -20,14 +22,18 @@ export class DecorationManager implements vscode.Disposable {
   private autoFoldedEditors = new Set<string>();
   // Track expanded blocks for auto-re-fold (docUri → startLine → timer)
   private refoldTimers = new Map<string, Map<number, NodeJS.Timeout>>();
+  // Pending expand timers (docUri → startLine → timer)
+  private expandTimers = new Map<string, Map<number, NodeJS.Timeout>>();
   // Currently expanded blocks (docUri → Set of startLines)
   private expandedBlocks = new Map<string, Set<number>>();
   private selectionDisposable: vscode.Disposable | undefined;
+  private visibleRangesDisposable: vscode.Disposable | undefined;
+  private visibleRangesDebounceTimer: NodeJS.Timeout | undefined;
   private codeLensProvider: CommentCodeLensProvider | undefined;
 
   constructor(config: CommentStudioConfig) {
     this.config = config;
-    this.styles = createDecorationStyles(config.leftBorder);
+    this.styles = createDecorationStyles(config.leftBorder, config.dimOpacity);
 
     if (config.renderingMode === 'on') {
       this.startCursorTracking();
@@ -42,12 +48,13 @@ export class DecorationManager implements vscode.Disposable {
     const oldMode = this.config.renderingMode;
     disposeDecorationStyles(this.styles);
     this.config = config;
-    this.styles = createDecorationStyles(config.leftBorder);
+    this.styles = createDecorationStyles(config.leftBorder, config.dimOpacity);
 
     // If mode changed, handle folding transitions
     if (oldMode !== config.renderingMode) {
       this.autoFoldedEditors.clear();
       this.clearAllRefoldTimers();
+      this.clearAllExpandTimersFull();
       this.expandedBlocks.clear();
 
       if (config.renderingMode === 'on') {
@@ -181,10 +188,9 @@ export class DecorationManager implements vscode.Disposable {
         }
       }
 
-      // Apply transparent decoration to folded multi-line blocks
-      // (only lines after the first, since the first line is visible when folded)
+      // Apply dim decoration to all lines of folded multi-line blocks
       if (isMultiline && !expanded.has(block.startLine)) {
-        for (let line = block.startLine + 1; line <= block.endLine; line++) {
+        for (let line = block.startLine; line <= block.endLine; line++) {
           transparentDecorations.push({
             range: new vscode.Range(line, 0, line, lines[line].length),
           });
@@ -244,37 +250,93 @@ export class DecorationManager implements vscode.Disposable {
       // Cancel any refold timer for this block
       this.cancelRefoldTimer(docKey, containingBlock.startLine);
 
-      // If block is folded, unfold it
+      // If block is folded, start a debounced expand timer
       if (!expanded.has(containingBlock.startLine)) {
-        expanded.add(containingBlock.startLine);
-        this.expandedBlocks.set(docKey, expanded);
-
-        // Unfold in the editor
-        const savedSelections = editor.selections;
-        vscode.commands.executeCommand('editor.unfold', {
-          selectionLines: [containingBlock.startLine],
-          levels: 1,
-        }).then(() => {
-          editor.selections = savedSelections;
-        });
-
-        // Update CodeLens
-        this.codeLensProvider?.setFoldState(docKey, containingBlock.startLine, false);
-
-        // Re-apply decorations to remove transparency
-        this.updateDecorations(editor);
+        this.startExpandTimer(editor, docKey, containingBlock);
       }
+    } else {
+      // Cursor is outside all comment blocks — cancel any pending expand timers
+      this.cancelAllExpandTimers(docKey);
     }
 
     // Start refold timers for any expanded blocks the cursor has left
+    // and cancel expand timers for blocks the cursor is no longer in
     for (const startLine of expanded) {
       const block = blocks.find(b => b.startLine === startLine);
       if (!block) continue;
 
       const cursorInBlock = cursorLine >= block.startLine && cursorLine <= block.endLine;
       if (!cursorInBlock) {
+        this.cancelExpandTimer(docKey, startLine);
         this.startRefoldTimer(editor, docKey, block);
       }
+    }
+  }
+
+  /**
+   * Debounced handler for visible range changes. Detects when folds are toggled
+   * via the editor gutter and syncs our internal state.
+   */
+  private onVisibleRangesChanged(event: vscode.TextEditorVisibleRangesChangeEvent): void {
+    if (this.config.renderingMode !== 'on') return;
+
+    // Debounce to avoid thrashing during scroll
+    if (this.visibleRangesDebounceTimer) {
+      clearTimeout(this.visibleRangesDebounceTimer);
+    }
+    this.visibleRangesDebounceTimer = setTimeout(() => {
+      this.visibleRangesDebounceTimer = undefined;
+      this.syncFoldStateFromVisibleRanges(event.textEditor);
+    }, 100);
+  }
+
+  private syncFoldStateFromVisibleRanges(editor: vscode.TextEditor): void {
+    const docKey = editor.document.uri.toString();
+    const languageId = editor.document.languageId;
+    if (!this.config.enabledLanguages.includes(languageId)) return;
+
+    const lines = editor.document.getText().split(/\r?\n/);
+    const blocks = getCachedCommentBlocks(docKey, editor.document.version, lines, languageId);
+    if (!blocks || blocks.length === 0) return;
+
+    const visibleRanges = editor.visibleRanges;
+    const expanded = this.expandedBlocks.get(docKey) ?? new Set();
+    let stateChanged = false;
+
+    for (const block of blocks) {
+      if (block.endLine <= block.startLine) continue;
+
+      // Check if the block's interior lines (startLine+1 through endLine) are visible
+      const interiorVisible = visibleRanges.some(vr => {
+        // At least one interior line is within a visible range
+        const interiorStart = block.startLine + 1;
+        return interiorStart <= block.endLine && vr.start.line <= interiorStart && vr.end.line >= interiorStart;
+      });
+
+      const wasExpanded = expanded.has(block.startLine);
+
+      if (interiorVisible && !wasExpanded) {
+        // Block was folded but interior is now visible → gutter unfold detected
+        expanded.add(block.startLine);
+        this.codeLensProvider?.setFoldState(docKey, block.startLine, false);
+        stateChanged = true;
+      } else if (!interiorVisible && wasExpanded) {
+        // Block was expanded but interior is no longer visible → gutter fold detected
+        expanded.delete(block.startLine);
+        this.codeLensProvider?.setFoldState(docKey, block.startLine, true);
+        // Cancel any pending expand timer
+        this.cancelExpandTimer(docKey, block.startLine);
+        stateChanged = true;
+      }
+    }
+
+    if (stateChanged) {
+      if (expanded.size === 0) {
+        this.expandedBlocks.delete(docKey);
+      } else {
+        this.expandedBlocks.set(docKey, expanded);
+      }
+      this.updateDecorations(editor);
     }
   }
 
@@ -332,6 +394,65 @@ export class DecorationManager implements vscode.Disposable {
     }
   }
 
+  private startExpandTimer(editor: vscode.TextEditor, docKey: string, block: XmlDocCommentBlock): void {
+    // Don't start if one already exists for this block
+    if (this.expandTimers.get(docKey)?.has(block.startLine)) return;
+
+    const timer = setTimeout(() => {
+      // Remove timer
+      const timers = this.expandTimers.get(docKey);
+      if (timers) {
+        timers.delete(block.startLine);
+        if (timers.size === 0) {
+          this.expandTimers.delete(docKey);
+        }
+      }
+
+      // Add to expanded set
+      const expanded = this.expandedBlocks.get(docKey) ?? new Set();
+      expanded.add(block.startLine);
+      this.expandedBlocks.set(docKey, expanded);
+
+      // Unfold in the editor
+      const savedSelections = editor.selections;
+      vscode.commands.executeCommand('editor.unfold', {
+        selectionLines: [block.startLine],
+        levels: 1,
+      }).then(() => {
+        editor.selections = savedSelections;
+      });
+
+      // Update CodeLens
+      this.codeLensProvider?.setFoldState(docKey, block.startLine, false);
+
+      // Re-apply decorations to remove dim
+      this.updateDecorations(editor);
+    }, AUTO_EXPAND_DELAY);
+
+    if (!this.expandTimers.has(docKey)) {
+      this.expandTimers.set(docKey, new Map());
+    }
+    this.expandTimers.get(docKey)!.set(block.startLine, timer);
+  }
+
+  private cancelExpandTimer(docKey: string, startLine: number): void {
+    const timer = this.expandTimers.get(docKey)?.get(startLine);
+    if (timer) {
+      clearTimeout(timer);
+      this.expandTimers.get(docKey)!.delete(startLine);
+    }
+  }
+
+  private cancelAllExpandTimers(docKey: string): void {
+    const docTimers = this.expandTimers.get(docKey);
+    if (docTimers) {
+      for (const timer of docTimers.values()) {
+        clearTimeout(timer);
+      }
+      this.expandTimers.delete(docKey);
+    }
+  }
+
   private clearAllRefoldTimers(): void {
     for (const docTimers of this.refoldTimers.values()) {
       for (const timer of docTimers.values()) {
@@ -339,6 +460,15 @@ export class DecorationManager implements vscode.Disposable {
       }
     }
     this.refoldTimers.clear();
+  }
+
+  private clearAllExpandTimersFull(): void {
+    for (const docTimers of this.expandTimers.values()) {
+      for (const timer of docTimers.values()) {
+        clearTimeout(timer);
+      }
+    }
+    this.expandTimers.clear();
   }
 
   /**
@@ -387,11 +517,20 @@ export class DecorationManager implements vscode.Disposable {
     this.selectionDisposable = vscode.window.onDidChangeTextEditorSelection(
       event => this.onSelectionChanged(event),
     );
+    this.visibleRangesDisposable = vscode.window.onDidChangeTextEditorVisibleRanges(
+      event => this.onVisibleRangesChanged(event),
+    );
   }
 
   private stopCursorTracking(): void {
     this.selectionDisposable?.dispose();
     this.selectionDisposable = undefined;
+    this.visibleRangesDisposable?.dispose();
+    this.visibleRangesDisposable = undefined;
+    if (this.visibleRangesDebounceTimer) {
+      clearTimeout(this.visibleRangesDebounceTimer);
+      this.visibleRangesDebounceTimer = undefined;
+    }
   }
 
   private clearDecorations(editor: vscode.TextEditor): void {
@@ -404,6 +543,7 @@ export class DecorationManager implements vscode.Disposable {
   dispose(): void {
     this.stopCursorTracking();
     this.clearAllRefoldTimers();
+    this.clearAllExpandTimersFull();
     for (const timer of this.editTimers.values()) {
       clearTimeout(timer);
     }

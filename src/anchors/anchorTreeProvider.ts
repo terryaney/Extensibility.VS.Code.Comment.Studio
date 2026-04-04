@@ -93,6 +93,17 @@ export class AnchorTreeProvider implements vscode.TreeDataProvider<AnchorTreeIte
     this.onDidChangeTreeDataEmitter.fire(undefined);
   }
 
+  /** Updates anchors, view state, and context in one operation — fires the change event only once. */
+  setAnchorsAndViewState(anchors: AnchorMatch[], state: Pick<AnchorViewState, 'scopeId' | 'includedTypes' | 'searchQuery'>, context: AnchorFilterContext): void {
+    this.anchors = anchors;
+    this.viewState = {
+      ...this.viewState,
+      ...state,
+    };
+    this.context = context;
+    this.onDidChangeTreeDataEmitter.fire(undefined);
+  }
+
   refresh(): void {
     this.onDidChangeTreeDataEmitter.fire(undefined);
   }
@@ -103,7 +114,8 @@ export class AnchorTreeProvider implements vscode.TreeDataProvider<AnchorTreeIte
 
   getChildren(element?: AnchorTreeItem): AnchorTreeItem[] {
     if (!element) {
-      return this.getFileGroups();
+      const groups = this.getFileGroups();
+      return groups;
     }
 
     if (element.isFileGroup && element.label) {

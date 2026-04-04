@@ -330,6 +330,7 @@ export function generateAnchorsGridHtml(nonce: string, codiconsCssUri: string, c
       padding: 6px 8px;
       border-radius: 2px;
     }
+
   </style>
 </head>
 <body>
@@ -412,8 +413,13 @@ export function generateAnchorsGridHtml(nonce: string, codiconsCssUri: string, c
     const copyRowBtn = document.getElementById('copyRowBtn');
     const copyCellBtn = document.getElementById('copyCellBtn');
 
+    searchInput.addEventListener('keydown', (event) => {
+      event.stopPropagation();
+    });
+
     searchInput.addEventListener('input', () => {
       model.state.searchQuery = searchInput.value;
+      vscode.postMessage({ type: 'debugLog', message: '[KAT-BADGE WV] input event, searchQuery=' + JSON.stringify(model.state.searchQuery) });
       persistLocalState();
       render();
       vscode.postMessage({ type: 'setSearchQuery', searchQuery: model.state.searchQuery });
@@ -520,10 +526,12 @@ export function generateAnchorsGridHtml(nonce: string, codiconsCssUri: string, c
     });
 
     function updateModel(nextModel) {
+      vscode.postMessage({ type: 'debugLog', message: '[KAT-BADGE WV] updateModel received from host, hostSearchQuery=' + JSON.stringify(nextModel.state.searchQuery) + ', currentLocalQuery=' + JSON.stringify(model.state.searchQuery) + ', inputFocused=' + (document.activeElement === searchInput) });
       model = {
         ...nextModel,
         state: mergeState(nextModel.state),
       };
+      vscode.postMessage({ type: 'debugLog', message: '[KAT-BADGE WV] after mergeState, effectiveQuery=' + JSON.stringify(model.state.searchQuery) });
 
       syncControls();
       buildScopeOptions();
@@ -535,10 +543,14 @@ export function generateAnchorsGridHtml(nonce: string, codiconsCssUri: string, c
     }
 
     function mergeState(nextState) {
+      // Use the actual DOM input value as ground truth — it reflects exactly what the user
+      // has typed, regardless of focus state or in-flight host messages.
+      // Fall back to the host's value only when the input is empty (initial load / cleared search).
+      const currentInputValue = searchInput.value;
       return {
         scopeId: nextState.scopeId || persistedState.scopeId || 'workspace',
         includedTypes: nextState.includedTypes,
-        searchQuery: nextState.searchQuery || '',
+        searchQuery: currentInputValue !== '' ? currentInputValue : (nextState.searchQuery || ''),
         columnWidths: {
           ...defaultColumnWidths,
           ...(persistedState.columnWidths || {}),
@@ -552,7 +564,7 @@ export function generateAnchorsGridHtml(nonce: string, codiconsCssUri: string, c
     }
 
     function syncControls() {
-      if (searchInput.value !== model.state.searchQuery) {
+      if (document.activeElement !== searchInput && searchInput.value !== model.state.searchQuery) {
         searchInput.value = model.state.searchQuery;
       }
     }
@@ -643,7 +655,7 @@ export function generateAnchorsGridHtml(nonce: string, codiconsCssUri: string, c
 
     function getFilteredAnchors() {
       const includedTypes = model.state.includedTypes ? new Set(model.state.includedTypes) : undefined;
-      const searchQuery = model.state.searchQuery.trim().toLowerCase();
+      const searchQuery = model.state.searchQuery.toLowerCase();
 
       return model.anchors.filter((anchor) => {
         if (includedTypes && !includedTypes.has(anchor.tag)) {
@@ -660,7 +672,9 @@ export function generateAnchorsGridHtml(nonce: string, codiconsCssUri: string, c
           anchor.owner || '',
           anchor.issueRef || '',
           anchor.dueDate || '',
+          anchor.anchorName || '',
           anchor.filePath,
+          anchor.workspaceFolder ? anchor.workspaceFolder.label : '',
           anchor.repository ? anchor.repository.label : '',
           anchor.project ? anchor.project.label : '',
         ].join(' ').toLowerCase();
@@ -717,6 +731,7 @@ export function generateAnchorsGridHtml(nonce: string, codiconsCssUri: string, c
     function render() {
       hideContextMenu();
       const filtered = getFilteredAnchors();
+      vscode.postMessage({ type: 'debugLog', message: '[KAT-BADGE WV] render() called, searchQuery=' + JSON.stringify(model.state.searchQuery) + ', anchors=' + model.anchors.length + ', filtered=' + filtered.length });
       const sorted = getSortedAnchors(filtered);
 
       if (sorted.length === 0) {
@@ -906,6 +921,9 @@ export function generateAnchorsGridHtml(nonce: string, codiconsCssUri: string, c
     });
 
     updateSortIndicators();
+
+    // Signal to extension that webview JS is ready to receive messages
+    vscode.postMessage({ type: 'webviewReady' });
   </script>
 </body>
 </html>`;

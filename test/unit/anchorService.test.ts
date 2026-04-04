@@ -161,6 +161,80 @@ line 2
       expect(results).toHaveLength(0);
     });
 
+    it('should not match tag in non-comment code', () => {
+      const text = 'var NOTE = "NOTE: Hello";';
+      const results = findAnchorsInText(text, 'test.cs');
+      expect(results).toHaveLength(0);
+    });
+
+    // Phase 6: comment-aware scanning — block comments and additional markers
+    it('should find anchor inside /* */ single-line block comment', () => {
+      const text = '/* NOTE: block comment */';
+      const results = findAnchorsInText(text, 'test.cs');
+      expect(results).toHaveLength(1);
+      expect(results[0].tag).toBe('NOTE');
+    });
+
+    it('should find anchor on interior line of multi-line /* */ block', () => {
+      const text = '/*\n  NOTE: interior\n*/';
+      const results = findAnchorsInText(text, 'test.cs');
+      expect(results).toHaveLength(1);
+      expect(results[0].tag).toBe('NOTE');
+      expect(results[0].lineNumber).toBe(1);
+    });
+
+    it('should find anchor in SQL -- comment', () => {
+      const text = '-- NOTE: sql comment';
+      const results = findAnchorsInText(text, 'test.sql');
+      expect(results).toHaveLength(1);
+      expect(results[0].tag).toBe('NOTE');
+    });
+
+    it('should find anchor in HTML <!-- --> comment', () => {
+      const text = '<!-- NOTE: html comment -->';
+      const results = findAnchorsInText(text, 'test.html');
+      expect(results).toHaveLength(1);
+      expect(results[0].tag).toBe('NOTE');
+    });
+
+    it('should find anchor on interior line of multi-line <!-- --> block', () => {
+      const text = '<!--\n  TODO: fix this\n-->';
+      const results = findAnchorsInText(text, 'test.html');
+      expect(results).toHaveLength(1);
+      expect(results[0].tag).toBe('TODO');
+      expect(results[0].lineNumber).toBe(1);
+    });
+
+    it('should find anchor in PowerShell <# #> block comment', () => {
+      const text = '<# NOTE: powershell block #>';
+      const results = findAnchorsInText(text, 'test.ps1');
+      expect(results).toHaveLength(1);
+      expect(results[0].tag).toBe('NOTE');
+    });
+
+    it('should find anchor on interior line of multi-line <# #> block', () => {
+      const text = '<#\n  HACK: workaround\n#>';
+      const results = findAnchorsInText(text, 'test.ps1');
+      expect(results).toHaveLength(1);
+      expect(results[0].tag).toBe('HACK');
+      expect(results[0].lineNumber).toBe(1);
+    });
+
+    it('should not find anchor on line after block comment closes', () => {
+      const text = '/*\n  NOTE: inside\n*/\nNOTE: outside';
+      const results = findAnchorsInText(text, 'test.cs');
+      expect(results).toHaveLength(1);
+      expect(results[0].lineNumber).toBe(1);
+    });
+
+    it('should report correct absolute column for inline comment anchor', () => {
+      const text = 'x = 1; // NOTE: hello';
+      const results = findAnchorsInText(text, 'test.cs');
+      expect(results).toHaveLength(1);
+      // The match starts at column 10 (position of 'N' in 'NOTE' within the full line)
+      expect(results[0].column).toBeGreaterThanOrEqual(10);
+    });
+
     // Phase 4: interchangeable () and [] delimiters
     it('should extract owner from square brackets', () => {
       const text = '// TODO[@terry]: Fix this';

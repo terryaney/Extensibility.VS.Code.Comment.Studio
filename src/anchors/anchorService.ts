@@ -1,3 +1,5 @@
+import { scanCommentLinesMap } from './commentScanner';
+
 export interface AnchorType {
   tag: string;
   displayName: string;
@@ -138,6 +140,7 @@ export function findAnchorsInLine(
 
 /**
  * Finds all anchors in a file's content.
+ * Only lines that are within a comment (single-line or block) are searched.
  */
 export function findAnchorsInText(
   text: string,
@@ -148,13 +151,19 @@ export function findAnchorsInText(
   const allTags = tags || [...BUILTIN_ANCHOR_TYPES.keys()];
   const regex = buildAnchorRegex(allTags, tagPrefixes);
   const lines = text.split(/\r?\n/);
+  const commentMap = scanCommentLinesMap(lines);
   const matches: AnchorMatch[] = [];
 
   for (let i = 0; i < lines.length; i++) {
-    // Reset regex state for each line
+    const commentStart = commentMap.get(i);
+    if (commentStart === undefined) continue;
+
+    const commentPortion = lines[i].substring(commentStart);
     regex.lastIndex = 0;
-    const match = findAnchorsInLine(lines[i], i, filePath, new RegExp(regex.source, regex.flags));
+    const match = findAnchorsInLine(commentPortion, i, filePath, new RegExp(regex.source, regex.flags));
     if (match) {
+      // Adjust column to be absolute (relative to start of full line).
+      match.column += commentStart;
       matches.push(match);
     }
   }

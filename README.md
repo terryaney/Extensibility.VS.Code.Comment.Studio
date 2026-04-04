@@ -24,37 +24,51 @@ C#, VB, F#, C/C++, TypeScript, JavaScript, TypeScript/JavaScript React, Razor, S
 
 ## XML Doc Comment Rendering
 
-When rendering is **On**, XML documentation comment blocks are transformed from raw XML into a clean, readable experience using VS Code's native CodeLens and Hover APIs.
+When rendering is **On**, XML documentation comment blocks are transformed from raw XML into a clean, readable experience using VS Code's native CodeLens API.
 
 ### How It Works
 
 | What You See | What It Does |
 |---|---|
-| `📖 Represents a user account.` | CodeLens summary shown above the method/class |
-| Comment lines become invisible | Auto-folded and made transparent — still occupy space |
-| Hover over the CodeLens | Rich Markdown popup with full documentation |
-| Click the CodeLens | Toggles fold state (unfold to edit, re-fold when done) |
-| Cursor enters a folded block | Auto-unfolds for editing |
+| `Expand Xml \| Represents a user account.` | CodeLens on the method declaration line |
+| Comment lines become nearly invisible | Auto-folded and dimmed (opacity `0.05` by default) |
+| Click the summary text | Opens a documentation overlay on the Code Anchors pane |
+| Click `Expand Xml` / `Collapse Xml` | Toggles fold state (unfold to edit, re-fold when done) |
+| Cursor enters a folded block | Auto-unfolds after 500ms pause for editing |
 | Cursor leaves an expanded block | Auto-re-folds after ~500ms |
 | Press `Escape` | Toggle rendering off/on |
 
-### Rich Hover Documentation
+### CodeLens Positioning
 
-Hovering over a CodeLens (or any line in a doc comment block) shows a Markdown popup containing:
+The `codeLensPosition` setting controls where the CodeLens appears relative to the comment block:
 
-- **Summary** — rendered as plain text
-- **Parameters** — listed as a table with name and description
+| Value | Behavior |
+|---|---|
+| `inline` (default) | Placed on the method/property declaration line (alongside References) |
+| `ownLine` | Placed on the line immediately above the declaration |
+
+The CodeLens scans forward from the end of the comment block, skipping blank lines and C# attribute lines (`[...]`), to find the actual declaration.
+
+### Documentation Overlay
+
+Click the **summary text** in a CodeLens to open a themed documentation overlay on the Code Anchors grid pane:
+
+- **Summary** — rendered as styled text
+- **Parameters** — listed with name and description
 - **Returns** — inline with description
-- **Remarks** — full formatted content
-- **Example** — code blocks with syntax highlighting
+- **Remarks** — label on its own line, content indented below
+- **Example** — code blocks with quote styling
 - **Exceptions** — list of exception types and descriptions
 - **See Also** — clickable links
+- **Anchor tags** — TODO:, NOTE:, HACK:, etc. are colorized using their configured colors
 
-Inline formatting within XML tags is fully rendered: `` `code` ``, **bold**, *italic*, ~~strikethrough~~, and hyperlinks.
+The overlay uses VS Code theme variables for consistent styling and dismisses on Escape, clicking outside, or the close button (✕). Focus returns to the editor on dismiss.
+
+Inline formatting within XML tags is fully rendered: `code`, **bold**, *italic*, ~~strikethrough~~, and hyperlinks.
 
 ### XML Tag Support
 
-The following XML doc tags are rendered in the hover popup:
+The following XML doc tags are rendered in the documentation panel:
 
 `<summary>`, `<param>`, `<typeparam>`, `<returns>`, `<remarks>`, `<example>`, `<exception>`, `<see>`, `<seealso>`, `<inheritdoc>`, `<paramref>`, `<typeparamref>`, `<c>`, `<code>`, `<list>`
 
@@ -96,11 +110,15 @@ Disable with `kat-comment-studio.enablePrefixHighlighting: false`.
 
 KAT Comment Studio automatically wraps and reformats XML doc comment blocks to stay within a configurable line width.
 
-### Format Document / Format Selection
+### Commands and Code Actions
 
-When you run **Format Document** (`Shift+Alt+F`) or **Format Selection**, the extension reflows XML doc comment blocks in the affected range. Non-comment code is passed to the default formatter unchanged.
+Comment reflow is available through:
 
-Only enabled when `kat-comment-studio.enableReflowOnFormat` is `true` (default).
+- **Command Palette** → `Comment Studio: Reflow Comment` — reflow all comment blocks in the document
+- **Command Palette** → `Comment Studio: Reflow All Comments` — same as above
+- **Light Bulb / Code Action** (`Ctrl+.`) — when cursor is inside a comment block, offers "Reflow comment" and "Reflow all comments"
+
+The extension does not register a document or range formatting provider, avoiding conflicts with language-specific formatters (e.g., C# Dev Kit, OmniSharp).
 
 ### Light Bulb (Code Action)
 
@@ -435,9 +453,9 @@ Leave any setting empty (`""`) to use the theme default automatically.
 | `renderingMode` | `"off"` \| `"on"` | `"on"` | How XML doc comments are rendered |
 | `enabledLanguages` | `string[]` | *(all supported)* | Language IDs with rendering enabled |
 | `dimOriginalComments` | `boolean` | `true` | Dim original comment text when rendering is active |
-| `dimOpacity` | `number` | `0.4` | Opacity for dimmed comments (0.1–1.0) |
+| `dimOpacity` | `number` | `0.05` | Opacity for dimmed comments (0.01–1.0) |
 | `maxLineLength` | `number` | `120` | Max width for comment reflow (overridden by `.editorconfig`) |
-| `enableReflowOnFormat` | `boolean` | `true` | Reflow comments on Format Document/Selection |
+| `codeLensPosition` | `"inline"` \| `"ownLine"` | `"inline"` | Where CodeLens appears: on declaration line or above it |
 | `enableReflowOnPaste` | `boolean` | `true` | Reflow when pasting into a doc comment block |
 | `enableReflowWhileTyping` | `boolean` | `true` | Reflow after 300ms pause when line exceeds max width |
 | `preserveBlankLines` | `boolean` | `true` | Preserve intentional blank lines during reflow |
@@ -463,6 +481,7 @@ All commands are available via the Command Palette (`Ctrl+Shift+P`) under the **
 | `Toggle Comment Rendering` | Toggle rendering on/off |
 | `Cycle Rendering Mode (Off → On)` | Same toggle |
 | `Reflow Comment` | Reflow the current comment block |
+| `Reflow All Comments` | Reflow all comment blocks in the document |
 | `Scan Code Anchors` | Scan workspace for anchors (with progress) |
 | `Refresh Code Anchors` | Re-scan workspace |
 | `Export Code Anchors` | Export to TSV/CSV/Markdown/JSON |

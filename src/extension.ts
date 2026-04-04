@@ -1,10 +1,10 @@
 import * as vscode from 'vscode';
 import { DecorationManager } from './rendering/decorationManager';
 import { CommentCodeLensProvider } from './rendering/commentCodeLensProvider';
-import { CommentHoverProvider } from './rendering/commentHoverProvider';
+
 import { PrefixHighlighter } from './rendering/prefixHighlighter';
 import { getConfiguration, onConfigurationChanged } from './configuration';
-import { registerReflowProviders } from './reflow/reflowCommands';
+import { reflowAllComments } from './reflow/reflowCommands';
 import { ReflowCodeActionProvider } from './reflow/reflowCodeAction';
 import { SmartPasteHandler } from './reflow/smartPaste';
 import { AutoReflowHandler } from './reflow/autoReflow';
@@ -43,36 +43,36 @@ import {
 
 let decorationManager: DecorationManager | undefined;
 let codeLensProvider: CommentCodeLensProvider | undefined;
-let hoverProvider: CommentHoverProvider | undefined;
 let anchorDecorationManager: AnchorDecorationManager | undefined;
 let prefixHighlighter: PrefixHighlighter | undefined;
 let smartPasteHandler: SmartPasteHandler | undefined;
 let autoReflowHandler: AutoReflowHandler | undefined;
 let linkValidator: LinkValidator | undefined;
+let katOutput: vscode.OutputChannel | undefined;
 
-const SUPPORTED_LANGUAGES: vscode.DocumentSelector = [
-  'csharp', 'vb', 'fsharp', 'cpp', 'c',
-  'typescript', 'javascript', 'typescriptreact', 'javascriptreact',
-  'razor', 'sql', 'powershell',
-];
+function katLog(message: string): void {
+  katOutput?.appendLine(message);
+}
+
+const SUPPORTED_LANGUAGES = ['csharp', 'vb', 'fsharp', 'cpp', 'c', 'typescript', 'javascript', 'typescriptreact', 'javascriptreact', 'razor', 'sql', 'powershell'];
 
 export function activate(context: vscode.ExtensionContext): void {
+  katOutput = vscode.window.createOutputChannel('KAT Comment Studio');
+  context.subscriptions.push(katOutput);
   const config = getConfiguration();
   const anchorViewStateStorageKey = 'kat-comment-studio.anchorViewState';
   decorationManager = new DecorationManager(config);
 
-  // Register CodeLens and Hover providers for XML doc comments
+  // Register CodeLens provider for XML doc comments
   codeLensProvider = new CommentCodeLensProvider();
-  hoverProvider = new CommentHoverProvider();
   decorationManager.setCodeLensProvider(codeLensProvider);
 
   const isRenderingOn = config.renderingMode === 'on';
   codeLensProvider.setEnabled(isRenderingOn);
-  hoverProvider.setEnabled(isRenderingOn);
+  codeLensProvider.setCodeLensPosition(config.codeLensPosition);
 
   context.subscriptions.push(
     vscode.languages.registerCodeLensProvider(SUPPORTED_LANGUAGES, codeLensProvider),
-    vscode.languages.registerHoverProvider(SUPPORTED_LANGUAGES, hoverProvider),
   );
 
   // Register navigation providers (conditionally based on settings)
@@ -118,13 +118,37 @@ export function activate(context: vscode.ExtensionContext): void {
       decorationManager?.cycleRenderingMode();
     }),
     vscode.commands.registerCommand('kat-comment-studio.reflowComment', () => {
-      vscode.commands.executeCommand('editor.action.formatDocument');
+      const editor = vscode.window.activeTextEditor;
+      if (!editor) return;
+      const edits = reflowAllComments(editor.document);
+      if (edits.length > 0) {
+        const edit = new vscode.WorkspaceEdit();
+        for (const e of edits) {
+          edit.replace(editor.document.uri, e.range, e.newText);
+        }
+        void vscode.workspace.applyEdit(edit);
+      }
+    }),
+    vscode.commands.registerCommand('kat-comment-studio.reflowAllComments', () => {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor) return;
+      const edits = reflowAllComments(editor.document);
+      if (edits.length > 0) {
+        const edit = new vscode.WorkspaceEdit();
+        for (const e of edits) {
+          edit.replace(editor.document.uri, e.range, e.newText);
+        }
+        void vscode.workspace.applyEdit(edit);
+      }
     }),
     vscode.commands.registerCommand('kat-comment-studio.toggleCommentFold', async (uri: vscode.Uri, startLine: number) => {
       const editor = vscode.window.activeTextEditor;
       if (editor && editor.document.uri.toString() === uri.toString()) {
         await decorationManager?.toggleFold(editor, startLine);
       }
+    }),
+    vscode.commands.registerCommand('kat-comment-studio.showCommentTooltip', async (_uri: vscode.Uri, _startLine: number) => {
+      // Placeholder — tooltip rendering will be re-implemented
     }),
   );
 
@@ -144,18 +168,6 @@ export function activate(context: vscode.ExtensionContext): void {
   // Set context for keybinding
   vscode.commands.executeCommand('setContext', 'kat-comment-studio.renderingActive', config.renderingMode !== 'off');
 
-  // Status bar rendering toggle
-  const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-  statusBarItem.command = 'kat-comment-studio.toggleRendering';
-  function updateStatusBar(renderingMode: string): void {
-    const isOn = renderingMode !== 'off';
-    statusBarItem.text = `$(comment-discussion) ${isOn ? 'ON' : 'OFF'}`;
-    statusBarItem.tooltip = `KAT Comment Studio XML Comment Rendering: ${isOn ? 'ON' : 'OFF'} — Click to toggle`;
-  }
-  updateStatusBar(config.renderingMode);
-  statusBarItem.show();
-  context.subscriptions.push(statusBarItem);
-
   // Listen for configuration changes
   context.subscriptions.push(
     onConfigurationChanged(() => {
@@ -164,12 +176,17 @@ export function activate(context: vscode.ExtensionContext): void {
       anchorDecorationManager?.updateConfiguration(newConfig);
       prefixHighlighter?.updateConfiguration(newConfig);
 
+      // Re-apply anchor decorations after config rebuild (fixes colorization loss on toggle)
+      for (const editor of vscode.window.visibleTextEditors) {
+        anchorDecorationManager?.updateDecorations(editor);
+      }
+
       const renderingOn = newConfig.renderingMode === 'on';
       codeLensProvider?.setEnabled(renderingOn);
-      hoverProvider?.setEnabled(renderingOn);
+      codeLensProvider?.setCodeLensPosition(newConfig.codeLensPosition);
 
-      updateStatusBar(newConfig.renderingMode);
       vscode.commands.executeCommand('setContext', 'kat-comment-studio.renderingActive', newConfig.renderingMode !== 'off');
+      updateRenderingStatusBar(renderingOn);
     })
   );
 
@@ -188,7 +205,7 @@ export function activate(context: vscode.ExtensionContext): void {
         }
       }
 
-      refreshAnchorPresentation();
+      refreshAnchorPresentation('onDidChangeActiveTextEditor');
     }),
     vscode.window.onDidChangeVisibleTextEditors(editors => {
       for (const editor of editors) {
@@ -197,7 +214,7 @@ export function activate(context: vscode.ExtensionContext): void {
         prefixHighlighter?.updateDecorations(editor);
       }
 
-      refreshAnchorPresentation();
+      refreshAnchorPresentation('onDidChangeVisibleTextEditors');
     }),
     vscode.workspace.onDidChangeTextDocument(event => {
       const editor = vscode.window.activeTextEditor;
@@ -205,17 +222,24 @@ export function activate(context: vscode.ExtensionContext): void {
         decorationManager?.onDocumentChanged(editor, event);
         anchorDecorationManager?.updateDecorations(editor);
         prefixHighlighter?.updateDecorations(editor);
+      }
 
-        // Debounced anchor re-scan for pane refresh on edit
-        if (event.document.uri.scheme === 'file') {
-          debouncedAnchorRescan(event.document);
-        }
+      // Debounced anchor rescan — updates pane while typing, not just on save
+      if (event.document.uri.scheme === 'file') {
+        clearTimeout(anchorRescanTimer);
+        anchorRescanTimer = setTimeout(() => {
+          const currentConfig = getConfiguration();
+          const customTags = currentConfig.customTags ? currentConfig.customTags.split(',').map(t => t.trim().toUpperCase()).filter(t => t) : undefined;
+          const tagPrefixes = currentConfig.tagPrefixes ? currentConfig.tagPrefixes.split(',').map(p => p.trim()).filter(p => p) : undefined;
+          const anchors = scanDocument(event.document, customTags, tagPrefixes);
+          anchorCache.update(event.document.uri.fsPath, anchors);
+          refreshAnchorPresentation('onDidChangeTextDocument-rescan');
+        }, 500);
       }
     })
   );
 
-  // Register reflow formatting providers and code action
-  registerReflowProviders(context);
+  // Register reflow code action provider
   context.subscriptions.push(
     vscode.languages.registerCodeActionsProvider(SUPPORTED_LANGUAGES, new ReflowCodeActionProvider(), {
       providedCodeActionKinds: ReflowCodeActionProvider.providedCodeActionKinds,
@@ -234,35 +258,15 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // --- Code Anchors ---
   const anchorCache = new AnchorCache();
-  let anchorViewState = normalizeAnchorViewState(
-    context.workspaceState.get<Partial<AnchorViewState>>(anchorViewStateStorageKey) ?? createDefaultAnchorViewState(),
-  );
+  let anchorRescanTimer: ReturnType<typeof setTimeout> | undefined;
+  let anchorSearchDebounceTimer: ReturnType<typeof setTimeout> | undefined;
+  let anchorSearchLatestQuery = '';  // always reflects the most recent keystroke
+  let anchorViewState = normalizeAnchorViewState({
+    ...context.workspaceState.get<Partial<AnchorViewState>>(anchorViewStateStorageKey),
+    searchQuery: '',  // never restore search from a previous session
+  });
   let currentIgnoredFolders = config.foldersToIgnore.split(',').map(folder => folder.trim()).filter(folder => folder);
   let discoveredProjects: Awaited<ReturnType<typeof discoverWorkspaceProjects>> = [];
-  let isRefreshingAnchorPresentation = false;
-
-  // Debounced anchor re-scan on document change (500ms)
-  let anchorRescanTimer: ReturnType<typeof setTimeout> | undefined;
-  function debouncedAnchorRescan(document: vscode.TextDocument): void {
-    if (anchorRescanTimer) {
-      clearTimeout(anchorRescanTimer);
-    }
-    anchorRescanTimer = setTimeout(() => {
-      anchorRescanTimer = undefined;
-      const currentConfig = getConfiguration();
-      const customTags = currentConfig.customTags ? currentConfig.customTags.split(',').map(t => t.trim().toUpperCase()).filter(t => t) : undefined;
-      const tagPrefixes = currentConfig.tagPrefixes ? currentConfig.tagPrefixes.split(',').map(p => p.trim()).filter(p => p) : undefined;
-      const anchors = scanDocument(document, customTags, tagPrefixes);
-      void (async () => {
-        if (discoveredProjects.length === 0) {
-          discoveredProjects = await discoverWorkspaceProjects(currentIgnoredFolders);
-        }
-        const enrichedAnchors = await enrichAnchorsWithMetadata(anchors, discoveredProjects);
-        anchorCache.update(document.uri.fsPath, enrichedAnchors);
-        refreshAnchorPresentation();
-      })();
-    }, 500);
-  }
 
   // Register LINK: completion provider (needs anchor cache)
   context.subscriptions.push(
@@ -275,6 +279,31 @@ export function activate(context: vscode.ExtensionContext): void {
     showCollapseAll: true,
   });
   context.subscriptions.push(treeView);
+
+  // StatusBarItem for anchor count — always visible regardless of panel tab state.
+  // Uses warning yellow text until the user focuses the Code Anchors pane,
+  // matching the Problems badge yellow color.
+  // High priority keeps both KAT items grouped together away from other extensions.
+  const anchorStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, -100);
+  anchorStatusBarItem.command = 'kat-comment-studio.anchorsGrid.focus';
+  anchorStatusBarItem.name = 'Code Anchor Count';
+  let anchorStatusBarHighlighted = true;
+  const warningForeground = new vscode.ThemeColor('problemsWarningIcon.foreground');
+  context.subscriptions.push(anchorStatusBarItem);
+
+  // StatusBarItem for toggling XML comment rendering on/off
+  const renderingStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, -101);
+  renderingStatusBarItem.command = 'kat-comment-studio.toggleRendering';
+  renderingStatusBarItem.name = 'Comment Rendering Toggle';
+  function updateRenderingStatusBar(renderingOn: boolean): void {
+    renderingStatusBarItem.text = renderingOn ? '$(comment) ON' : '$(comment-draft) OFF';
+    renderingStatusBarItem.tooltip = renderingOn
+      ? 'KAT Comment Studio - XML comment rendering is ON (click to turn off)'
+      : 'KAT Comment Studio - XML comment rendering is OFF (click to turn on)';
+  }
+  updateRenderingStatusBar(isRenderingOn);
+  renderingStatusBarItem.show();
+  context.subscriptions.push(renderingStatusBarItem);
 
   // Register anchors grid (bottom panel)
   const anchorsGridProvider = new AnchorsGridProvider(
@@ -299,9 +328,19 @@ export function activate(context: vscode.ExtensionContext): void {
     (includedTypes) => {
       updateAnchorViewState({ includedTypes });
     },
-    // search query change
+    // search query change — badge updated synchronously on host; full refresh debounced 300ms
     (searchQuery) => {
-      updateAnchorViewState({ searchQuery });
+      anchorSearchLatestQuery = searchQuery;
+      katLog(`[KAT-BADGE] onSearchQueryChange called with: '${searchQuery}', resetting 300ms timer`);
+      // Badge computed immediately in host — same thread, no IPC, no race conditions
+      const badgeAnchors = filterAnchors(anchorCache.getAll(), { ...anchorViewState, searchQuery }, getCurrentAnchorFilterContext());
+      katLog(`[KAT-BADGE] immediate badge count: ${badgeAnchors.length}`);
+      anchorsGridProvider.applyBadge(badgeAnchors.length);
+      clearTimeout(anchorSearchDebounceTimer);
+      anchorSearchDebounceTimer = setTimeout(() => {
+        katLog(`[KAT-BADGE] debounce FIRED with searchQuery='${anchorSearchLatestQuery}'`);
+        updateAnchorViewState({ searchQuery: anchorSearchLatestQuery });
+      }, 300);
     },
     // grid preference persistence
     (state) => {
@@ -315,6 +354,13 @@ export function activate(context: vscode.ExtensionContext): void {
     // copy cell
     (text) => {
       void vscode.env.clipboard.writeText(text);
+    },
+    // log
+    katLog,
+    // onViewResolved — clear the warning highlight once the user has focused the pane
+    () => {
+      anchorStatusBarHighlighted = false;
+      anchorStatusBarItem.color = undefined;
     },
   );
   context.subscriptions.push(
@@ -355,63 +401,77 @@ export function activate(context: vscode.ExtensionContext): void {
     void persistAnchorViewState();
 
     if (refreshPresentation) {
-      refreshAnchorPresentation();
+      katLog(`[KAT-BADGE] updateAnchorViewState triggering refresh, searchQuery='${anchorViewState.searchQuery}'`);
+      refreshAnchorPresentation('updateAnchorViewState');
     }
   }
 
-  function refreshAnchorPresentation(): void {
-    if (isRefreshingAnchorPresentation) {
-      return;
-    }
+  function refreshAnchorPresentation(caller = 'unknown'): void {
+    katLog(`[KAT-BADGE] refreshAnchorPresentation called by: ${caller}, anchorViewState.searchQuery='${anchorViewState.searchQuery}'`);
+    const allAnchors = anchorCache.getAll();
+    const filterContext = getCurrentAnchorFilterContext();
+    const scopeOptions = buildAnchorScopeOptions(allAnchors, filterContext);
+    const scopeId = ensureValidScopeId(anchorViewState.scopeId, scopeOptions);
 
-    isRefreshingAnchorPresentation = true;
-    try {
-      const allAnchors = anchorCache.getAll();
-      const filterContext = getCurrentAnchorFilterContext();
-      const scopeOptions = buildAnchorScopeOptions(allAnchors, filterContext);
-      const scopeId = ensureValidScopeId(anchorViewState.scopeId, scopeOptions);
-
-      if (scopeId !== anchorViewState.scopeId) {
-        anchorViewState = {
-          ...anchorViewState,
-          scopeId,
-        };
-        void persistAnchorViewState();
-      }
-
-      const effectiveState = {
+    if (scopeId !== anchorViewState.scopeId) {
+      anchorViewState = {
         ...anchorViewState,
         scopeId,
       };
-      const scopeOnlyAnchors = filterAnchors(allAnchors, {
-        scopeId,
-        includedTypes: undefined,
-        searchQuery: '',
-      }, filterContext);
-      const filteredAnchors = filterAnchors(allAnchors, effectiveState, filterContext);
-      const scopeLabel = getScopeLabel(scopeId, scopeOptions);
-
-      anchorTreeProvider.setAnchors(allAnchors);
-      anchorTreeProvider.updateViewState(effectiveState, filterContext);
-
-      treeView.title = 'KAT Comment Studio';
-      treeView.description = filteredAnchors.length === allAnchors.length
-        ? `${filteredAnchors.length}`
-        : `${filteredAnchors.length}/${allAnchors.length}`;
-
-      anchorsGridProvider.updateModel({
-        anchors: scopeOnlyAnchors,
-        availableTypes: getAvailableAnchorTypes(scopeOnlyAnchors),
-        filteredCount: filteredAnchors.length,
-        totalCount: allAnchors.length,
-        scopeLabel,
-        scopeOptions,
-        state: effectiveState,
-        scopeRootPath: resolveScopeRootPath(scopeId, filterContext, allAnchors),
-      });
-    } finally {
-      isRefreshingAnchorPresentation = false;
+      void persistAnchorViewState();
     }
+
+    const effectiveState = {
+      ...anchorViewState,
+      scopeId,
+    };
+    const scopeOnlyAnchors = filterAnchors(allAnchors, {
+      scopeId,
+      includedTypes: undefined,
+      searchQuery: '',
+    }, filterContext);
+    const filteredAnchors = filterAnchors(allAnchors, effectiveState, filterContext);
+    // Badge uses anchorSearchLatestQuery (always current) — not the debounced effectiveState.searchQuery
+    const badgeState = { ...effectiveState, searchQuery: anchorSearchLatestQuery };
+    const badgeAnchors = anchorSearchLatestQuery !== effectiveState.searchQuery
+      ? filterAnchors(allAnchors, badgeState, filterContext)
+      : filteredAnchors;
+    katLog(`[KAT-BADGE] refreshAnchorPresentation result: filteredCount=${filteredAnchors.length}, badgeCount=${badgeAnchors.length}, totalCount=${allAnchors.length}, searchQuery='${effectiveState.searchQuery}', latestQuery='${anchorSearchLatestQuery}'`);
+    const scopeLabel = getScopeLabel(scopeId, scopeOptions);
+
+    anchorTreeProvider.setAnchorsAndViewState(allAnchors, effectiveState, filterContext);
+
+    treeView.title = 'KAT Comment Studio';
+    treeView.description = filteredAnchors.length === allAnchors.length
+      ? `${filteredAnchors.length}`
+      : `${filteredAnchors.length}/${allAnchors.length}`;
+    treeView.badge = filteredAnchors.length > 0
+      ? {
+          value: filteredAnchors.length,
+          tooltip: `${filteredAnchors.length} code anchor${filteredAnchors.length === 1 ? '' : 's'}`,
+        }
+      : undefined;
+
+    // StatusBarItem — always visible, even before the panel webview is resolved.
+    // Yellow text (matching Problems badge) until the user has focused the Code Anchors pane.
+    anchorStatusBarItem.text = `$(symbol-keyword) ${badgeAnchors.length} Anchors`;
+    anchorStatusBarItem.tooltip = badgeAnchors.length === allAnchors.length
+      ? `KAT Comment Studio - View ${badgeAnchors.length} Code Anchor${badgeAnchors.length === 1 ? '' : 's'}`
+      : `KAT Comment Studio - View ${badgeAnchors.length} of ${allAnchors.length} Code Anchors (filtered)`;
+    anchorStatusBarItem.color = anchorStatusBarHighlighted ? warningForeground : undefined;
+    anchorStatusBarItem.show();
+
+    anchorsGridProvider.applyBadge(badgeAnchors.length);
+    anchorsGridProvider.updateModel({
+      anchors: scopeOnlyAnchors,
+      availableTypes: getAvailableAnchorTypes(scopeOnlyAnchors),
+      filteredCount: filteredAnchors.length,
+      totalCount: allAnchors.length,
+      scopeLabel,
+      scopeOptions,
+      state: effectiveState,
+      scopeRootPath: resolveScopeRootPath(scopeId, filterContext, allAnchors),
+    });
   }
 
   // Resolve scan options from settings
@@ -423,21 +483,29 @@ export function activate(context: vscode.ExtensionContext): void {
   };
 
   anchorCache.load(context);
-  refreshAnchorPresentation();
+  refreshAnchorPresentation('activation');
 
   // Auto-scan on activation (non-blocking, respects scanOnLoad setting)
   if (config.scanOnLoad) {
-    void Promise.all([
-      scanWorkspace(scanOptions),
-      discoverWorkspaceProjects(scanOptions.ignoredFolders),
-    ]).then(async ([results, projects]) => {
-      currentIgnoredFolders = scanOptions.ignoredFolders;
-      discoveredProjects = projects;
-      const enrichedAnchors = await enrichAnchorsWithMetadata(results, projects);
-      anchorCache.replaceAll(enrichedAnchors);
-      refreshAnchorPresentation();
-      await anchorCache.save(context);
-    });
+    void vscode.window.withProgress(
+      { location: { viewId: AnchorsGridProvider.viewType } },
+      async () => {
+        try {
+          const [results, projects] = await Promise.all([
+            scanWorkspace(scanOptions),
+            discoverWorkspaceProjects(scanOptions.ignoredFolders),
+          ]);
+          currentIgnoredFolders = scanOptions.ignoredFolders;
+          discoveredProjects = projects;
+          const enrichedAnchors = await enrichAnchorsWithMetadata(results, projects);
+          anchorCache.replaceAll(enrichedAnchors);
+          refreshAnchorPresentation('autoScanComplete');
+          await anchorCache.save(context);
+        } catch (err) {
+          console.error('[KAT] Auto-scan error:', err);
+        }
+      },
+    );
   }
 
   // Scan workspace command
@@ -461,9 +529,7 @@ export function activate(context: vscode.ExtensionContext): void {
           discoveredProjects = projects;
           const enrichedAnchors = await enrichAnchorsWithMetadata(results, projects);
           anchorCache.replaceAll(enrichedAnchors);
-          refreshAnchorPresentation();
-          await anchorCache.save(context);
-          vscode.window.showInformationMessage(`Found ${enrichedAnchors.length} code anchors.`);
+          refreshAnchorPresentation('scanAnchorsCommand');(`Found ${enrichedAnchors.length} code anchors.`);
         },
       );
     }),
@@ -563,13 +629,13 @@ export function activate(context: vscode.ExtensionContext): void {
   // Update cache on document save
   context.subscriptions.push(
     vscode.workspace.onDidOpenTextDocument(() => {
-      refreshAnchorPresentation();
+      refreshAnchorPresentation('onDidOpenTextDocument');
     }),
     vscode.workspace.onDidCloseTextDocument(() => {
-      refreshAnchorPresentation();
+      refreshAnchorPresentation('onDidCloseTextDocument');
     }),
     vscode.workspace.onDidChangeWorkspaceFolders(() => {
-      refreshAnchorPresentation();
+      refreshAnchorPresentation('onDidChangeWorkspaceFolders');
     }),
     vscode.workspace.onDidSaveTextDocument(async document => {
       if (document.uri.scheme !== 'file') {
@@ -583,12 +649,12 @@ export function activate(context: vscode.ExtensionContext): void {
         discoveredProjects = await discoverWorkspaceProjects(currentIgnoredFolders);
         const enrichedAnchors = await enrichAnchorsWithMetadata(anchorCache.getAll(), discoveredProjects);
         anchorCache.replaceAll(enrichedAnchors);
-        refreshAnchorPresentation();
+        refreshAnchorPresentation('onDidSaveTextDocument-csproj');
         await anchorCache.save(context);
         return;
       }
 
-      const customTags = currentConfig.customTags ? currentConfig.customTags.split(',').map(t => t.trim().toUpperCase()).filter(t => t) : undefined;
+      const customTags= currentConfig.customTags ? currentConfig.customTags.split(',').map(t => t.trim().toUpperCase()).filter(t => t) : undefined;
       const tagPrefixes = currentConfig.tagPrefixes ? currentConfig.tagPrefixes.split(',').map(p => p.trim()).filter(p => p) : undefined;
       const anchors = scanDocument(document, customTags, tagPrefixes);
       if (discoveredProjects.length === 0) {
@@ -596,7 +662,7 @@ export function activate(context: vscode.ExtensionContext): void {
       }
       const enrichedAnchors = await enrichAnchorsWithMetadata(anchors, discoveredProjects);
       anchorCache.update(document.uri.fsPath, enrichedAnchors);
-      refreshAnchorPresentation();
+      refreshAnchorPresentation('onDidSaveTextDocument');
       await anchorCache.save(context);
     }),
   );
@@ -608,7 +674,6 @@ export function deactivate(): void {
   decorationManager = undefined;
   codeLensProvider?.dispose();
   codeLensProvider = undefined;
-  hoverProvider = undefined;
   anchorDecorationManager?.dispose();
   anchorDecorationManager = undefined;
   prefixHighlighter?.dispose();

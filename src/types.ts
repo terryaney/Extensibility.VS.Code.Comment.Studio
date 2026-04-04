@@ -13,6 +13,9 @@ export interface PrefixStyle {
 /** Left border indicator mode */
 export type LeftBorderMode = 'off' | 'multilineOnly' | 'inlineOnly' | 'always';
 
+/** CodeLens placement relative to the comment block */
+export type CodeLensPosition = 'inline' | 'ownLine';
+
 /** Extension configuration */
 export interface CommentStudioConfig {
   renderingMode: RenderingMode;
@@ -22,7 +25,6 @@ export interface CommentStudioConfig {
 
   // Reflow settings
   maxLineLength: number;
-  enableReflowOnFormat: boolean;
 
   // Anchor settings
   customTags: string;
@@ -42,6 +44,7 @@ export interface CommentStudioConfig {
   // Visual settings
   preserveBlankLines: boolean;
   leftBorder: LeftBorderMode;
+  codeLensPosition: CodeLensPosition;
 
   // Color overrides (empty string = use ThemeColor default)
   colors: {
