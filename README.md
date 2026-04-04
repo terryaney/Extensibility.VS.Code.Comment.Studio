@@ -6,7 +6,17 @@
 
 C#, VB, F#, C/C++, TypeScript, JavaScript, TypeScript/JavaScript React, Razor, SQL, PowerShell
 
----
+## Getting Started
+
+1. [Download the extension](https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/dist/kat-comment-studio-1.0.2.vsix).
+1. Press `Ctrl+Shift+P` to open the VS Code command palette. Type `VSIX` and select **Extensions: Install from VSIX...**.
+
+![Install from VSIX](media/install.png)
+
+3. Browse to the downloaded `kat-comment-studio-1.0.2.vsix` file and select it.
+4. Open a `.cs` file with XML documentation comments, add some code anchors, and enjoy.
+
+Install [previous versions](#previous-versions) of the extension if needed.
 
 ## Features
 
@@ -138,7 +148,7 @@ The following XML doc tags are rendered in the documentation popup:
 |---|---|
 | Command Palette → `Comment Studio: Toggle Comment Rendering` | Toggle rendering |
 | Right-click → **Comment Studio** submenu | Quick access |
-| Status Bar → ![OFF](./media/codicon-comment-draft.svg) `OFF` and ![ON](./media/codicon-comment.svg) `ON` Icons | Toggle rendering |
+| Status Bar → ![OFF](./media/codicon-comment-draft.png) `OFF` and ![ON](./media/codicon-comment.png) `ON` Icons | Toggle rendering |
 
 ### Collapse by Default
 
@@ -169,14 +179,14 @@ Code anchors are specially tagged comments that mark items of interest across yo
 
 | Tag | Color | Icon | Purpose |
 |---|---|---|---|
-| `TODO` | `colors.todo` `#FF8C00` | ![checklist](./media/codicon-checklist.svg) | Work to be done |
-| `HACK` | `colors.hack` `#DC143C` | ![alert](./media/codicon-alert.svg) | Workaround that needs cleanup |
-| `NOTE` | `colors.note` `#4169E1` | ![note](./media/codicon-note.svg) | Important information |
-| `BUG` | `colors.bug` `#FF0000` | ![bug](./media/codicon-bug.svg) | Known bug |
-| `FIXME` | `colors.fixme` `#FF4500` | ![wrench](./media/codicon-wrench.svg) | Must be fixed |
-| `UNDONE` | `colors.undone` `#808080` | ![circle-slash](./media/codicon-circle-slash.svg) | Reverted or incomplete |
-| `REVIEW` | `colors.review` `#9370DB` | ![eye](./media/codicon-eye.svg) | Needs review |
-| `ANCHOR` | `colors.anchor` `#20B2AA` | ![link](./media/codicon-link.svg) | Named navigation target |
+| `TODO` | `colors.todo` `#FF8C00` | ![checklist](./media/codicon-checklist.png) | Work to be done |
+| `HACK` | `colors.hack` `#DC143C` | ![alert](./media/codicon-alert.png) | Workaround that needs cleanup |
+| `NOTE` | `colors.note` `#4169E1` | ![note](./media/codicon-note.png) | Important information |
+| `BUG` | `colors.bug` `#FF0000` | ![bug](./media/codicon-bug.png) | Known bug |
+| `FIXME` | `colors.fixme` `#FF4500` | ![wrench](./media/codicon-wrench.png) | Must be fixed |
+| `UNDONE` | `colors.undone` `#808080` | ![circle-slash](./media/codicon-circle-slash.png) | Reverted or incomplete |
+| `REVIEW` | `colors.review` `#9370DB` | ![eye](./media/codicon-eye.png) | Needs review |
+| `ANCHOR` | `colors.anchor` `#20B2AA` | ![link](./media/codicon-link.png) | Named navigation target |
 
 ### Basic Syntax
 
@@ -258,10 +268,10 @@ The **KAT Comment Studio** activity bar panel shows a tree of all anchors groupe
 
 | Button | Action |
 |---|---|
-| ![Scan](./media/codicon-refresh.svg) Scan | Scan the entire workspace for anchors |
-| ![Export](./media/codicon-export.svg) Export | Export visible anchors to a file |
-| ![Set Scope](./media/codicon-surround-with.svg) Set Scope | Filter by scope |
-| ![Filter Types](./media/codicon-list-filter.svg) Filter Types | Toggle which anchor types are shown |
+| ![Scan](./media/codicon-refresh.png) Scan | Scan the entire workspace for anchors |
+| ![Export](./media/codicon-export.png) Export | Export visible anchors to a file |
+| ![Set Scope](./media/codicon-surround-with.png) Set Scope | Filter by scope |
+| ![Filter Types](./media/codicon-list-filter.png) Filter Types | Toggle which anchor types are shown |
 
 **Scope options** (Command Palette → `Comment Studio: Set Anchor Scope` or the grid dropdown):
 
@@ -715,7 +725,7 @@ File watcher updates settings automatically when `.editorconfig` changes — no 
 
 - **Node.js** 20 or later
 - **VS Code** (any recent version)
-- No global `vsce` install required — the `package` script uses `npx vsce`
+- No global `vsce` install required — the repo uses a local `@vscode/vsce` dev dependency
 
 ### Getting Started
 
@@ -756,8 +766,8 @@ npm run package
 This does three things in sequence:
 
 1. Bumps the **patch version** in `package.json` (e.g., `1.0.3` → `1.0.4`) — file only, no git tag
-2. Runs `npm run compile`
-3. Runs `npx vsce package` to produce `kat-comment-studio-<version>.vsix`
+2. Runs `@vscode/vsce package`, which triggers `vscode:prepublish` and compiles the extension
+3. Writes the `.vsix` to `dist/`, updates the README VSIX filename references, and adds the previous version under `## Previous Versions`
 
 Commit the version bump manually afterward if you want it tracked in git.
 
@@ -768,7 +778,7 @@ In VS Code: **Extensions** panel → `···` menu (top-right) → **Install fro
 Or from the terminal:
 
 ```bash
-code --install-extension kat-comment-studio-1.0.4.vsix
+code --install-extension kat-comment-studio-1.0.2.vsix
 ```
 
 ### Running Tests
@@ -818,6 +828,10 @@ This extension is a port and adaptation of [madskristensen/CommentsVS](https://g
 - [C# XML Documentation Tags](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/xmldoc/recommended-tags) — official reference for all supported `<summary>`, `<param>`, `<returns>`, and related tags
 
 ---
+
+## Previous Versions
+
+1. [1.0.1](https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/dist/kat-comment-studio-1.0.1.vsix)
 
 ## License
 
