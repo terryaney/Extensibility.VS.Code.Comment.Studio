@@ -33,6 +33,7 @@ export function getConfiguration(): CommentStudioConfig {
     enableReflowOnPaste: config.get<boolean>('enableReflowOnPaste', true),
     enableReflowWhileTyping: config.get<boolean>('enableReflowWhileTyping', true),
     collapseByDefault: config.get<boolean>('collapseByDefault', false),
+    interceptF1ForComments: config.get<boolean>('interceptF1ForComments', true),
 
     // Visual
     codeLensMaxLength: config.get<number>('codeLensMaxLength', 205),

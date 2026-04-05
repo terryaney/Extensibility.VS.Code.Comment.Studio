@@ -2,7 +2,7 @@
   "name": "kat-comment-studio",
   "displayName": "KAT Comment Studio",
   "description": "XML documentation comment rendering, reflow, code anchors, and link navigation for VS Code",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "publisher": "conduent-kat-team",
   "author": {
     "name": "Terry Aney",
@@ -148,7 +148,8 @@
         "command": "kat-comment-studio.reflowComment",
         "title": "Reflow Current Comment",
         "category": "KAT Comment Studio",
-        "icon": "$(wrap)"
+        "icon": "$(wrap)",
+        "enablement": "kat-comment-studio.cursorInXmlComment"
       },
       {
         "command": "kat-comment-studio.reflowAllComments",
@@ -159,7 +160,8 @@
       {
         "command": "kat-comment-studio.showCommentTooltip",
         "title": "Show Comment Tooltip",
-        "category": "KAT Comment Studio"
+        "category": "KAT Comment Studio",
+        "enablement": "kat-comment-studio.cursorHasAssociatedComment && kat-comment-studio.renderingActive"
       },
       {
         "command": "kat-comment-studio.scanAnchors",
@@ -168,21 +170,10 @@
         "icon": "$(refresh)"
       },
       {
-        "command": "kat-comment-studio.refreshAnchors",
-        "title": "Refresh Code Anchors (OBSOLETE - SEE future-ideas.md)",
-        "category": "KAT Comment Studio"
-      },
-      {
         "command": "kat-comment-studio.exportAnchors",
         "title": "Export Code Anchors",
         "category": "KAT Comment Studio",
         "icon": "$(export)"
-      },
-      {
-        "command": "kat-comment-studio.showAnchorsGrid",
-        "title": "Show Code Anchors Pane",
-        "category": "KAT Comment Studio",
-        "icon": "$(table)"
       },
       {
         "command": "kat-comment-studio.setAnchorScope",
@@ -216,11 +207,13 @@
         "command": "kat-comment-studio.removeXmlDocOnly",
         "title": "Remove All XML Comments in File",
         "category": "KAT Comment Studio"
-      },
+      }
+    ],
+    "keybindings": [
       {
-        "command": "kat-comment-studio.navigateLink",
-        "title": "Navigate to LINK Target",
-        "category": "KAT Comment Studio"
+        "command": "kat-comment-studio.showCommentTooltip",
+        "key": "F1",
+        "when": "editorTextFocus && kat-comment-studio.interceptF1Active"
       }
     ],
     "keybindings.off": [
@@ -334,7 +327,7 @@
         "kat-comment-studio.enableIssueLinks": {
           "type": "boolean",
           "default": true,
-          "description": "Enable clickable issue links (#123 → GitHub/GitLab/etc.)"
+          "description": "Enable clickable issue links (#123 \u2192 GitHub/GitLab/etc.)"
         },
         "kat-comment-studio.enableReflowOnPaste": {
           "type": "boolean",
@@ -349,7 +342,12 @@
         "kat-comment-studio.collapseByDefault": {
           "type": "boolean",
           "default": false,
-          "description": "Automatically collapse XML doc comments when opening files"
+          "description": "Automatically collapse XML doc comments when opening files (only applies when rendering is Off)"
+        },
+        "kat-comment-studio.interceptF1ForComments": {
+          "type": "boolean",
+          "default": true,
+          "description": "When the cursor is inside or immediately below an XML doc comment block, pressing F1 shows the KAT Comment Studio tooltip instead of the VS Code help menu. Disable to restore the default F1 behavior."
         },
         "kat-comment-studio.scanOnLoad": {
           "type": "boolean",

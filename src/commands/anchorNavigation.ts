@@ -5,7 +5,7 @@ import { getConfiguration } from '../configuration';
 /**
  * Navigate to the next/previous anchor in the current document.
  */
-function navigateAnchor(direction: 'next' | 'previous'): void {
+async function navigateAnchor(direction: 'next' | 'previous'): Promise<void> {
   const editor = vscode.window.activeTextEditor;
   if (!editor) return;
 
@@ -53,8 +53,10 @@ function navigateAnchor(direction: 'next' | 'previous'): void {
 
   if (target) {
     const pos = new vscode.Position(target.lineNumber, target.column);
-    editor.selection = new vscode.Selection(pos, pos);
-    editor.revealRange(
+    const column = editor.viewColumn ?? vscode.ViewColumn.Active;
+    const focusedEditor = await vscode.window.showTextDocument(editor.document, column);
+    focusedEditor.selection = new vscode.Selection(pos, pos);
+    focusedEditor.revealRange(
       new vscode.Range(pos, pos),
       vscode.TextEditorRevealType.InCenterIfOutsideViewport,
     );
@@ -63,7 +65,7 @@ function navigateAnchor(direction: 'next' | 'previous'): void {
 
 export function registerAnchorNavigationCommands(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
-    vscode.commands.registerCommand('kat-comment-studio.nextAnchor', () => navigateAnchor('next')),
-    vscode.commands.registerCommand('kat-comment-studio.previousAnchor', () => navigateAnchor('previous')),
+    vscode.commands.registerCommand('kat-comment-studio.nextAnchor', async () => navigateAnchor('next')),
+    vscode.commands.registerCommand('kat-comment-studio.previousAnchor', async () => navigateAnchor('previous')),
   );
 }

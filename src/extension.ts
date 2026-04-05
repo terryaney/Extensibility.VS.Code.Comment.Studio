@@ -19,7 +19,7 @@ import { scanWorkspace, scanDocument } from './anchors/workspaceScanner';
 import { exportAnchorsToFile } from './anchors/anchorExporter';
 import { BUILTIN_ANCHOR_TYPES } from './anchors/anchorService';
 import { IssueLinkProvider } from './navigation/issueLinkProvider';
-import { LinkAnchorLinkProvider, LinkAnchorHoverProvider, navigateToLinkTarget } from './navigation/linkNavigator';
+import { LinkAnchorLinkProvider, LinkAnchorHoverProvider, LinkDefinitionProvider, navigateToLinkTarget } from './navigation/linkNavigator';
 import { LinkCompletionProvider } from './navigation/linkCompletionProvider';
 import { LinkValidator } from './navigation/linkValidator';
 import { clearGitCache } from './navigation/gitService';
@@ -43,6 +43,7 @@ import {
   resolveScopeRootPath,
 } from './anchors/anchorViewState';
 import { disposeDebugChannel } from './diagnostics/debugLog';
+import { XmlDocCommentBlock } from './types';
 
 let decorationManager: DecorationManager | undefined;
 let codeLensProvider: CommentCodeLensProvider | undefined;
@@ -96,6 +97,7 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
     vscode.languages.registerDocumentLinkProvider(SUPPORTED_LANGUAGES, new LinkAnchorLinkProvider()),
     vscode.languages.registerHoverProvider(SUPPORTED_LANGUAGES, new LinkAnchorHoverProvider()),
+    vscode.languages.registerDefinitionProvider(SUPPORTED_LANGUAGES, new LinkDefinitionProvider()),
   );
 
   // Register folding provider for doc comment blocks
@@ -163,14 +165,41 @@ export function activate(context: vscode.ExtensionContext): void {
         void vscode.workspace.applyEdit(edit);
       }
     }),
-    vscode.commands.registerCommand('kat-comment-studio.showCommentTooltip', async (uri: vscode.Uri, startLine: number) => {
+    vscode.commands.registerCommand('kat-comment-studio.showCommentTooltip', async (uri?: vscode.Uri, startLine?: number) => {
       const editor = vscode.window.activeTextEditor;
-      if (!editor || editor.document.uri.toString() !== uri.toString()) return;
+      if (!editor) return;
+
+      let targetUri = uri;
+      let targetStartLine = startLine;
+
+      // No-args path: auto-detect the associated comment block from cursor position
+      if (targetUri === undefined || targetStartLine === undefined) {
+        const lines = editor.document.getText().split(/\r?\n/);
+        const blocks = getCachedCommentBlocks(
+          editor.document.uri.toString(),
+          editor.document.version,
+          lines,
+          editor.document.languageId,
+        );
+        if (!blocks || blocks.length === 0) return;
+
+        const cursorLine = editor.selection.active.line;
+
+        // Use shared helper: finds block associated with cursor (inside comment, attributes,
+        // signature, or anywhere in method body through the closing brace).
+        const associated = findAssociatedBlock(blocks, lines, cursorLine);
+
+        if (!associated) return;
+
+        targetUri = editor.document.uri;
+        targetStartLine = associated.startLine;
+      }
+
+      if (editor.document.uri.toString() !== targetUri.toString()) return;
 
       if (commentHoverProvider) {
-        commentHoverProvider.setPendingHover(uri, startLine);
+        commentHoverProvider.setPendingHover(targetUri, targetStartLine);
         decorationManager?.suppressNextAutoExpand();
-        editor.selection = new vscode.Selection(startLine, 0, startLine, 0);
         await vscode.commands.executeCommand('editor.action.showHover');
       }
     }),
@@ -214,6 +243,9 @@ export function activate(context: vscode.ExtensionContext): void {
 
       vscode.commands.executeCommand('setContext', 'kat-comment-studio.renderingActive', newConfig.renderingMode !== 'off');
       updateRenderingStatusBar(renderingOn);
+
+      // Re-evaluate interceptF1Active when config changes
+      updateCursorInCommentContext(vscode.window.activeTextEditor);
     })
   );
 
@@ -232,7 +264,11 @@ export function activate(context: vscode.ExtensionContext): void {
         }
       }
 
-      refreshAnchorPresentation('onDidChangeActiveTextEditor');
+      updateCursorInCommentContext(editor);
+
+      if (!editor || editor.document.uri.scheme !== 'file') return;
+      clearTimeout(anchorOpenCloseDebounceTimer);
+      anchorOpenCloseDebounceTimer = setTimeout(() => refreshAnchorPresentation('onDidChangeActiveTextEditor'), 300);
     }),
     vscode.window.onDidChangeVisibleTextEditors(editors => {
       for (const editor of editors) {
@@ -241,12 +277,15 @@ export function activate(context: vscode.ExtensionContext): void {
         prefixHighlighter?.updateDecorations(editor);
       }
 
-      refreshAnchorPresentation('onDidChangeVisibleTextEditors');
+      if (!editors.some(e => e.document.uri.scheme === 'file')) return;
+      clearTimeout(anchorOpenCloseDebounceTimer);
+      anchorOpenCloseDebounceTimer = setTimeout(() => refreshAnchorPresentation('onDidChangeVisibleTextEditors'), 300);
     }),
     vscode.workspace.onDidChangeTextDocument(event => {
       const editor = vscode.window.activeTextEditor;
       if (editor && event.document === editor.document) {
         decorationManager?.onDocumentChanged(editor, event);
+        updateCursorInCommentContext(editor);
         
         clearTimeout(anchorDecUpdateTimer);
         anchorDecUpdateTimer = setTimeout(() => {
@@ -276,29 +315,41 @@ export function activate(context: vscode.ExtensionContext): void {
     })
   );
 
-  // Track cursor position for menu enablement of "Reflow Current Comment"
+  // Track cursor position for menu enablement of "Reflow Current Comment" and "Show Comment Tooltip"
   function updateCursorInCommentContext(editor: vscode.TextEditor | undefined): void {
     if (!editor) {
       void vscode.commands.executeCommand('setContext', 'kat-comment-studio.cursorInXmlComment', false);
+      void vscode.commands.executeCommand('setContext', 'kat-comment-studio.cursorHasAssociatedComment', false);
+      void vscode.commands.executeCommand('setContext', 'kat-comment-studio.interceptF1Active', false);
       return;
     }
     const lines = editor.document.getText().split(/\r?\n/);
-    const commentStyle = (() => {
-      try {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        return require('./parsing/languageConfig').getLanguageCommentStyle(editor.document.languageId);
-      } catch { return undefined; }
-    })();
-    if (!commentStyle) {
+    const blocks = getCachedCommentBlocks(
+      editor.document.uri.toString(),
+      editor.document.version,
+      lines,
+      editor.document.languageId,
+    );
+    if (!blocks) {
       void vscode.commands.executeCommand('setContext', 'kat-comment-studio.cursorInXmlComment', false);
+      void vscode.commands.executeCommand('setContext', 'kat-comment-studio.cursorHasAssociatedComment', false);
+      void vscode.commands.executeCommand('setContext', 'kat-comment-studio.interceptF1Active', false);
       return;
     }
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    const { findAllCommentBlocks } = require('./parsing/commentParser') as typeof import('./parsing/commentParser');
-    const blocks = findAllCommentBlocks(lines, commentStyle);
+
     const cursorLine = editor.selection.active.line;
     const inComment = blocks.some(b => cursorLine >= b.startLine && cursorLine <= b.endLine);
+
+    // cursorHasAssociatedComment: true when cursor is inside the comment block OR anywhere
+    // within the method body it documents (attributes, signature, body through closing brace).
+    const hasAssociated = findAssociatedBlock(blocks, lines, cursorLine) !== undefined;
+
+    const currentConfig = getConfiguration();
+    const interceptF1Active = hasAssociated && currentConfig.interceptF1ForComments && currentConfig.renderingMode !== 'off';
+
     void vscode.commands.executeCommand('setContext', 'kat-comment-studio.cursorInXmlComment', inComment);
+    void vscode.commands.executeCommand('setContext', 'kat-comment-studio.cursorHasAssociatedComment', hasAssociated);
+    void vscode.commands.executeCommand('setContext', 'kat-comment-studio.interceptF1Active', interceptF1Active);
   }
 
   context.subscriptions.push(
@@ -333,6 +384,7 @@ export function activate(context: vscode.ExtensionContext): void {
   let anchorDecUpdateTimer: ReturnType<typeof setTimeout> | undefined;
   let prefixDecUpdateTimer: ReturnType<typeof setTimeout> | undefined;
   let anchorSearchDebounceTimer: ReturnType<typeof setTimeout> | undefined;
+  let anchorOpenCloseDebounceTimer: ReturnType<typeof setTimeout> | undefined;
   let anchorSearchLatestQuery = '';  // always reflects the most recent keystroke
   let anchorViewState = normalizeAnchorViewState({
     ...context.workspaceState.get<Partial<AnchorViewState>>(anchorViewStateStorageKey),
@@ -632,12 +684,7 @@ export function activate(context: vscode.ExtensionContext): void {
     }),
   );
 
-  // Show anchors grid command
-  context.subscriptions.push(
-    vscode.commands.registerCommand('kat-comment-studio.showAnchorsGrid', () => {
-      void vscode.commands.executeCommand('kat-comment-studio.anchorsGrid.focus');
-    }),
-  );
+
 
   // Scope change command
   context.subscriptions.push(
@@ -701,11 +748,15 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // Update cache on document save
   context.subscriptions.push(
-    vscode.workspace.onDidOpenTextDocument(() => {
-      refreshAnchorPresentation('onDidOpenTextDocument');
+    vscode.workspace.onDidOpenTextDocument(doc => {
+      if (doc.uri.scheme !== 'file') return;
+      clearTimeout(anchorOpenCloseDebounceTimer);
+      anchorOpenCloseDebounceTimer = setTimeout(() => refreshAnchorPresentation('onDidOpenTextDocument'), 300);
     }),
-    vscode.workspace.onDidCloseTextDocument(() => {
-      refreshAnchorPresentation('onDidCloseTextDocument');
+    vscode.workspace.onDidCloseTextDocument(doc => {
+      if (doc.uri.scheme !== 'file') return;
+      clearTimeout(anchorOpenCloseDebounceTimer);
+      anchorOpenCloseDebounceTimer = setTimeout(() => refreshAnchorPresentation('onDidCloseTextDocument'), 300);
     }),
     vscode.workspace.onDidChangeWorkspaceFolders(() => {
       refreshAnchorPresentation('onDidChangeWorkspaceFolders');
@@ -758,4 +809,76 @@ export function deactivate(): void {
   linkValidator?.dispose();
   linkValidator = undefined;
   disposeDebugChannel();
+}
+
+/**
+ * Given a declaration line (first non-blank, non-attribute line after a comment block),
+ * scans forward to find the matching closing brace of the method/property/class body.
+ * Returns the line number of the closing brace, or undefined if no brace body is found
+ * (abstract members, interface members, VB/F# syntax).
+ *
+ * Note: counts raw `{`/`}` characters. String/comment literals with braces are
+ * typically balanced so this works in practice, but complex interpolated strings
+ * with unbalanced braces could give a wrong result.
+ */
+export function findMethodBodyEnd(lines: string[], declarationLine: number): number | undefined {
+  let depth = 0;
+  let foundOpen = false;
+
+  for (let i = declarationLine; i < lines.length; i++) {
+    const text = lines[i];
+    for (const ch of text) {
+      if (ch === '{') { depth++; foundOpen = true; }
+      else if (ch === '}') {
+        depth--;
+        if (foundOpen && depth === 0) return i;
+      }
+    }
+    // No opening brace within a reasonable window — expression-bodied or abstract
+    if (!foundOpen && i > declarationLine + 10) return undefined;
+    // Semicolon-terminated (interface/abstract member) with no open brace yet
+    if (!foundOpen && lines[i].trim().endsWith(';')) return undefined;
+  }
+
+  return undefined;
+}
+
+/**
+ * Finds the comment block associated with the given cursor line.
+ * A block is associated when the cursor is:
+ *   1. Inside the comment block itself
+ *   2. On an attribute line between the comment and declaration
+ *   3. On the declaration line
+ *   4. Anywhere within the method/property body (from declaration to closing brace)
+ */
+export function findAssociatedBlock(
+  blocks: XmlDocCommentBlock[],
+  lines: string[],
+  cursorLine: number,
+): XmlDocCommentBlock | undefined {
+  // Iterate in reverse so nested members win over enclosing class/namespace comments.
+  // The innermost (last-declared) matching block is the most specific one.
+  for (let idx = blocks.length - 1; idx >= 0; idx--) {
+    const b = blocks[idx];
+    // Inside the comment itself
+    if (cursorLine >= b.startLine && cursorLine <= b.endLine) return b;
+
+    // Find the declaration line (skip blanks + attribute lines)
+    let declLine = b.endLine + 1;
+    while (declLine < lines.length) {
+      const text = lines[declLine].trim();
+      if (text === '') { declLine++; continue; }
+      if (text.startsWith('[') && text.includes(']')) { declLine++; continue; }
+      break;
+    }
+    if (declLine >= lines.length) continue;
+
+    // Cursor on an attribute line or declaration line
+    if (cursorLine >= b.endLine + 1 && cursorLine <= declLine) return b;
+
+    // Cursor inside method body
+    const bodyEnd = findMethodBodyEnd(lines, declLine);
+    if (bodyEnd !== undefined && cursorLine > declLine && cursorLine <= bodyEnd) return b;
+  }
+  return undefined;
 }

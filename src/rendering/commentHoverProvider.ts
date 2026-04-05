@@ -11,6 +11,7 @@ export class CommentHoverProvider implements vscode.HoverProvider {
   private enabled = true;
   private _pendingUri: string | undefined;
   private _pendingStartLine: number | undefined;
+  private _pendingClearTimer: ReturnType<typeof setTimeout> | undefined;
 
   setEnabled(enabled: boolean): void {
     this.enabled = enabled;
@@ -18,16 +19,23 @@ export class CommentHoverProvider implements vscode.HoverProvider {
 
   /**
    * Arms the hover provider for a specific comment block.
-   * The next provideHover call matching this location will return content
-   * and clear the pending state.
+   * The next provideHover call for the same document will return the comment content
+   * regardless of cursor position, then clear the pending state (one-shot).
+   * A 500ms safety timeout ensures the state never leaks to an unrelated subsequent hover.
    */
   setPendingHover(uri: vscode.Uri, startLine: number): void {
+    if (this._pendingClearTimer !== undefined) clearTimeout(this._pendingClearTimer);
     this._pendingUri = uri.toString();
     this._pendingStartLine = startLine;
+    this._pendingClearTimer = setTimeout(() => this.clearPending(), 500);
   }
 
   /** Clears any pending hover without showing it. */
   clearPending(): void {
+    if (this._pendingClearTimer !== undefined) {
+      clearTimeout(this._pendingClearTimer);
+      this._pendingClearTimer = undefined;
+    }
     this._pendingUri = undefined;
     this._pendingStartLine = undefined;
   }
@@ -64,12 +72,6 @@ export class CommentHoverProvider implements vscode.HoverProvider {
     // Find the block matching the pending startLine
     const block = blocks.find(b => b.startLine === this._pendingStartLine);
     if (!block) {
-      this.clearPending();
-      return undefined;
-    }
-
-    // Validate that the hover position is within the target block range
-    if (position.line < block.startLine || position.line > block.endLine) {
       this.clearPending();
       return undefined;
     }

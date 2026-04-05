@@ -150,6 +150,71 @@ function fileExists(filePath: string): boolean {
   }
 }
 
+function isFile(filePath: string): boolean {
+  try {
+    return fs.statSync(filePath).isFile();
+  } catch {
+    return false;
+  }
+}
+
 function escapeRegex(str: string): string {
   return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * Provides F12 go-to-definition for LINK: targets.
+ */
+export class LinkDefinitionProvider implements vscode.DefinitionProvider {
+  async provideDefinition(
+    document: vscode.TextDocument,
+    position: vscode.Position,
+    _token: vscode.CancellationToken,
+  ): Promise<vscode.Location | undefined> {
+    const line = document.lineAt(position.line).text;
+    const targets = parseLinkAnchors(line);
+
+    for (const target of targets) {
+      if (position.character >= target.pathStart && position.character <= target.pathStart + target.pathLength) {
+        // Found the LINK: the cursor is on — resolve it
+        if (target.isLocalAnchor && target.anchorName) {
+          // Search in current document
+          const text = document.getText();
+          const anchorRegex = new RegExp(`\\bANCHOR[\\(\\[]${escapeRegex(target.anchorName)}[\\)\\]]`, 'i');
+          const match = anchorRegex.exec(text);
+          if (match) {
+            const pos = document.positionAt(match.index);
+            return new vscode.Location(document.uri, pos);
+          }
+          return undefined;
+        }
+
+        const resolvedPath = resolveLinkTarget(target, document.uri.fsPath);
+        if (!fileExists(resolvedPath) || !isFile(resolvedPath)) return undefined;
+
+        const targetUri = vscode.Uri.file(resolvedPath);
+        let targetDoc: vscode.TextDocument;
+        try {
+          targetDoc = await vscode.workspace.openTextDocument(targetUri);
+        } catch {
+          return undefined;
+        }
+
+        if (target.anchorName) {
+          const text = targetDoc.getText();
+          const anchorRegex = new RegExp(`\\bANCHOR[\\(\\[]${escapeRegex(target.anchorName)}[\\)\\]]`, 'i');
+          const match = anchorRegex.exec(text);
+          if (match) {
+            const pos = targetDoc.positionAt(match.index);
+            return new vscode.Location(targetUri, pos);
+          }
+        }
+
+        // Line number or just the file
+        const lineNum = target.lineNumber ? Math.max(0, target.lineNumber - 1) : 0;
+        return new vscode.Location(targetUri, new vscode.Position(lineNum, 0));
+      }
+    }
+    return undefined;
+  }
 }

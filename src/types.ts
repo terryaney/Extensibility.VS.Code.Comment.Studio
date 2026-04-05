@@ -35,6 +35,7 @@ export interface CommentStudioConfig {
   enableReflowOnPaste: boolean;
   enableReflowWhileTyping: boolean;
   collapseByDefault: boolean;
+  interceptF1ForComments: boolean;
 
   // Visual settings
   codeLensMaxLength: number;
