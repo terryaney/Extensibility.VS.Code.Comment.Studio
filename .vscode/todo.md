@@ -1,5 +1,5 @@
 - Terry
 	- Review readme and compare to VS extension
-		- Review settings - categories or alpha?  Then do same to package.json
 		- Generate a full { } settings section in jsonc for all settings available in my readme?
 		- Need to improve readme to explain/list all commands, shortcuts, feature accessibility etc.
+

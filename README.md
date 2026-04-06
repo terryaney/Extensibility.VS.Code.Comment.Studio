@@ -8,12 +8,12 @@ C#, VB, F#, C/C++, TypeScript, JavaScript, TypeScript/JavaScript React, Razor, S
 
 ## Getting Started
 
-1. [Download the extension](https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/dist/kat-comment-studio-1.0.3.vsix).
+1. [Download the extension](https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/dist/kat-comment-studio-1.0.5.vsix).
 1. Press `Ctrl+Shift+P` to open the VS Code command palette. Type `VSIX` and select **Extensions: Install from VSIX...**.
 
 ![Install from VSIX](media/install.png)
 
-3. Browse to the downloaded `kat-comment-studio-1.0.3.vsix` file and select it.
+3. Browse to the downloaded `kat-comment-studio-1.0.5.vsix` file and select it.
 4. Open a `.cs` file with XML documentation comments, add some code anchors, and enjoy.
 
 Install [previous versions](#previous-versions) of the extension if needed.
@@ -53,10 +53,10 @@ KAT Comment Studio automatically wraps and reformats XML doc comment blocks to s
 
 Comment reflow is available through:
 
-- **Command Palette** â†’ `KAT Comment Studio: Reflow Current Comment` â€” reflow the comment block at the cursor position
-- **Command Palette** â†’ `KAT Comment Studio: Reflow Comments in File` â€” reflow all comment blocks in the document
-- **Right-click** â†’ **KAT Comment Studio** submenu â€” `Reflow Current Comment` (cursor in comment only) and `Reflow Comments in File`
-- **Light Bulb / Code Action** (`Ctrl+.`) â€” when cursor is inside a comment block, offers "Reflow Current Comment" and "Reflow Comments in File"
+- **Command Palette** ? `KAT Comment Studio: Reflow Current Comment` — reflow the comment block at the cursor position
+- **Command Palette** ? `KAT Comment Studio: Reflow Comments in File` — reflow all comment blocks in the document
+- **Right-click** ? **KAT Comment Studio** submenu — `Reflow Current Comment` (cursor in comment only) and `Reflow Comments in File`
+- **Light Bulb / Code Action** (`Ctrl+.`) — when cursor is inside a comment block, offers "Reflow Current Comment" and "Reflow Comments in File"
 
 The extension does not register a document or range formatting provider, avoiding conflicts with language-specific formatters (e.g., C# Dev Kit, OmniSharp).
 
@@ -86,7 +86,7 @@ The reflow width is resolved in this order:
 
 The reflow engine understands XML structure:
 - Block tags (`<summary>`, `<remarks>`, `<param>`, etc.) each wrap their content independently
-- `<code>` blocks are preserved as preformatted â€” never reflowed
+- `<code>` blocks are preserved as preformatted — never reflowed
 
 ---
 
@@ -117,20 +117,21 @@ The following is how XML comments are rendered after existing an XML comment blo
 
 Click the **summary text** in a CodeLens to open a VS Code hover popup displaying the full XML comment block in a formatted, readable layout:
 
-- **Summary** â€” rendered as styled text
-- **Parameters** â€” listed with name and description
-- **Returns** â€” inline with description
-- **Remarks** â€” label on its own line, content indented below
-- **Example** â€” code blocks with quote styling
-- **Exceptions** â€” list of exception types and descriptions
-- **See Also** â€” clickable links
-- **Anchor tags** â€” TODO:, NOTE:, HACK:, etc. are colorized using their configured colors
+- **Summary** — rendered as styled text
+- **Parameters** — listed with name and description
+- **Returns** — inline with description
+- **Remarks** — label on its own line, content indented below
+- **Value** — property value description, rendered inline
+- **Example** — rendered as a fenced code block
+- **Exceptions** — list of exception types and descriptions
+- **See Also** — clickable links
+- **Anchor tags** — TODO:, NOTE:, HACK:, etc. are colorized using their configured colors
 
-The popup uses VS Code theme variables for consistent styling and dismisses naturally when the cursor moves away â€” it is a standard VS Code hover, not a panel or overlay.
+The popup uses VS Code theme variables for consistent styling and dismisses naturally when the cursor moves away — it is a standard VS Code hover, not a panel or overlay.
 
 Inline formatting within XML tags is fully rendered: `code`, **bold**, *italic*, ~~strikethrough~~, and hyperlinks.
 
-The `kat-comment-studio.codeLensMaxLength` setting controls how much of the summary is shown in the CodeLens text before truncation â€” the popup always shows the full content regardless.
+The `kat-comment-studio.codeLensMaxLength` setting controls how much of the summary is shown in the CodeLens text before truncation — the popup always shows the full content regardless.
 
 Given the original (extreme) example of a long comment, when clicking the summary, you would see a popup like the following:
 
@@ -140,19 +141,19 @@ Given the original (extreme) example of a long comment, when clicking the summar
 
 The following XML doc tags are rendered in the documentation popup:
 
-`<summary>`, `<param>`, `<typeparam>`, `<returns>`, `<remarks>`, `<example>`, `<exception>`, `<see>`, `<seealso>`, `<inheritdoc>`, `<paramref>`, `<typeparamref>`, `<c>`, `<code>`, `<list>`
+`<summary>`, `<param>`, `<typeparam>`, `<returns>`, `<value>`, `<remarks>`, `<example>`, `<exception>`, `<see>`, `<seealso>`, `<inheritdoc>`, `<paramref>`, `<typeparamref>`, `<c>`, `<code>`, `<list>`
 
 ### Toggle Rendering
 
 | Trigger | Action |
 |---|---|
-| Command Palette â†’ `Comment Studio: Toggle Comment Rendering` | Toggle rendering |
-| Right-click â†’ **Comment Studio** submenu | Quick access |
-| Status Bar â†’ ![OFF](./media/codicon-comment-draft.png) `OFF` and ![ON](./media/codicon-comment.png) `ON` Icons | Toggle rendering |
+| Command Palette ? `Comment Studio: Toggle Comment Rendering` | Toggle rendering |
+| Right-click ? **Comment Studio** submenu | Quick access |
+| Status Bar ? ![OFF](./media/codicon-comment-draft.png) `OFF` and ![ON](./media/codicon-comment.png) `ON` Icons | Toggle rendering |
 
 ### Collapse by Default
 
-Enable `kat-comment-studio.collapseByDefault` to automatically fold all XML doc comment blocks whenever a file is opened. This only applies when rendering is **Off** â€” when rendering is **On**, comments are always auto-folded as part of the rendering experience.
+Enable `kat-comment-studio.collapseByDefault` to automatically fold all XML doc comment blocks whenever a file is opened. This only applies when rendering is **Off** — when rendering is **On**, comments are always auto-folded as part of the rendering experience.
 
 ---
 
@@ -190,11 +191,11 @@ Code anchors are specially tagged comments that mark items of interest across yo
 
 ### Basic Syntax
 
-Tags are **case-insensitive** for detection â€” `todo`, `Todo`, and `TODO` are all recognized and displayed as their canonical uppercase form in all views. Colorization of tags not followed by `:` is controlled by the `kat-comment-studio.anchorColorizeMode` setting (default: `caseInsensitive`).
+Tags are **case-insensitive** for detection — `todo`, `Todo`, and `TODO` are all recognized and displayed as their canonical uppercase form in all views. Colorization of tags not followed by `:` is controlled by the `kat-comment-studio.anchorColorizeMode` setting (default: `caseInsensitive`).
 
 ```
 // TODO: Add input validation
-// todo: also works â€” normalized to TODO
+// todo: also works — normalized to TODO
 // HACK: Temporary workaround until v2
 // BUG: Off-by-one in edge case
 // FIXME: This crashes on null input
@@ -209,7 +210,7 @@ Metadata can be embedded directly after the tag in parentheses:
 ```
 // TODO(@alice): Implement the export feature
 // FIXME [#1234]: Known issue tracked in GitHub
-// TODO(@bob, #456): Refactor this â€” assigned to bob, tracked in issue 456
+// TODO(@bob, #456): Refactor this — assigned to bob, tracked in issue 456
 // TODO(2026-06-01): Remove this workaround after migration
 // TODO(@alice, #789, 2026-03-15): Assigned, tracked, and due-dated
 ```
@@ -221,7 +222,7 @@ Metadata can be embedded directly after the tag in parentheses:
 | Due date | `(yyyy-MM-dd)` | ISO date shown in tree and grid |
 | Anchor name | `ANCHOR(name)` | Named target for `LINK:` navigation |
 
-> **Note:** `ANCHOR:` without a name (e.g., `// ANCHOR:`) is silently ignored â€” a name is required for the anchor to have any purpose as a navigation target.
+> **Note:** `ANCHOR:` without a name (e.g., `// ANCHOR:`) is silently ignored — a name is required for the anchor to have any purpose as a navigation target.
 
 ### Prefix Highlighting (Better Comments Style)
 
@@ -273,16 +274,16 @@ The **KAT Comment Studio** activity bar panel shows a tree of all anchors groupe
 | ![Set Scope](./media/codicon-surround-with.png) Set Scope | Filter by scope |
 | ![Filter Types](./media/codicon-list-filter.png) Filter Types | Toggle which anchor types are shown |
 
-**Scope options** (Command Palette â†’ `Comment Studio: Set Anchor Scope` or the grid dropdown):
+**Scope options** (Command Palette ? `Comment Studio: Set Anchor Scope` or the grid dropdown):
 
-- **Workspace** â€” all files in the workspace
-- **Current Folder** â€” the active file's workspace folder. In a single-folder window this is the root folder; in a multi-root workspace it is disabled until an active workspace document exists.
-- **Current Document** â€” only the active file
-- **Open Documents** â€” all currently open files
-- **Repo: _name_** â€” only files inside a discovered Git repository
-- **Project: _name_** â€” only files inside a discovered `.csproj`
+- **Workspace** — all files in the workspace
+- **Current Folder** — the active file's workspace folder. In a single-folder window this is the root folder; in a multi-root workspace it is disabled until an active workspace document exists.
+- **Current Document** — only the active file
+- **Open Documents** — all currently open files
+- **Repo: _name_** — only files inside a discovered Git repository
+- **Project: _name_** — only files inside a discovered `.csproj`
 
-**Type filter** (Command Palette â†’ `Comment Studio: Filter Anchor Types`):
+**Type filter** (Command Palette ? `Comment Studio: Filter Anchor Types`):
 Multi-select picker to show/hide specific anchor types. The tree view and bottom grid now share the same scope, search text, and type filter state so refreshes and rescans do not reset the active view.
 
 ### Bottom Panel Grid
@@ -291,7 +292,7 @@ A sortable, filterable grid panel (**KAT Comment Studio - Code Anchors**) is ava
 
 ![Code Anchor Pane](media/code-anchors-pane.png)
 
-**Columns:** Type Â· Description Â· File Â· Line Â· Owner Â· Issue Â· Due Date
+**Columns:** Type · Description · File · Line · Owner · Issue · Due Date
 
 - Click a column header to sort ascending/descending
 - Free-text search filters across description, file, owner, repo, and project metadata
@@ -303,11 +304,21 @@ A sortable, filterable grid panel (**KAT Comment Studio - Code Anchors**) is ava
 - Right-click a row to copy a deterministic row summary; right-click a cell to copy the cell value
 - Overdue dates are highlighted
 
-Access via: Command Palette â†’ `Focus on KAT Comment Studio - Code Anchors View` (VS Code-generated command)
+Access via: Command Palette ? `Focus on KAT Comment Studio - Code Anchors View` (VS Code-generated command)
+
+### Anchor Count Status Bar
+
+An anchor count badge is always visible in the VS Code status bar:
+
+- Shows **`$(symbol-keyword) N Anchors`** (total visible anchors after scope and type filters)
+- **Highlighted** in warning yellow (`katCommentStudio.anchorCountForeground`) until you open the Code Anchors pane for the first time
+- **Click** to focus the Code Anchors grid panel
+
+The badge updates live as you scan, filter, or search.
 
 ### Anchor Navigation
 
-Jump between anchors in the current file using keyboard shortcuts. No shortcuts are registered by default â€” see [Keyboard Shortcuts](#keyboard-shortcuts) for suggested bindings (`Alt+PageDown` / `Alt+PageUp`).
+Jump between anchors in the current file using keyboard shortcuts. No shortcuts are registered by default — see [Keyboard Shortcuts](#keyboard-shortcuts) for suggested bindings (`Alt+PageDown` / `Alt+PageUp`).
 
 ### Export
 
@@ -357,17 +368,17 @@ The `LINK:` syntax creates navigable cross-references directly in comments. Hove
 ### Supported Forms
 
 ```
-// LINK: MyFile.cs                              â†’ bare, relative to current file's dir
-// LINK: ./relative/path/to/file.cs             â†’ explicit relative
-// LINK: ../sibling/folder/file.ts              â†’ parent-relative
-// LINK: @/Services/UserService.cs              â†’ project-relative (nearest .csproj dir)
-// LINK: /Core/Domain/src/Models/User.cs        â†’ workspace-root-relative (first folder)
-// LINK: C:/BTR/Camelot/Core/Domain/src/User.cs â†’ absolute path
-// LINK: MyFile.cs:42                           â†’ jump to line 42
-// LINK: MyFile.cs:10-20                        â†’ highlight lines 10â€“20
-// LINK: MyFile.cs#AnchorName                   â†’ jump to named ANCHOR in target file
-// LINK: #LocalAnchorInThisFile                 â†’ jump to ANCHOR in current file
-// LINK: path with spaces/file.cs:5             â†’ spaces in path are supported
+// LINK: MyFile.cs                              ? bare, relative to current file's dir
+// LINK: ./relative/path/to/file.cs             ? explicit relative
+// LINK: ../sibling/folder/file.ts              ? parent-relative
+// LINK: @/Services/UserService.cs              ? project-relative (nearest .csproj dir)
+// LINK: /Core/Domain/src/Models/User.cs        ? workspace-root-relative (first folder)
+// LINK: C:/BTR/Camelot/Core/Domain/src/User.cs ? absolute path
+// LINK: MyFile.cs:42                           ? jump to line 42
+// LINK: MyFile.cs:10-20                        ? highlight lines 10–20
+// LINK: MyFile.cs#AnchorName                   ? jump to named ANCHOR in target file
+// LINK: #LocalAnchorInThisFile                 ? jump to ANCHOR in current file
+// LINK: path with spaces/file.cs:5             ? spaces in path are supported
 ```
 
 **Hover** over any `LINK:` reference to see the resolved path and whether the target exists.
@@ -378,12 +389,12 @@ The `LINK:` syntax creates navigable cross-references directly in comments. Hove
 
 Type `LINK: ` inside a comment to get path completions. The completion provider recognizes all path prefixes:
 
-- `LINK: @/` â€” browse from the nearest `.csproj` directory
-- `LINK: /` â€” browse from the first workspace folder root
-- `LINK: ./` â€” browse from the current file's directory
-- `LINK: ../` â€” browse from the current file's parent directory
-- `LINK: C:/` â€” browse an absolute Windows path
-- `LINK: someFolder/` â€” browse from the current file's directory (bare path)
+- `LINK: @/` — browse from the nearest `.csproj` directory
+- `LINK: /` — browse from the first workspace folder root
+- `LINK: ./` — browse from the current file's directory
+- `LINK: ../` — browse from the current file's parent directory
+- `LINK: C:/` — browse an absolute Windows path
+- `LINK: someFolder/` — browse from the current file's directory (bare path)
 
 Selecting a **directory** in the completion list re-triggers suggestions so you can drill deeper without retyping. Named `ANCHOR` tags found across the workspace are also offered as completions for `LINK: #` references.
 
@@ -395,12 +406,12 @@ Broken `LINK:` references (missing files, unresolved anchors) are flagged with *
 
 Path resolution behavior varies depending on how VS Code opened the project. The key behaviors:
 
-- `/` â€” always resolves from the **first workspace folder root** (`workspaceFolders[0]`)
-- `@/` â€” resolves from the **nearest `.csproj` directory above the file containing the link**. Falls back to `workspaceFolders[0]` only if no `.csproj` is found anywhere in the ancestor chain.
+- `/` — always resolves from the **first workspace folder root** (`workspaceFolders[0]`)
+- `@/` — resolves from the **nearest `.csproj` directory above the file containing the link**. Falls back to `workspaceFolders[0]` only if no `.csproj` is found anywhere in the ancestor chain.
 
 #### Multi-root workspace (`.code-workspace` file)
 
-`@/` resolves per-file â€” each source file uses its own nearest `.csproj` regardless of how many workspace roots are open. `/` always uses the first folder listed in the `.code-workspace`.
+`@/` resolves per-file — each source file uses its own nearest `.csproj` regardless of how many workspace roots are open. `/` always uses the first folder listed in the `.code-workspace`.
 
 ```jsonc
 // MyApp.code-workspace
@@ -416,23 +427,23 @@ Path resolution behavior varies depending on how VS Code opened the project. The
 // File: C:/BTR/Camelot/Core/src/Domain/User.cs
 //       (inside C:/BTR/Camelot/Core/src/Core.csproj)
 
-// LINK: @/Services/UserService.cs  â†’ C:/BTR/Camelot/Core/src/Services/UserService.cs
+// LINK: @/Services/UserService.cs  ? C:/BTR/Camelot/Core/src/Services/UserService.cs
 //                                     (resolved from Core.csproj directory)
-// LINK: /Services/UserService.cs   â†’ C:/BTR/Camelot/Core/Services/UserService.cs
+// LINK: /Services/UserService.cs   ? C:/BTR/Camelot/Core/Services/UserService.cs
 //                                     (resolved from workspaceFolders[0] = Core folder)
 ```
 
 #### Opening a folder containing a `.sln`
 
-VS Code opens the folder that contains the `.sln` as the workspace root. There is no `.sln` parsing â€” the `.sln` file itself has no special meaning for path resolution. As long as source files are inside a `.csproj`, `@/` works correctly.
+VS Code opens the folder that contains the `.sln` as the workspace root. There is no `.sln` parsing — the `.sln` file itself has no special meaning for path resolution. As long as source files are inside a `.csproj`, `@/` works correctly.
 
 ```
 // VS Code opened: C:/BTR/Camelot/MyApp/   (folder containing MyApp.sln)
 // File: C:/BTR/Camelot/MyApp/src/Core/Core.csproj exists
 
-// LINK: @/Services/UserService.cs  â†’ C:/BTR/Camelot/MyApp/src/Core/Services/UserService.cs
+// LINK: @/Services/UserService.cs  ? C:/BTR/Camelot/MyApp/src/Core/Services/UserService.cs
 //                                     (from nearest .csproj ancestor of current file)
-// LINK: /Core/Domain/User.cs       â†’ C:/BTR/Camelot/MyApp/Core/Domain/User.cs
+// LINK: /Core/Domain/User.cs       ? C:/BTR/Camelot/MyApp/Core/Domain/User.cs
 //                                     (from workspace root = folder containing .sln)
 ```
 
@@ -441,9 +452,9 @@ VS Code opens the folder that contains the `.sln` as the workspace root. There i
 ```
 // VS Code opened: C:/BTR/Camelot/Core/Domain/  (no .csproj in hierarchy)
 
-// LINK: @/Models/User.cs    â†’ no .csproj found; falls back to workspace root
+// LINK: @/Models/User.cs    ? no .csproj found; falls back to workspace root
 //                             = C:/BTR/Camelot/Core/Domain/Models/User.cs
-// LINK: /Models/User.cs     â†’ same (workspaceFolders[0])
+// LINK: /Models/User.cs     ? same (workspaceFolders[0])
 ```
 
 `@/` is most useful when source files live inside a C# project. Without a `.csproj` ancestor, it behaves identically to `/`.
@@ -455,7 +466,7 @@ VS Code opens the folder that contains the `.sln` as the workspace root. There i
 When working in a git repository, `#123` patterns in comments become clickable links that open the corresponding issue in your browser.
 
 ```csharp
-// TODO: Fix this â€” see #1234
+// TODO: Fix this — see #1234
 // Related to the bug reported in #567
 ```
 
@@ -520,7 +531,7 @@ Leave any setting empty (`""`) to use the theme default automatically.
 
 ### Hover Popup Code Block Backgrounds
 
-The hover popup (triggered by clicking the CodeLens summary) renders fenced code blocks using VS Code's Monaco tokenizer (`monaco-tokenized-source`). This is an internal rendering path â€” it is **not** controlled by the `textCodeBlock.background` or `textPreformat.background` workbench tokens. The background defaults to the hover widget background color (`editorHoverWidget.background`).
+The hover popup (triggered by clicking the CodeLens summary) renders fenced code blocks using VS Code's Monaco tokenizer (`monaco-tokenized-source`). This is an internal rendering path — it is **not** controlled by the `textCodeBlock.background` or `textPreformat.background` workbench tokens. The background defaults to the hover widget background color (`editorHoverWidget.background`).
 
 There are two separate scenarios:
 
@@ -529,10 +540,10 @@ There are two separate scenarios:
 Controlled by `textCodeBlock.background`. To match your editor background:
 
 1. **Find your editor background color:**
-   - Open the Command Palette (`Ctrl+Shift+P`) â†’ `Developer: Generate Color Theme From Current Settings`
+   - Open the Command Palette (`Ctrl+Shift+P`) ? `Developer: Generate Color Theme From Current Settings`
    - This dumps all resolved token values for your active theme to a new editor tab
-   - Search for `editor.background` â€” copy that hex value
-   - âš ï¸ This value is **theme-specific** and static. If you switch themes you'll need to update it manually.
+   - Search for `editor.background` — copy that hex value
+   - ?? This value is **theme-specific** and static. If you switch themes you'll need to update it manually.
 
 2. **Override the token** in `settings.json`:
    ```json
@@ -546,34 +557,34 @@ Controlled by `textCodeBlock.background`. To match your editor background:
 
 These use the Monaco tokenizer internally and are **not** affected by any workbench color token. The only way to style them is via custom CSS (and optionally JS) injection using the [Custom CSS and JS Loader](https://marketplace.visualstudio.com/items?itemName=be5invis.vscode-custom-css) extension by be5invis.
 
-**Step 1 â€” Install Custom CSS and JS Loader** from the VS Code marketplace.
+**Step 1 — Install Custom CSS and JS Loader** from the VS Code marketplace.
 
-**Step 2 â€” Find your editor background color:**
-- Open the Command Palette (`Ctrl+Shift+P`) â†’ `Developer: Generate Color Theme From Current Settings`
-- Search for `editor.background` in the generated output â€” copy that hex value
-- âš ï¸ This is **theme-specific** and static. Update it manually if you switch themes.
+**Step 2 — Find your editor background color:**
+- Open the Command Palette (`Ctrl+Shift+P`) ? `Developer: Generate Color Theme From Current Settings`
+- Search for `editor.background` in the generated output — copy that hex value
+- ?? This is **theme-specific** and static. Update it manually if you switch themes.
 
-**Step 3 â€” Choose scoped (recommended) or simple:**
+**Step 3 — Choose scoped (recommended) or simple:**
 
 ---
 
-##### Option A â€” Scoped to KAT Comment Studio only (recommended)
+##### Option A — Scoped to KAT Comment Studio only (recommended)
 
 This uses a MutationObserver in custom JS to detect KAT Comment Studio's hover popup (which includes a unique invisible marker element) and tag it with a CSS class, enabling styling that won't affect IntelliSense or other extension hovers.
 
-Create a **CSS file** â€” e.g. `C:\Users\YourName\vscode-custom.css`:
+Create a **CSS file** — e.g. `C:\Users\YourName\vscode-custom.css`:
 ```css
-/* KAT Comment Studio â€” scoped fenced code block background */
+/* KAT Comment Studio — scoped fenced code block background */
 .kat-comment-hover .monaco-tokenized-source {
     background-color: #222222 !important; /* replace with your editor.background */
 }
 ```
 
-Create a **JS file** â€” e.g. `C:\Users\YourName\vscode-custom.js`:
+Create a **JS file** — e.g. `C:\Users\YourName\vscode-custom.js`:
 ```javascript
-// KAT Comment Studio â€” tag hover popup for scoped CSS.
+// KAT Comment Studio — tag hover popup for scoped CSS.
 // VS Code reuses the same .monaco-hover widget for all hovers (IntelliSense,
-// extensions, etc.) â€” only the content changes. KAT hovers are identified by
+// extensions, etc.) — only the content changes. KAT hovers are identified by
 // the presence of a $(book) codicon heading (rendered as .codicon-book), which
 // IntelliSense and other extension hovers won't produce. Skip unrelated
 // mutations (editor keystrokes, tree updates, etc.) to avoid unnecessary scanning.
@@ -610,12 +621,12 @@ On macOS/Linux use `file:///home/yourname/...` paths.
 
 ---
 
-##### Option B â€” Simple (styles all Monaco hovers)
+##### Option B — Simple (styles all Monaco hovers)
 
-If you're comfortable with all VS Code hover tooltips using your editor background for code blocks (often looks fine), this is simpler â€” no JS needed:
+If you're comfortable with all VS Code hover tooltips using your editor background for code blocks (often looks fine), this is simpler — no JS needed:
 
 ```css
-/* All Monaco hovers â€” fenced code block background */
+/* All Monaco hovers — fenced code block background */
 .monaco-hover .monaco-tokenized-source {
     background-color: #222222 !important; /* replace with your editor.background */
 }
@@ -623,18 +634,18 @@ If you're comfortable with all VS Code hover tooltips using your editor backgrou
 
 ---
 
-**Step 4 â€” Apply:** Open the Command Palette â†’ `Enable Custom CSS and JS` â†’ click **Restart** when prompted.
+**Step 4 — Apply:** Open the Command Palette ? `Enable Custom CSS and JS` ? click **Restart** when prompted.
 
-**Step 5 â€” Dismiss the warning:** VS Code will show a yellow "corrupted installation" warning bar. This is expected and harmless â€” VS Code checksums its own files and any CSS injection triggers it. You can safely dismiss it.
+**Step 5 — Dismiss the warning:** VS Code will show a yellow "corrupted installation" warning bar. This is expected and harmless — VS Code checksums its own files and any CSS injection triggers it. You can safely dismiss it.
 
 **Important caveats:**
 - Re-run `Enable Custom CSS and JS` after every VS Code update
 - Update the hex color in your CSS file if you switch themes
-- If you already use another custom CSS extension, add these rules to your existing files rather than creating new ones â€” multiple extensions patching the same workbench file can conflict
+- If you already use another custom CSS extension, add these rules to your existing files rather than creating new ones — multiple extensions patching the same workbench file can conflict
 
 ---
 
-#### Complete line hiding (optional â€” requires Custom CSS and JS Loader)
+#### Complete line hiding (optional — requires Custom CSS and JS Loader)
 
 By default, when rendering is active the original XML comment lines are dimmed to `opacity: 0.05` and the block is auto-folded. One blank line gap remains (the fold anchor line). Setting `dimOpacity` to `0` in your settings makes those lines fully invisible:
 
@@ -642,7 +653,7 @@ By default, when rendering is active the original XML comment lines are dimmed t
 "kat-comment-studio.dimOpacity": 0
 ```
 
-This is the maximum hiding achievable through the VS Code extension API alone â€” one blank line gap still remains after folding.
+This is the maximum hiding achievable through the VS Code extension API alone — one blank line gap still remains after folding.
 
 ---
 
@@ -653,7 +664,7 @@ This is the maximum hiding achievable through the VS Code extension API alone â€
 | `renderingMode` | `"off"` \| `"on"` | `"on"` | How XML doc comments are rendered |
 | `enabledLanguages` | `string[]` | *(all supported)* | Language IDs with rendering enabled |
 | `dimOriginalComments` | `boolean` | `true` | Dim original comment text when rendering is active |
-| `dimOpacity` | `number` | `0.05` | Opacity for dimmed comments (0â€“1.0). Set to `0` to make comment lines fully invisible. |
+| `dimOpacity` | `number` | `0.05` | Opacity for dimmed comments (0–1.0). Set to `0` to make comment lines fully invisible. |
 | `maxLineLength` | `number` | `120` | Max width for comment reflow (overridden by `.editorconfig`) |
 | `enableReflowOnPaste` | `boolean` | `true` | Reflow when pasting into a doc comment block |
 | `enableReflowWhileTyping` | `boolean` | `true` | Reflow when cursor exits a comment block that was edited |
@@ -662,7 +673,7 @@ This is the maximum hiding achievable through the VS Code extension API alone â€
 | `codeLensMaxLength` | `number` | `205` | Max chars for CodeLens summary text before truncation. `0` = no truncation. |
 | `enableTagHighlighting` | `boolean` | `true` | Inline color highlighting of anchor tags |
 | `anchorColorizeMode` | `"never"` \| `"caseSensitive"` \| `"caseInsensitive"` | `"caseInsensitive"` | Colorization of anchor keywords not followed by `:`. Keywords with `:` always colorize. |
-| `enablePrefixHighlighting` | `boolean` | `true` | Better Commentsâ€“style prefix highlighting |
+| `enablePrefixHighlighting` | `boolean` | `true` | Better Comments–style prefix highlighting |
 | `enableIssueLinks` | `boolean` | `true` | Clickable `#123` issue links |
 | `customTags` | `string` | `""` | Comma-separated custom anchor tags (e.g., `"PERF, SECURITY"`) |
 | `tagPrefixes` | `string` | `"@, $"` | Prefix characters recognized before anchor tags |
@@ -691,15 +702,15 @@ All commands are available via the Command Palette (`Ctrl+Shift+P`) under the **
 | `Remove Current XML Comment` | Remove the XML doc comment block at the cursor position (only enabled when cursor is inside an XML doc comment) |
 | `Remove All XML Comments in File` | Remove every XML doc comment block in the active file |
 
-> **VS Code-generated commands** (not in the KAT category â€” search by name in the palette):
-> - `View: Toggle KAT Comment Studio` / `View: Show KAT Comment Studio` â€” show or hide the sidebar activity bar panel
-> - `Focus on KAT Comment Studio - Code Anchors View` â€” focus the Code Anchors webview panel (replaces the removed "Show Code Anchors Pane" command)
+> **VS Code-generated commands** (not in the KAT category — search by name in the palette):
+> - `View: Toggle KAT Comment Studio` / `View: Show KAT Comment Studio` — show or hide the sidebar activity bar panel
+> - `Focus on KAT Comment Studio - Code Anchors View` — focus the Code Anchors webview panel (replaces the removed "Show Code Anchors Pane" command)
 
 ---
 
 ## F1 Interception
 
-When `interceptF1ForComments` is `true` (default), pressing **F1** while the cursor is inside an XML doc comment block â€” or on the first non-blank code line that immediately follows one (e.g., the method signature) â€” triggers **Show Comment Tooltip** instead of the VS Code help menu.
+When `interceptF1ForComments` is `true` (default), pressing **F1** while the cursor is inside an XML doc comment block — or on the first non-blank code line that immediately follows one (e.g., the method signature) — triggers **Show Comment Tooltip** instead of the VS Code help menu.
 
 This gives you instant access to the rendered comment without moving your cursor to the CodeLens or hovering over the code. The standard F1 help menu is unaffected when the cursor is anywhere else.
 
@@ -709,14 +720,14 @@ To disable: open Settings and set `KAT Comment Studio: Intercept F1 For Comments
 
 ## Keyboard Shortcuts
 
-No keyboard shortcuts are registered by default. To bind commands, open **File â†’ Preferences â†’ Keyboard Shortcuts** (`Ctrl+K Ctrl+S`) and search for `KAT Comment Studio`. Suggested bindings:
+No keyboard shortcuts are registered by default. To bind commands, open **File ? Preferences ? Keyboard Shortcuts** (`Ctrl+K Ctrl+S`) and search for `KAT Comment Studio`. Suggested bindings:
 
 | Suggested Key | Command |
 |---|---|
-| `Alt+PageDown` | `kat-comment-studio.nextAnchor` â€” go to next anchor in current file |
-| `Alt+PageUp` | `kat-comment-studio.previousAnchor` â€” go to previous anchor in current file |
+| `Alt+PageDown` | `kat-comment-studio.nextAnchor` — go to next anchor in current file |
+| `Alt+PageUp` | `kat-comment-studio.previousAnchor` — go to previous anchor in current file |
 
-> **F1 is bound by default** when the cursor is in or below an XML doc comment (see [F1 Interception](#f1-interception)). All other suggested bindings require manual setup via **File â†’ Preferences â†’ Keyboard Shortcuts** (`Ctrl+K Ctrl+S`).
+> **F1 is bound by default** when the cursor is in or below an XML doc comment (see [F1 Interception](#f1-interception)). All other suggested bindings require manual setup via **File ? Preferences ? Keyboard Shortcuts** (`Ctrl+K Ctrl+S`).
 
 ---
 
@@ -731,7 +742,7 @@ custom_anchor_tags = PERF, DEBT
 custom_anchor_tag_prefixes = @
 ```
 
-File watcher updates settings automatically when `.editorconfig` changes â€” no reload required.
+File watcher updates settings automatically when `.editorconfig` changes — no reload required.
 
 ---
 
@@ -741,7 +752,7 @@ File watcher updates settings automatically when `.editorconfig` changes â€” no 
 
 - **Node.js** 20 or later
 - **VS Code** (any recent version)
-- No global `vsce` install required â€” the repo uses a local `@vscode/vsce` dev dependency
+- No global `vsce` install required — the repo uses a local `@vscode/vsce` dev dependency
 
 ### Getting Started
 
@@ -753,7 +764,7 @@ npm install
 
 | Script | Command | Description |
 |--------|---------|-------------|
-| `compile` | `npm run compile` | TypeScript â†’ JS (`tsc -p ./`). Output goes to `out/` |
+| `compile` | `npm run compile` | TypeScript ? JS (`tsc -p ./`). Output goes to `out/` |
 | `watch` | `npm run watch` | Incremental compile in watch mode |
 | `test` | `npm test` | Run all tests once (Vitest) |
 | `test:watch` | `npm run test:watch` | Run tests in watch mode |
@@ -764,12 +775,12 @@ npm install
 
 Two tasks are defined in `.vscode/tasks.json`:
 
-- **compile** (Build task) â€” run with `Ctrl+Shift+B` for a one-off build
-- **watch** (Default background task) â€” runs `tsc --watch` automatically; TypeScript errors appear in the Problems panel in real time
+- **compile** (Build task) — run with `Ctrl+Shift+B` for a one-off build
+- **watch** (Default background task) — runs `tsc --watch` automatically; TypeScript errors appear in the Problems panel in real time
 
 ### Running / Debugging
 
-Press **F5** (or **Run â†’ Start Debugging**). The `Run Extension` launch config in `.vscode/launch.json` compiles first (`preLaunchTask: compile`), then opens an **Extension Development Host** window with the extension loaded.
+Press **F5** (or **Run ? Start Debugging**). The `Run Extension` launch config in `.vscode/launch.json` compiles first (`preLaunchTask: compile`), then opens an **Extension Development Host** window with the extension loaded.
 
 Make changes in `src/`, save (watch compiles automatically), then press `Ctrl+R` in the Extension Development Host to reload.
 
@@ -781,7 +792,7 @@ npm run package
 
 This does three things in sequence:
 
-1. Bumps the **patch version** in `package.json` (e.g., `1.0.3` â†’ `1.0.4`) â€” file only, no git tag
+1. Bumps the **patch version** in `package.json` (e.g., `1.0.3` ? `1.0.4`) — file only, no git tag
 2. Runs `@vscode/vsce package`, which triggers `vscode:prepublish` and compiles the extension
 3. Writes the `.vsix` to `dist/`, updates the README VSIX filename references, and adds the previous version under `## Previous Versions`
 
@@ -789,12 +800,12 @@ Commit the version bump manually afterward if you want it tracked in git.
 
 ### Installing a `.vsix`
 
-In VS Code: **Extensions** panel â†’ `Â·Â·Â·` menu (top-right) â†’ **Install from VSIX...** â†’ select the file.
+In VS Code: **Extensions** panel ? `···` menu (top-right) ? **Install from VSIX...** ? select the file.
 
 Or from the terminal:
 
 ```bash
-code --install-extension kat-comment-studio-1.0.3.vsix
+code --install-extension kat-comment-studio-1.0.5.vsix
 ```
 
 ### Running Tests
@@ -803,50 +814,77 @@ code --install-extension kat-comment-studio-1.0.3.vsix
 npm test
 ```
 
-Tests are in `test/` and use [Vitest](https://vitest.dev/). They are pure unit tests â€” no VS Code host required. Exit code 0 means all passed.
+Tests are in `test/` and use [Vitest](https://vitest.dev/). They are pure unit tests — no VS Code host required. Exit code 0 means all passed.
 
 ### Project Structure
 
 ```
 src/
-â”œâ”€â”€ extension.ts            # Activation â€” all command and provider registration
-â”œâ”€â”€ types.ts                # Shared types and interfaces
-â”œâ”€â”€ configuration.ts        # Settings management + .editorconfig integration
-â”œâ”€â”€ anchors/                # Code anchors: service, scanner, tree view, grid panel, export
-â”œâ”€â”€ commands/               # Comment remover commands
-â”œâ”€â”€ diagnostics/            # LINK: validation diagnostics
-â”œâ”€â”€ navigation/             # LINK: parser, navigator, validator, git service
-â”œâ”€â”€ parsing/                # Comment block detection, XML doc parser, language config
-â”œâ”€â”€ reflow/                 # Reflow engine, auto-reflow, smart paste
-â”œâ”€â”€ rendering/              # CodeLens provider, decoration manager/factory, prefix highlighter
-â””â”€â”€ services/               # EditorConfig service
++-- extension.ts            # Activation — all command and provider registration
++-- types.ts                # Shared types and interfaces
++-- configuration.ts        # Settings management + .editorconfig integration
++-- anchors/                # Code anchors: service, scanner, tree view, grid panel, export
++-- commands/               # Comment remover commands
++-- diagnostics/            # LINK: validation diagnostics
++-- navigation/             # LINK: parser, navigator, validator, git service
++-- parsing/                # Comment block detection, XML doc parser, language config
++-- reflow/                 # Reflow engine, auto-reflow, smart paste
++-- rendering/              # CodeLens provider, decoration manager/factory, prefix highlighter
++-- services/               # EditorConfig service
 test/                       # Vitest unit tests (mirrors src/ structure)
 out/                        # Compiled JS output (git-ignored)
 ```
 
-### VS Extension vs VS Code â€” Implementation Differences
+### VS Extension vs VS Code — Implementation Differences
 
-This extension is a port and adaptation of [madskristensen/CommentsVS](https://github.com/madskristensen/CommentsVS) for Visual Studio 2022. Some features differ by design due to VS Code API constraints:
+This extension is a port and adaptation of [madskristensen/CommentsVS](https://github.com/madskristensen/CommentsVS) for Visual Studio 2022. The table below documents what was implemented the same, differently, or not at all — and what was added in the VS Code port.
 
-| Original VS Feature | VS Code Behavior |
+#### Features Implemented Differently
+
+| Original VS Feature | VS Code Implementation |
 |---|---|
 | Background parallel scanning (`SolutionAnchorScanner` with threads) | Synchronous scan with VS Code progress notification. Sufficient for typical workspace sizes. |
 | WPF inline adornment replacement (renders XML comment as styled controls inline) | Replaced with CodeLens + hover popup. VS Code's Decoration API cannot replace text with arbitrary HTML. |
-| Double-click rendered comment to edit raw source | Not available â€” VS Code decorations don't receive click events. Auto-unfold on cursor-enter is used instead. |
-| Compact / Full rendering modes | Collapsed into a single "on" mode (CodeLens + hover + auto-fold). |
+| Double-click rendered comment to edit raw source | Not available — VS Code decorations don't receive click events. Auto-unfold on cursor-enter is used instead. |
+| Compact / Full rendering modes (Off / Compact / Full) | Collapsed into a single **On** mode (CodeLens + hover + auto-fold). Compact inline summary is not possible via VS Code API. |
+| Auto-reflow while typing (reflows on every keystroke when line exceeds max length) | Reflows on **cursor-exit** from the comment block. Real-time per-keystroke reflow would fight VS Code's undo stack. The setting is named `enableReflowWhileTyping` for compatibility but fires on exit, not on each keystroke. |
+| Format Document integration (`Ctrl+K, Ctrl+D` triggers reflow) | Not registered. VS Code document formatters run for the entire file and conflict with language-specific formatters (C# Dev Kit, OmniSharp). Use the explicit **Reflow Comments in File** command instead. |
+
+#### Features Not Implemented
+
+| Original VS Feature | Status |
+|---|---|
+| Left border indicator on rendered comments | Not implemented. VS Code's decoration API does not support a persistent left-border gutter marker on decorated ranges. |
+| Comment Remover: 7 specialized commands (Remove All Comments, Remove All in Selection, Remove Except Doc, Remove Except Anchors, Remove Doc Only, Remove Anchors Only, Remove Regions) | Simplified to 2 commands: **Remove Current XML Comment** and **Remove All XML Comments in File**. Only XML doc comments are targeted; non-doc comments are out of scope. |
+| Export to TSV format | Not implemented. CSV, Markdown, and JSON are supported. TSV can be produced from CSV in Excel or Google Sheets. |
+| "Use Compact Style for Short Summaries" setting | Not implemented (single rendering mode). |
+| "Preserve Blank Lines" setting | Not implemented — blank lines between XML elements are removed during reflow for consistency. |
+
+#### Features Added in VS Code (not in CommentsVS)
+
+| VS Code Feature | Description |
+|---|---|
+| **F1 interception** | Pressing F1 while the cursor is inside or immediately below an XML doc comment shows the KAT tooltip instead of the VS Code help menu. |
+| **Bottom panel grid** | A sortable, filterable, resizable-column grid in the bottom panel (alongside Problems and Output) — not available in the VS WPF tool window. Includes overdue date highlighting, right-click copy, and persistent column widths. |
+| **Repo: and Project: anchor scopes** | Filter anchors by detected Git repository or nearest `.csproj` — more granular than VS's solution-level scope. |
+| **Anchor count status bar** | Live `N Anchors` badge in the VS Code status bar, highlighted until the user first opens the Code Anchors pane. |
+| **LINK: IntelliSense completions** | Type `LINK: ` inside a comment for file-path and anchor-name completions. |
+| **LINK: diagnostics** | Broken `LINK:` references (missing files, unresolved anchors) are flagged with warning squiggles in the editor. |
 
 ---
 
 ## References
 
-- [VS Code Codicons](https://microsoft.github.io/vscode-codicons/dist/codicon.html) â€” icon names used in commands and the UI (`$(book)`, `$(refresh)`, `$(wrap)`, etc.)
-- [madskristensen/CommentsVS](https://github.com/madskristensen/CommentsVS) â€” the original Visual Studio 2022 extension this project ports and extends
-- [C# XML Documentation Tags](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/xmldoc/recommended-tags) â€” official reference for all supported `<summary>`, `<param>`, `<returns>`, and related tags
+- [VS Code Codicons](https://microsoft.github.io/vscode-codicons/dist/codicon.html) — icon names used in commands and the UI (`$(book)`, `$(refresh)`, `$(wrap)`, etc.)
+- [madskristensen/CommentsVS](https://github.com/madskristensen/CommentsVS) — the original Visual Studio 2022 extension this project ports and extends
+- [C# XML Documentation Tags](https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/xmldoc/recommended-tags) — official reference for all supported `<summary>`, `<param>`, `<returns>`, and related tags
 
 ---
 
 ## Previous Versions
 
+1. [1.0.4](https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/dist/kat-comment-studio-1.0.4.vsix)
+1. [1.0.3](https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/dist/kat-comment-studio-1.0.3.vsix)
 1. [1.0.2](https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/dist/kat-comment-studio-1.0.2.vsix)
 1. [1.0.1](https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/dist/kat-comment-studio-1.0.1.vsix)
 

@@ -52,6 +52,15 @@ function normalizeLines(lines: string[]): string[] {
     const parts: string[] = [];
     let rest = trimmed;
     for (;;) {
+      // Split open-open: <blockTag[attrs]><blockTag... → <blockTag[attrs]> | <blockTag...
+      // e.g. <summary><para>content → <summary> and <para>content
+      const oo = rest.match(/^(<(\w+)[^>]*>)(<(\w+))/);
+      if (oo && BLOCK_TAGS.has(oo[2].toLowerCase()) && BLOCK_TAGS.has(oo[4].toLowerCase())) {
+        parts.push(oo[1]);
+        rest = rest.slice(oo[1].length).trimStart();
+        continue;
+      }
+      // Split close-open: ...content</blockTag>nextContent → ...content</blockTag> | nextContent
       const m = rest.match(/^(.*?<\/(\w+)>)\s*(?=\S)/);
       if (!m || !BLOCK_TAGS.has(m[2].toLowerCase())) break;
       parts.push(m[1]);
@@ -112,12 +121,17 @@ export function reflowXmlContent(
         const m = prevEntry.match(/<\/(\w+)>\s*$/);
         return m !== null && BLOCK_TAGS.has(m[1].toLowerCase());
       })();
+      const prevIsBlockOpen = (() => {
+        if (!prevEntry) return false;
+        const m = prevEntry.match(XML_OPEN_TAG_REGEX);
+        return m !== null && BLOCK_TAGS.has(m[1].toLowerCase());
+      })();
       const nextStartsWithBlockTag = (() => {
         if (!nextLine) return false;
         const m = nextLine.match(/^<(\w+)/);
         return m !== null && BLOCK_TAGS.has(m[1].toLowerCase());
       })();
-      if (prevEndsWithBlockClose && nextStartsWithBlockTag) {
+      if ((prevEndsWithBlockClose || prevIsBlockOpen) && nextStartsWithBlockTag) {
         i++;
         continue;
       }
@@ -186,12 +200,17 @@ export function reflowXmlContent(
         }
 
         if (contentLine === '') {
-          // Paragraph break within block
+          // Paragraph break within block — suppress if the next non-empty line is a
+          // block tag opener (open-open or close-open pattern); <para> provides its own separation.
           if (contentLines.length > 0) {
             result.push(...wrapParagraph(contentLines.join(' '), effectiveWidth));
             contentLines.length = 0;
           }
-          result.push('');
+          const nextNonEmpty = findNextNonEmpty(lines, i + 1);
+          const nextM = nextNonEmpty?.match(/^<(\w+)/);
+          if (!nextM || !BLOCK_TAGS.has(nextM[1].toLowerCase())) {
+            result.push('');
+          }
         } else {
           contentLines.push(contentLine);
         }

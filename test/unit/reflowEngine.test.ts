@@ -112,6 +112,25 @@ describe('reflowXmlContent', () => {
     expect(result[paraIdx - 1]).toBe('');
   });
 
+  it('blank line between opening block tag and next block tag is removed (open-open pattern)', () => {
+    // Bug: blank line after <remarks> (open) before <para> (open) was preserved.
+    const lines = [
+      '<remarks>',
+      '',
+      '<para>Content.</para>',
+      '</remarks>',
+    ];
+
+    const result = reflowXmlContent(lines, 80, '', csharpStyle);
+    const remarksIdx = result.indexOf('<remarks>');
+    const paraIdx = result.findIndex(l => l.startsWith('<para>'));
+    expect(remarksIdx).toBeGreaterThan(-1);
+    expect(paraIdx).toBeGreaterThan(remarksIdx);
+    // No blank line between <remarks> and <para>
+    expect(result[paraIdx - 1]).not.toBe('');
+    expect(result[remarksIdx + 1]).not.toBe('');
+  });
+
   it('<para> follows immediately after </para> with no blank line between them', () => {
     // Both <para> blocks use standalone tags (tag alone on its own line).
     const lines = [
@@ -157,6 +176,48 @@ describe('reflowXmlContent', () => {
     const firstParaIdx = result.findIndex(l => l.includes('First paragraph'));
     const secondParaIdx = result.findIndex(l => l.includes('Second paragraph'));
     expect(secondParaIdx).toBe(firstParaIdx + 1);
+  });
+
+  it('<summary><para> inline open-open is split so <para> blocks reflow correctly', () => {
+    // Bug: <summary><para>content</para><para>more</para> caused all content to be
+    // collected as flat text and joined, producing </para> <para> on the same wrapped line.
+    const lines = [
+      '<summary><para>First paragraph text.</para>',
+      '<para>Second paragraph text.</para>',
+      '</summary>',
+    ];
+
+    const result = reflowXmlContent(lines, 80, '', csharpStyle);
+    expect(result[0]).toBe('<summary>');
+    expect(result[result.length - 1]).toBe('</summary>');
+    const allText = result.join('\n');
+    // Both paragraphs must appear exactly once
+    expect((allText.match(/First paragraph/g) ?? []).length).toBe(1);
+    expect((allText.match(/Second paragraph/g) ?? []).length).toBe(1);
+    // </para> <para> must NOT appear on the same line (close-then-open is the broken pattern)
+    expect(result.every(line => !/<\/para>.*<para>/.test(line))).toBe(true);
+  });
+
+  it('blank line inside standalone open block is suppressed before nested block tag', () => {
+    // Bug: blank line after <remarks> (inner content loop) before <para> was not suppressed
+    // — the inner loop pushed '' before it detected the nestedBlockOpen.
+    const lines = [
+      '<remarks>',
+      '',
+      '',
+      '<para>Content here.</para>',
+      '</remarks>',
+    ];
+
+    const result = reflowXmlContent(lines, 80, '', csharpStyle);
+    const remarksIdx = result.indexOf('<remarks>');
+    const paraIdx = result.findIndex(l => l.startsWith('<para>'));
+    expect(remarksIdx).toBeGreaterThan(-1);
+    expect(paraIdx).toBeGreaterThan(remarksIdx);
+    // No blank lines between <remarks> and <para>
+    for (let idx = remarksIdx + 1; idx < paraIdx; idx++) {
+      expect(result[idx]).not.toBe('');
+    }
   });
 
   it('inline-opened <para> wrapping to multiple lines keeps closing tag on last content line', () => {

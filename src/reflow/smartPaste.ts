@@ -67,6 +67,7 @@ export class SmartPasteHandler implements vscode.Disposable {
   private async handleChange(event: vscode.TextDocumentChangeEvent): Promise<void> {
     const config = getConfiguration();
     if (!config.enableReflowOnPaste) return;
+    if (config.renderingMode !== 'on') return;
 
     const editor = vscode.window.activeTextEditor;
     if (!editor || event.document !== editor.document) return;

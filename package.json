@@ -2,7 +2,7 @@
   "name": "kat-comment-studio",
   "displayName": "KAT Comment Studio",
   "description": "XML documentation comment rendering, reflow, code anchors, and link navigation for VS Code",
-  "version": "1.0.3",
+  "version": "1.0.5",
   "publisher": "conduent-kat-team",
   "author": {
     "name": "Terry Aney",
@@ -12,6 +12,7 @@
     "type": "git",
     "url": "https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio"
   },
+  "icon": "media/logo.png",
   "engines": {
     "vscode": "^1.85.0"
   },
@@ -88,8 +89,7 @@
         },
         {
           "command": "kat-comment-studio.reflowComment",
-          "group": "2_reflow@1",
-          "when": "kat-comment-studio.cursorInXmlComment"
+          "group": "2_reflow@1"
         },
         {
           "command": "kat-comment-studio.reflowAllComments",
@@ -97,8 +97,7 @@
         },
         {
           "command": "kat-comment-studio.removeCurrentXmlComment",
-          "group": "3_remove@1",
-          "when": "kat-comment-studio.cursorInXmlComment"
+          "group": "3_remove@1"
         },
         {
           "command": "kat-comment-studio.removeXmlDocOnly",
