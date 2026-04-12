@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { renderXmlContent, getStrippedSummaryFromXml, NO_SUMMARY_PLACEHOLDER, renderToMarkdownString } from '../../src/rendering/commentRenderer';
+import { renderXmlContent, getStrippedSummaryFromXml, NO_SUMMARY_PLACEHOLDER, renderToMarkdownString, renderCommentBlock, getStrippedSummary } from '../../src/rendering/commentRenderer';
 import { SegmentType, CommentSectionType, GitRepositoryInfo, GitHostingProvider, XmlDocCommentBlock } from '../../src/types';
 
 describe('XmlDocCommentRenderer', () => {
@@ -448,6 +448,271 @@ Use <c>MyMethod</c> for processing.
       const result = renderXmlContent(xml);
       const seeAlsoSection = result.sections.find(s => s.type === CommentSectionType.SeeAlso)!;
       expect(seeAlsoSection.lines).toHaveLength(0);
+    });
+  });
+});
+
+describe('JSDoc/TSDoc Renderer', () => {
+  describe('getStrippedSummaryFromXml with JSDoc content', () => {
+    it('should extract free-text description as summary', () => {
+      const content = 'Gets the current user.\n@param {string} id - The user id.';
+      const result = getStrippedSummaryFromXml(content, undefined, 'javascript');
+      expect(result).toBe('Gets the current user.');
+    });
+
+    it('should fall back to @brief if no free-text description', () => {
+      const content = '@brief Short summary.\n@param {string} id - id';
+      const result = getStrippedSummaryFromXml(content, undefined, 'typescript');
+      expect(result).toBe('Short summary.');
+    });
+
+    it('should return placeholder when no description at all', () => {
+      const content = '@param {string} id - The user id.';
+      const result = getStrippedSummaryFromXml(content, undefined, 'javascript');
+      expect(result).toBe(NO_SUMMARY_PLACEHOLDER);
+    });
+  });
+
+  describe('renderXmlContent with JSDoc languageId routing', () => {
+    it('should render free-text as Summary section', () => {
+      const content = 'Fetches data from the server.';
+      const result = renderXmlContent(content, undefined, undefined, 'javascript');
+      const summary = result.sections.find(s => s.type === CommentSectionType.Summary);
+      expect(summary).toBeDefined();
+      const text = summary!.lines.flatMap(l => l.segments).map(s => s.text).join('');
+      expect(text).toContain('Fetches data from the server.');
+    });
+
+    it('should render @param with type as TypeRef + Text', () => {
+      const content = '@param {string} name - The user name.';
+      const result = renderXmlContent(content, undefined, undefined, 'typescript');
+      const param = result.sections.find(s => s.type === CommentSectionType.Param);
+      expect(param).toBeDefined();
+      expect(param!.name).toBe('name');
+      const segments = param!.lines.flatMap(l => l.segments);
+      const typeRef = segments.find(s => s.type === SegmentType.TypeRef);
+      expect(typeRef?.text).toBe('string');
+      const descText = segments.find(s => s.type === SegmentType.Text && s.text.includes('user name'));
+      expect(descText).toBeDefined();
+    });
+
+    it('should render @param without type as plain text', () => {
+      const content = '@param name - The user name.';
+      const result = renderXmlContent(content, undefined, undefined, 'typescript');
+      const param = result.sections.find(s => s.type === CommentSectionType.Param);
+      expect(param).toBeDefined();
+      expect(param!.name).toBe('name');
+      const segments = param!.lines.flatMap(l => l.segments);
+      const typeRef = segments.find(s => s.type === SegmentType.TypeRef);
+      expect(typeRef).toBeUndefined();
+    });
+
+    it('should parse optional param [name]', () => {
+      const content = '@param {string} [label] - Optional label.';
+      const result = renderXmlContent(content, undefined, undefined, 'javascript');
+      const param = result.sections.find(s => s.type === CommentSectionType.Param);
+      expect(param).toBeDefined();
+      expect(param!.name).toBe('label');
+    });
+
+    it('should parse optional param with default [name=default]', () => {
+      const content = '@param {number} [timeout=5000] - Timeout in ms.';
+      const result = renderXmlContent(content, undefined, undefined, 'javascript');
+      const param = result.sections.find(s => s.type === CommentSectionType.Param);
+      expect(param).toBeDefined();
+      expect(param!.name).toBe('timeout');
+    });
+
+    it('should render multiple @param entries', () => {
+      const content = [
+        '@param {string} destination - Target id.',
+        '@param {object} props - Configuration.',
+        '@param {HTMLElement} el - Clicked element.',
+      ].join('\n');
+      const result = renderXmlContent(content, undefined, undefined, 'javascript');
+      const params = result.sections.filter(s => s.type === CommentSectionType.Param);
+      expect(params).toHaveLength(3);
+      expect(params[0].name).toBe('destination');
+      expect(params[1].name).toBe('props');
+      expect(params[2].name).toBe('el');
+    });
+
+    it('should render @returns with type', () => {
+      const content = '@returns {boolean} True if valid.';
+      const result = renderXmlContent(content, undefined, undefined, 'typescript');
+      const returns = result.sections.find(s => s.type === CommentSectionType.Returns);
+      expect(returns).toBeDefined();
+      const typeRef = returns!.lines.flatMap(l => l.segments).find(s => s.type === SegmentType.TypeRef);
+      expect(typeRef?.text).toBe('boolean');
+    });
+
+    it('should render @throws with type as exception name', () => {
+      const content = '@throws {TypeError} When value is invalid.';
+      const result = renderXmlContent(content, undefined, undefined, 'typescript');
+      const ex = result.sections.find(s => s.type === CommentSectionType.Exception);
+      expect(ex).toBeDefined();
+      expect(ex!.name).toBe('TypeError');
+    });
+
+    it('should render @example as Code segments', () => {
+      const content = '@example\nconst x = doThing();\nconsole.log(x);';
+      const result = renderXmlContent(content, undefined, undefined, 'javascript');
+      const example = result.sections.find(s => s.type === CommentSectionType.Example);
+      expect(example).toBeDefined();
+      const codeSegs = example!.lines.flatMap(l => l.segments).filter(s => s.type === SegmentType.Code);
+      expect(codeSegs.length).toBeGreaterThan(0);
+    });
+
+    it('should render @deprecated as Other section with warning heading', () => {
+      const content = '@deprecated Use newMethod() instead.';
+      const result = renderXmlContent(content, undefined, undefined, 'typescript');
+      const other = result.sections.find(s => s.type === CommentSectionType.Other);
+      expect(other).toBeDefined();
+      expect(other!.heading).toBe('⚠️ Deprecated');
+    });
+
+    it('should render @remarks as Remarks section', () => {
+      const content = '@remarks This is an internal API.';
+      const result = renderXmlContent(content, undefined, undefined, 'javascript');
+      const remarks = result.sections.find(s => s.type === CommentSectionType.Remarks);
+      expect(remarks).toBeDefined();
+    });
+
+    it('should handle full JSDoc block: summary + params + returns', () => {
+      const content = [
+        'Nexgen Navigation Support.',
+        '@param {string} destination - The target id.',
+        '@param {object} props - Configuration.',
+        '@returns {Promise<void>} Resolves when done.',
+      ].join('\n');
+      const result = renderXmlContent(content, undefined, undefined, 'javascript');
+      const summary = result.sections.find(s => s.type === CommentSectionType.Summary);
+      const params = result.sections.filter(s => s.type === CommentSectionType.Param);
+      const returns = result.sections.find(s => s.type === CommentSectionType.Returns);
+      expect(summary).toBeDefined();
+      expect(params).toHaveLength(2);
+      expect(returns).toBeDefined();
+    });
+
+    it('should use @arg as alias for @param', () => {
+      const content = '@arg {string} name - The name.';
+      const result = renderXmlContent(content, undefined, undefined, 'javascript');
+      const param = result.sections.find(s => s.type === CommentSectionType.Param);
+      expect(param).toBeDefined();
+      expect(param!.name).toBe('name');
+    });
+
+    it('should handle nested generic types like Object.<string, Array<T>>', () => {
+      const content = '@param {Object.<string, Array<number>>} map - The map.';
+      const result = renderXmlContent(content, undefined, undefined, 'typescript');
+      const param = result.sections.find(s => s.type === CommentSectionType.Param);
+      expect(param).toBeDefined();
+      const typeRef = param!.lines.flatMap(l => l.segments).find(s => s.type === SegmentType.TypeRef);
+      expect(typeRef?.text).toBe('Object.<string, Array<number>>');
+    });
+
+    it('should add placeholder summary when only @param tags present', () => {
+      const content = '@param {string} id - The id.';
+      const result = renderXmlContent(content, undefined, undefined, 'javascript');
+      const summary = result.sections.find(s => s.type === CommentSectionType.Summary);
+      expect(summary).toBeDefined();
+      const hasPlaceholder = summary!.lines.flatMap(l => l.segments).some(s => s.text === NO_SUMMARY_PLACEHOLDER);
+      expect(hasPlaceholder).toBe(true);
+    });
+  });
+});
+
+function makeBlock(overrides: Partial<XmlDocCommentBlock> = {}): XmlDocCommentBlock {
+  return {
+    startOffset: 0,
+    endOffset: 10,
+    startLine: 0,
+    endLine: 0,
+    indentation: '',
+    xmlContent: '',
+    isMultiLineStyle: true,
+    ...overrides,
+  };
+}
+
+describe('◆ memberName Details fallback', () => {
+  describe('renderCommentBlock', () => {
+    it('uses ◆ name Details when summary is missing and memberName is set', () => {
+      const block = makeBlock({
+        xmlContent: '@param {string} id - The id.',
+        languageId: 'javascript',
+        memberName: 'navigate',
+      });
+      const result = renderCommentBlock(block);
+      const summary = result.sections.find(s => s.type === CommentSectionType.Summary)!;
+      const text = summary.lines.flatMap(l => l.segments).map(s => s.text).join('');
+      expect(text).toBe('◆ navigate Details');
+    });
+
+    it('does NOT override a real summary with member name', () => {
+      const block = makeBlock({
+        xmlContent: '<summary>Real description.</summary>',
+        languageId: 'csharp',
+        memberName: 'MyMethod',
+      });
+      const result = renderCommentBlock(block);
+      const summary = result.sections.find(s => s.type === CommentSectionType.Summary)!;
+      const text = summary.lines.flatMap(l => l.segments).map(s => s.text).join('');
+      expect(text).toContain('Real description');
+      expect(text).not.toContain('◆');
+    });
+
+    it('falls back to NO_SUMMARY_PLACEHOLDER when memberName is not set', () => {
+      const block = makeBlock({
+        xmlContent: '@param {string} id - The id.',
+        languageId: 'javascript',
+      });
+      const result = renderCommentBlock(block);
+      const summary = result.sections.find(s => s.type === CommentSectionType.Summary)!;
+      const text = summary.lines.flatMap(l => l.segments).map(s => s.text).join('');
+      expect(text).toBe(NO_SUMMARY_PLACEHOLDER);
+    });
+
+    it('uses ◆ name Details for C# XML block without summary', () => {
+      const block = makeBlock({
+        xmlContent: '<param name="id">The id.</param>',
+        languageId: 'csharp',
+        memberName: 'GetById',
+      });
+      const result = renderCommentBlock(block);
+      const summary = result.sections.find(s => s.type === CommentSectionType.Summary)!;
+      const text = summary.lines.flatMap(l => l.segments).map(s => s.text).join('');
+      expect(text).toBe('◆ GetById Details');
+    });
+  });
+
+  describe('getStrippedSummary', () => {
+    it('returns ◆ name Details when summary is missing and memberName set', () => {
+      const block = makeBlock({
+        xmlContent: '@param {string} id - The id.',
+        languageId: 'javascript',
+        memberName: 'navigate',
+      });
+      expect(getStrippedSummary(block)).toBe('◆ navigate Details');
+    });
+
+    it('returns real summary text when present', () => {
+      const block = makeBlock({
+        xmlContent: '<summary>Does the work.</summary>',
+        languageId: 'csharp',
+        memberName: 'DoWork',
+      });
+      expect(getStrippedSummary(block)).toBe('Does the work.');
+    });
+
+    it('returns ◆ name Details for empty xmlContent with memberName', () => {
+      const block = makeBlock({ xmlContent: '', memberName: 'myVar' });
+      expect(getStrippedSummary(block)).toBe('◆ myVar Details');
+    });
+
+    it('returns NO_SUMMARY_PLACEHOLDER for empty xmlContent without memberName', () => {
+      const block = makeBlock({ xmlContent: '' });
+      expect(getStrippedSummary(block)).toBe(NO_SUMMARY_PLACEHOLDER);
     });
   });
 });

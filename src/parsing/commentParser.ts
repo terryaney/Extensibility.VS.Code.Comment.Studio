@@ -1,6 +1,246 @@
 import { XmlDocCommentBlock, LanguageCommentStyle } from '../types';
 import { getLanguageCommentStyle } from './languageConfig';
 
+// Languages that use JSDoc/TSDoc-style comments (/** */)
+const JSDOC_LANG_IDS = new Set(['javascript', 'typescript', 'typescriptreact', 'javascriptreact']);
+
+// C# modifier keywords that precede the member's return type / name
+const CSHARP_MODIFIERS = new Set([
+  'public', 'private', 'protected', 'internal', 'static', 'virtual', 'override',
+  'abstract', 'sealed', 'readonly', 'extern', 'partial', 'async', 'unsafe', 'new',
+  'required', 'file',
+]);
+
+// Type-keyword names we should not return as the member name
+const SKIP_MEMBER_NAMES = new Set([
+  'void', 'string', 'int', 'long', 'short', 'byte', 'bool', 'float', 'double',
+  'decimal', 'char', 'object', 'dynamic', 'var', 'uint', 'ulong', 'ushort', 'sbyte',
+  'nint', 'nuint', 'get', 'set', 'init', 'return', 'new', 'this', 'base',
+  'any', 'never', 'undefined', 'null', 'number', 'boolean', 'symbol', 'bigint',
+  'as', 'is', 'in', 'out', 'ref', 'params',
+]);
+
+/**
+ * Returns true if the trimmed line is an attribute / decorator that should be
+ * skipped when scanning for the declaration following a comment block.
+ */
+function isAttributeLine(trimmed: string, languageId?: string): boolean {
+  if (!trimmed) return false;
+  // TypeScript/JavaScript decorators: @Component, @Injectable, etc.
+  if (languageId && JSDOC_LANG_IDS.has(languageId)) {
+    return trimmed.startsWith('@');
+  }
+  // F# attributes: [<Attribute>]
+  if (languageId === 'fsharp') return trimmed.startsWith('[<');
+  // VB attributes: <Obsolete()>
+  if (languageId === 'vb') return trimmed.startsWith('<') && trimmed.endsWith('>');
+  // C# / Razor / C / C++ attributes: [Attribute] — also handles partial multi-line open
+  return trimmed.startsWith('[');
+}
+
+/**
+ * Extracts the last significant word before a delimiter in a string, stripping
+ * trailing generic type parameters: "Task<T> MethodName" → "MethodName",
+ * "Foo<T>" → "Foo".
+ */
+function lastWordBefore(text: string, delimChar: string): string | undefined {
+  const idx = text.indexOf(delimChar);
+  if (idx <= 0) return undefined;
+  const before = text.substring(0, idx);
+  // Strip a trailing generic: Foo<T> → Foo, List<string> → List<string> MethodName
+  const cleaned = before.replace(/(\w+)\s*<[^<>()]*>\s*$/, '$1').trim();
+  const m = /(\w+)\s*$/.exec(cleaned);
+  return m?.[1];
+}
+
+/**
+ * Strips C# modifier keywords from the start of a declaration line and returns
+ * the remainder. E.g. "public static async Task<T> Foo(" → "Task<T> Foo(").
+ */
+function stripCSharpModifiers(line: string): string {
+  let rest = line;
+  for (;;) {
+    const m = /^(\w+)\s+(.*)$/.exec(rest.trimStart());
+    if (!m || !CSHARP_MODIFIERS.has(m[1])) break;
+    rest = m[2];
+  }
+  return rest.trimStart();
+}
+
+/**
+ * Extracts the member name from a single declaration line, dispatching by
+ * languageId when provided.
+ */
+export function extractMemberName(line: string, languageId?: string): string | undefined {
+  const trimmed = line.trim();
+  if (!trimmed) return undefined;
+
+  // Universal keyword-based patterns that work across most languages
+  let m: RegExpMatchArray | null;
+
+  // function keyword (JS/TS/C/C++)
+  m = /\bfunction\s*\*?\s*(\w+)/.exec(trimmed);
+  if (m) return validateName(m[1]);
+
+  // Type declaration keywords
+  m = /\b(?:class|interface|enum|struct|record|delegate|trait|module|namespace)\s+(\w+)/.exec(trimmed);
+  if (m) return validateName(m[1]);
+
+  if (languageId && JSDOC_LANG_IDS.has(languageId)) {
+    return extractJsName(trimmed);
+  }
+
+  if (languageId === 'vb') {
+    return extractVbName(trimmed);
+  }
+
+  if (languageId === 'fsharp') {
+    return extractFSharpName(trimmed);
+  }
+
+  // C# / Razor / C / C++ (and default)
+  return extractCSharpName(trimmed);
+}
+
+function validateName(name: string): string | undefined {
+  return name && !SKIP_MEMBER_NAMES.has(name) ? name : undefined;
+}
+
+/** Extracts member name from a JS/TS declaration line. */
+function extractJsName(trimmed: string): string | undefined {
+  let m: RegExpMatchArray | null;
+
+  // type alias: type Foo = ...
+  m = /\btype\s+(\w+)\s*[=<]/.exec(trimmed);
+  if (m) return validateName(m[1]);
+
+  // export enum / enum
+  m = /\benum\s+(\w+)/.exec(trimmed);
+  if (m) return validateName(m[1]);
+
+  // const/let/var declaration
+  m = /\b(?:const|let|var)\s+(\w+)/.exec(trimmed);
+  if (m) return validateName(m[1]);
+
+  // Arrow function / object method assigned to const/let
+  // e.g. "const foo = (" already handled above via const/let/var
+
+  // Class method, getter, setter, async method: optional modifiers then name(
+  // e.g. "  async fetchData(" or "  get value(" or "  #privateMethod("
+  m = /(?:^|[\s;{])(?:(?:public|private|protected|static|async|abstract|override|readonly|get|set)\s+)*([#]?\w+)\s*(?:<[^>]*>)?\s*\(/.exec(trimmed);
+  if (m) return validateName(m[1]);
+
+  return undefined;
+}
+
+/** Extracts member name from a VB declaration line. */
+function extractVbName(trimmed: string): string | undefined {
+  const m = /\b(?:Sub|Function|Property|Event|Class|Interface|Enum|Structure|Module|Delegate)\s+(\w+)/i.exec(trimmed);
+  return m ? validateName(m[1]) : undefined;
+}
+
+/** Extracts member name from an F# declaration line. */
+function extractFSharpName(trimmed: string): string | undefined {
+  let m: RegExpMatchArray | null;
+
+  // member self.Name or member _.Name or static member Name
+  m = /\bmember\s+(?:\w+\.)?(\w+)/.exec(trimmed);
+  if (m) return validateName(m[1]);
+
+  // type Name
+  m = /\btype\s+(\w+)/.exec(trimmed);
+  if (m) return validateName(m[1]);
+
+  // let/let rec name
+  m = /\blet\s+(?:rec\s+)?(\w+)/.exec(trimmed);
+  if (m) return validateName(m[1]);
+
+  // val name
+  m = /\bval\s+(?:mutable\s+)?(\w+)/.exec(trimmed);
+  if (m) return validateName(m[1]);
+
+  return undefined;
+}
+
+/** Extracts member name from a C# / Razor / C / C++ declaration line. */
+function extractCSharpName(trimmed: string): string | undefined {
+  const rest = stripCSharpModifiers(trimmed);
+  if (!rest) return undefined;
+
+  // Expression-bodied member: find => before any ( — the name is the last word before =>
+  const exprIdx = rest.indexOf('=>');
+  const parenIdx = rest.indexOf('(');
+  if (exprIdx > 0 && (parenIdx < 0 || exprIdx < parenIdx)) {
+    const name = lastWordBefore(rest, '=>');
+    return name ? validateName(name) : undefined;
+  }
+
+  // Method / constructor / indexer: last word before (
+  if (parenIdx > 0) {
+    const name = lastWordBefore(rest, '(');
+    return name ? validateName(name) : undefined;
+  }
+
+  // Property / event with brace body: last word before {
+  const braceIdx = rest.indexOf('{');
+  if (braceIdx > 0) {
+    const name = lastWordBefore(rest, '{');
+    return name ? validateName(name) : undefined;
+  }
+
+  // Field / enum member / property (auto-prop): last word before = ; ,
+  const m = /(\w+)\s*(?:[=;,]|$)/.exec(rest.replace(/<[^<>]*>/g, ''));
+  if (m) return validateName(m[1]);
+
+  return undefined;
+}
+
+/**
+ * Scans lines following a comment block end to find and extract the declared
+ * member name. Skips blank lines and attribute/decorator lines. Handles
+ * multi-line C# attributes by tracking unclosed `[` brackets.
+ */
+export function extractMemberNameFromLines(
+  lines: string[],
+  blockEndLine: number,
+  languageId?: string,
+): string | undefined {
+  const limit = Math.min(blockEndLine + 21, lines.length);
+  let bracketDepth = 0; // for tracking multi-line C# attributes [Route(\n"foo")]
+
+  for (let i = blockEndLine + 1; i < limit; i++) {
+    const trimmed = lines[i].trim();
+
+    // Skip blank lines
+    if (!trimmed) continue;
+
+    // Handle continuation of a multi-line C# attribute
+    if (bracketDepth > 0) {
+      for (const ch of trimmed) {
+        if (ch === '[') bracketDepth++;
+        else if (ch === ']') bracketDepth--;
+      }
+      continue;
+    }
+
+    // Detect attribute/decorator lines
+    if (isAttributeLine(trimmed, languageId)) {
+      // Count brackets to detect multi-line attribute opening
+      for (const ch of trimmed) {
+        if (ch === '[') bracketDepth++;
+        else if (ch === ']') bracketDepth--;
+      }
+      // bracketDepth > 0 means this attribute continues onto the next line
+      continue;
+    }
+
+    // First real declaration line — extract name and return
+    return extractMemberName(trimmed, languageId);
+  }
+
+  return undefined;
+}
+
 interface DocumentCache {
   version: number;
   blocks: XmlDocCommentBlock[];
@@ -58,6 +298,7 @@ export function findAllCommentBlocks(lines: string[], commentStyle: LanguageComm
   while (currentLine < lines.length) {
     const block = tryParseCommentBlockAt(lines, currentLine, lineOffsets, commentStyle);
     if (block) {
+      block.memberName = extractMemberNameFromLines(lines, block.endLine, block.languageId);
       blocks.push(block);
       currentLine = block.endLine + 1;
     } else {
@@ -102,6 +343,8 @@ function tryParseSingleLineCommentBlock(
   commentStyle: LanguageCommentStyle,
 ): XmlDocCommentBlock | undefined {
   const prefix = commentStyle.singleLineDocPrefix;
+  if (!prefix) return undefined;
+
   const trimmedFirst = firstLineText.trimStart();
 
   if (!isValidDocCommentStart(trimmedFirst, prefix)) {
@@ -147,6 +390,7 @@ function tryParseSingleLineCommentBlock(
     indentation,
     xmlContent: xmlContentParts.join('\n'),
     isMultiLineStyle: false,
+    languageId: commentStyle.languageId,
   };
 }
 
@@ -187,6 +431,7 @@ function tryParseMultiLineCommentBlock(
       indentation,
       xmlContent: content,
       isMultiLineStyle: true,
+      languageId: commentStyle.languageId,
     };
   }
 
@@ -229,6 +474,7 @@ function tryParseMultiLineCommentBlock(
     indentation,
     xmlContent: xmlContentParts.join('\n'),
     isMultiLineStyle: true,
+    languageId: commentStyle.languageId,
   };
 }
 

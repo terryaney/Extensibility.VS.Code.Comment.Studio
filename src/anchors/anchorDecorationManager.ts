@@ -16,9 +16,9 @@ const METADATA_RE = /^(\s*)([\(\[][^\)\]]*[\)\]])/;
  */
 function resolveAnchorColor(
   anchorType: AnchorType,
-  colorOverrides: CommentStudioConfig['colors'],
+  colorOverrides: CommentStudioConfig['colorOverrides'],
 ): string | vscode.ThemeColor {
-  const key = anchorType.tag.toLowerCase() as keyof CommentStudioConfig['colors'];
+  const key = anchorType.tag.toLowerCase();
   const override = colorOverrides[key];
   if (override) return override;
   return new vscode.ThemeColor(anchorType.themeColorId);
@@ -42,7 +42,7 @@ export class AnchorDecorationManager implements vscode.Disposable {
   }
 
   private rebuildDecorations(): void {
-    const colorOverrides = this.config?.colors;
+    const colorOverrides = this.config?.colorOverrides;
 
     // Built-in anchor types
     for (const [, anchorType] of BUILTIN_ANCHOR_TYPES) {
@@ -59,9 +59,9 @@ export class AnchorDecorationManager implements vscode.Disposable {
     }
 
     // Custom tags
-    if (this.config?.customTags) {
-      const customTags = this.config.customTags.split(',').map(t => t.trim().toUpperCase()).filter(t => t);
-      const customColor = this.config.colors.custom || '#DAA520';
+    if (this.config?.customTags?.length) {
+      const customTags = this.config.customTags.map(t => t.trim().toUpperCase()).filter(t => t);
+      const customColor = this.config.colorOverrides.custom || '#DAA520';
       for (const tag of customTags) {
         if (BUILTIN_ANCHOR_TYPES.has(tag)) continue; // Don't duplicate built-ins
         this.decorationTypes.push({
@@ -89,12 +89,13 @@ export class AnchorDecorationManager implements vscode.Disposable {
   }
 
   updateDecorations(editor: vscode.TextEditor): void {
-    if (this.config && !this.config.enableTagHighlighting) {
+    const colorizeMode = this.config?.anchorColorizeMode ?? 'caseInsensitive';
+
+    if (colorizeMode === 'never') {
       this.clearDecorations(editor);
       return;
     }
 
-    const colorizeMode = this.config?.anchorColorizeMode ?? 'caseInsensitive';
     const rangesMap = new Map<string, vscode.Range[]>();
     const metadataRanges: vscode.Range[] = [];
     for (const entry of this.decorationTypes) {
@@ -162,7 +163,7 @@ export class AnchorDecorationManager implements vscode.Disposable {
             continue;
           } else {
             // Apply colorizeMode for bare tags (no colon)
-            if (colorizeMode === 'never') {
+            if (colorizeMode === 'fullAnchor') {
               continue;
             } else if (colorizeMode === 'caseSensitive') {
               // Only colorize if source text matches the tag definition exactly

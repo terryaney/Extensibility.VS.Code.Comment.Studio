@@ -20,7 +20,7 @@ export function reflowAllComments(document: vscode.TextDocument): vscode.TextEdi
   const edits: vscode.TextEdit[] = [];
 
   const editorConfigSettings = getEditorConfigSettings(document.uri.fsPath);
-  const maxLineWidth = editorConfigSettings.maxLineLength ?? config.maxLineLength;
+  const maxLineWidth = editorConfigSettings.maxLineLength ?? config.reflowLineLength;
 
   for (const block of blocks) {
     const reflowOptions: ReflowOptions = {
@@ -60,7 +60,7 @@ export function reflowCurrentComment(document: vscode.TextDocument, cursorLine: 
   if (!block) return [];
 
   const editorConfigSettings = getEditorConfigSettings(document.uri.fsPath);
-  const maxLineWidth = editorConfigSettings.maxLineLength ?? config.maxLineLength;
+  const maxLineWidth = editorConfigSettings.maxLineLength ?? config.reflowLineLength;
 
   const reflowOptions: ReflowOptions = {
     maxLineWidth,

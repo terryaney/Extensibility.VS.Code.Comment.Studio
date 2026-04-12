@@ -64,6 +64,7 @@ export class CommentCodeLensProvider implements vscode.CodeLensProvider {
 
   provideCodeLenses(document: vscode.TextDocument): vscode.CodeLens[] {
     if (!this.enabled) return [];
+    if (document.languageId === 'sql' || document.languageId === 'powershell') return [];
 
     const lines = document.getText().split(/\r?\n/);
     const blocks = getCachedCommentBlocks(
@@ -80,7 +81,7 @@ export class CommentCodeLensProvider implements vscode.CodeLensProvider {
     for (const block of blocks) {
       if (block.endLine <= block.startLine) continue;
 
-      const targetLine = this.findCodeLensLine(block, lines, document.lineCount);
+      const targetLine = this.findCodeLensLine(block, lines, document.lineCount, blocks);
       const range = new vscode.Range(targetLine, 0, targetLine, 0);
 
       // Summary text — click to show documentation popup
@@ -104,7 +105,8 @@ export class CommentCodeLensProvider implements vscode.CodeLensProvider {
    * Scans forward from the end of the comment block, skipping blank lines and attribute lines,
    * to find the method declaration line.
    */
-  private findCodeLensLine(block: XmlDocCommentBlock, lines: string[], lineCount: number): number {
+  private findCodeLensLine(block: XmlDocCommentBlock, lines: string[], lineCount: number, blocks: XmlDocCommentBlock[]): number {
+    const blockStartLines = new Set(blocks.filter(b => b !== block).map(b => b.startLine));
     let declarationLine = block.endLine + 1;
     while (declarationLine < lineCount) {
       const lineText = lines[declarationLine].trim();
@@ -115,6 +117,11 @@ export class CommentCodeLensProvider implements vscode.CodeLensProvider {
       if (lineText.startsWith('[') && lineText.includes(']')) {
         declarationLine++;
         continue;
+      }
+      // If the candidate line is the start of another comment block, this comment
+      // is orphaned (no declaration follows it). Fall back to its own start line.
+      if (blockStartLines.has(declarationLine)) {
+        return block.startLine;
       }
       break;
     }

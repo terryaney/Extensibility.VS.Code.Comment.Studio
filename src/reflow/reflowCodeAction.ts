@@ -31,7 +31,7 @@ export class ReflowCodeActionProvider implements vscode.CodeActionProvider {
 
     const config = getConfiguration();
     const editorConfigSettings = getEditorConfigSettings(document.uri.fsPath);
-    const maxLineWidth = editorConfigSettings.maxLineLength ?? config.maxLineLength;
+    const maxLineWidth = editorConfigSettings.maxLineLength ?? config.reflowLineLength;
 
     const actions: vscode.CodeAction[] = [];
 

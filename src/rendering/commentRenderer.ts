@@ -10,6 +10,8 @@ import {
 } from '../types';
 import { parseXmlContent, isElement, isText, XmlNode, XmlElement, getAttr, extractText } from '../parsing/xmlDocParser';
 import { processMarkdownInText } from './markdownProcessor';
+
+const JSDOC_LANGUAGES = new Set(['javascript', 'typescript', 'typescriptreact', 'javascriptreact']);
 import { BUILTIN_ANCHOR_TYPES } from '../anchors/anchorService';
 
 // vscode is only available at runtime in the extension host, not in unit tests.
@@ -48,14 +50,15 @@ export const NO_SUMMARY_PLACEHOLDER = '(No summary provided)';
  * Renders an XML doc comment block into a structured rendered model.
  */
 export function renderCommentBlock(block: XmlDocCommentBlock, repoInfo?: GitRepositoryInfo): RenderedComment {
-  return renderXmlContent(block.xmlContent, repoInfo, block.indentation);
+  const fallbackSummary = block.memberName ? `${block.memberName} Details` : undefined;
+  return renderXmlContent(block.xmlContent, repoInfo, block.indentation, block.languageId, fallbackSummary);
 }
 
 /**
  * Renders raw XML content into a structured rendered model.
  * Primarily for testing purposes.
  */
-export function renderXmlContent(xmlContent: string, repoInfo?: GitRepositoryInfo, indentation = ''): RenderedComment {
+export function renderXmlContent(xmlContent: string, repoInfo?: GitRepositoryInfo, indentation = '', languageId?: string, fallbackSummary?: string): RenderedComment {
   const result: RenderedComment = {
     lines: [],
     indentation,
@@ -63,8 +66,13 @@ export function renderXmlContent(xmlContent: string, repoInfo?: GitRepositoryInf
   };
 
   if (!xmlContent || !xmlContent.trim()) {
-    ensureSummarySection(result);
+    ensureSummarySection(result, fallbackSummary);
     return result;
+  }
+
+  // Route JSDoc/TSDoc languages through the JSDoc renderer
+  if (languageId && JSDOC_LANGUAGES.has(languageId)) {
+    return renderJsDocContent(xmlContent, repoInfo, languageId, indentation, fallbackSummary);
   }
 
   const nodes = parseXmlContent(xmlContent);
@@ -73,7 +81,7 @@ export function renderXmlContent(xmlContent: string, repoInfo?: GitRepositoryInf
     for (const node of nodes) {
       renderTopLevelNode(node, result, repoInfo);
     }
-    ensureSummarySection(result);
+    ensureSummarySection(result, fallbackSummary);
     populateLinesFromSections(result);
   } else {
     // XML parsing failed - render as plain text
@@ -92,8 +100,25 @@ export function renderXmlContent(xmlContent: string, repoInfo?: GitRepositoryInf
 /**
  * Extracts plain text summary from XML content for compact display.
  */
-export function getStrippedSummaryFromXml(xmlContent: string, repoInfo?: GitRepositoryInfo): string {
+export function getStrippedSummaryFromXml(xmlContent: string, repoInfo?: GitRepositoryInfo, languageId?: string): string {
   if (!xmlContent || !xmlContent.trim()) {
+    return NO_SUMMARY_PLACEHOLDER;
+  }
+
+  // For JSDoc languages, extract summary from parsed JSDoc
+  if (languageId && JSDOC_LANGUAGES.has(languageId)) {
+    const parsed = parseJsDoc(xmlContent);
+    const descEntry = parsed.entries.find(e => e.tag === 'desc' || e.tag === 'description' || e.tag === 'summary');
+    if (descEntry && descEntry.descLines.length > 0) {
+      const text = cleanText(descEntry.descLines.filter(Boolean).join(' ')).trim();
+      if (text) return text;
+    }
+    // Fall back to @brief (Doxygen)
+    const briefEntry = parsed.entries.find(e => e.tag === 'brief');
+    if (briefEntry && briefEntry.descLines.length > 0) {
+      const text = cleanText(briefEntry.descLines.filter(Boolean).join(' ')).trim();
+      if (text) return text;
+    }
     return NO_SUMMARY_PLACEHOLDER;
   }
 
@@ -120,6 +145,32 @@ export function getStrippedSummaryFromXml(xmlContent: string, repoInfo?: GitRepo
       }
     }
 
+    // No <summary> element — collect leading text nodes (description before @tags).
+    // Stop at the first @tag line or blank line after content has started.
+    const descParts: string[] = [];
+    for (const node of nodes) {
+      if (!isText(node)) continue;
+      const lines = node.text.split(/\r?\n/);
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('@') || trimmed.startsWith('\\')) break;
+        if (trimmed) descParts.push(trimmed);
+        else if (descParts.length > 0) break; // blank line after description ends it
+      }
+    }
+    if (descParts.length > 0) {
+      return cleanText(descParts.join(' ')).trim() || NO_SUMMARY_PLACEHOLDER;
+    }
+
+    // @brief fallback for Doxygen-style (C/C++)
+    for (const node of nodes) {
+      if (!isText(node)) continue;
+      for (const line of node.text.split(/\r?\n/)) {
+        const m = /^[ \t]*[@\\]brief\s+(.+)/.exec(line);
+        if (m) return cleanText(m[1]).trim() || NO_SUMMARY_PLACEHOLDER;
+      }
+    }
+
     return NO_SUMMARY_PLACEHOLDER;
   }
 
@@ -133,9 +184,13 @@ export function getStrippedSummaryFromXml(xmlContent: string, repoInfo?: GitRepo
  */
 export function getStrippedSummary(block: XmlDocCommentBlock): string {
   if (!block.xmlContent || !block.xmlContent.trim()) {
-    return NO_SUMMARY_PLACEHOLDER;
+    return block.memberName ? `${block.memberName} Details` : NO_SUMMARY_PLACEHOLDER;
   }
-  return getStrippedSummaryFromXml(block.xmlContent);
+  const result = getStrippedSummaryFromXml(block.xmlContent, undefined, block.languageId);
+  if (result === NO_SUMMARY_PLACEHOLDER && block.memberName) {
+    return `${block.memberName} Details`;
+  }
+  return result;
 }
 
 /**
@@ -159,15 +214,16 @@ export function renderToMarkdown(
   md.isTrusted = true;
   md.supportHtml = true;
 
+  const fenceLang = block.languageId ?? 'csharp';
+
   if (signatureInfo) {
     const fence = safeFence(signatureInfo.text);
-    md.appendMarkdown(`${fence}${signatureInfo.languageId}\n${signatureInfo.text}\n${fence}\n\n`);
+    // 5 trailing spaces on the last content line — JS detects these to identify KAT hovers.
+    const fenceLines = signatureInfo.text.split('\n');
+    fenceLines[fenceLines.length - 1] += '     ';
+    md.appendMarkdown(`${fence}${signatureInfo.languageId}\n${fenceLines.join('\n')}\n${fence}\n\n`);
+	// md.appendMarkdown(`${fence}${signatureInfo.languageId}\n${signatureInfo.text}\n${fence}\n\n`);
   }
-
-  // KAT hovers are identified by the presence of a $(book) codicon heading
-  // (rendered as <span class="codicon codicon-book">) which IntelliSense and
-  // other extension hovers won't have. The MutationObserver detects it via
-  // querySelector and adds/removes 'kat-comment-hover' on the shared widget.
 
   // Collect params/typeParams for table rendering
   const paramSections = rendered.sections.filter(
@@ -227,27 +283,27 @@ export function renderToMarkdown(
 
     switch (section.type) {
       case CommentSectionType.Summary:
-        md.appendMarkdown(sectionLinesToMarkdownRich(section));
+        md.appendMarkdown(sectionLinesToMarkdownRich(section, fenceLang));
         break;
 
       case CommentSectionType.Returns:
         md.appendMarkdown(sectionHeadingMarkdown('$(symbol-key) Returns'));
-        md.appendMarkdown(sectionLinesToMarkdownRich(section));
+        md.appendMarkdown(sectionLinesToMarkdownRich(section, fenceLang));
         break;
 
       case CommentSectionType.Value:
         md.appendMarkdown(sectionHeadingMarkdown('$(symbol-value) Value'));
-        md.appendMarkdown(sectionLinesToMarkdownRich(section));
+        md.appendMarkdown(sectionLinesToMarkdownRich(section, fenceLang));
         break;
 
       case CommentSectionType.Remarks:
         md.appendMarkdown(sectionHeadingMarkdown('$(comment-discussion) Remarks'));
-        md.appendMarkdown(sectionLinesToMarkdownRich(section));
+        md.appendMarkdown(sectionLinesToMarkdownRich(section, fenceLang));
         break;
 
       case CommentSectionType.Example:
         md.appendMarkdown(sectionHeadingMarkdown('$(book) Example'));
-        md.appendMarkdown(sectionLinesToMarkdownRichExample(section));
+        md.appendMarkdown(sectionLinesToMarkdownRichExample(section, fenceLang));
         break;
 
       default: {
@@ -255,7 +311,7 @@ export function renderToMarkdown(
         if (heading) {
           md.appendMarkdown(sectionHeadingMarkdown(heading));
         }
-        md.appendMarkdown(sectionLinesToMarkdownRich(section));
+        md.appendMarkdown(sectionLinesToMarkdownRich(section, fenceLang));
         break;
       }
     }
@@ -350,7 +406,7 @@ function safeFence(text: string): string {
  * into paragraphs (blank lines = paragraph break), and merging consecutive
  * code lines into fenced code blocks.
  */
-function sectionLinesToMarkdownRich(section: RenderedCommentSection): string {
+function sectionLinesToMarkdownRich(section: RenderedCommentSection, fenceLang = 'csharp'): string {
   const parts: string[] = [];
   let paragraphTokens: string[] = [];
   let i = 0;
@@ -385,9 +441,11 @@ function sectionLinesToMarkdownRich(section: RenderedCommentSection): string {
           break;
         }
       }
+      // 5 trailing spaces on the last code line — JS uses these to locate code fences in KAT hovers.
+      codeTexts[codeTexts.length - 1] += '     ';
       const codeBlock = codeTexts.join('\n');
       const fence = safeFence(codeBlock);
-      parts.push(`\n${fence}csharp\n${codeBlock}\n${fence}\n`);
+      parts.push(`\n${fence}${fenceLang}\n${codeBlock}\n${fence}\n`);
       continue;
     }
 
@@ -405,18 +463,18 @@ function sectionLinesToMarkdownRich(section: RenderedCommentSection): string {
  * Renders example section lines, treating ALL content as a code block
  * when there are code segments present.
  */
-function sectionLinesToMarkdownRichExample(section: RenderedCommentSection): string {
+function sectionLinesToMarkdownRichExample(section: RenderedCommentSection, fenceLang = 'csharp'): string {
   // Check if section has any code-only lines
   const hasCodeLines = section.lines.some(
     l => l.segments.length === 1 && l.segments[0].type === SegmentType.Code,
   );
 
   if (!hasCodeLines) {
-    return sectionLinesToMarkdownRich(section);
+    return sectionLinesToMarkdownRich(section, fenceLang);
   }
 
   // Render mixed: text lines as markdown, code lines as fenced block
-  return sectionLinesToMarkdownRich(section);
+  return sectionLinesToMarkdownRich(section, fenceLang);
 }
 
 /**
@@ -658,7 +716,7 @@ function createSection(type: CommentSectionType, heading?: string, name?: string
   return { type, heading, name, lines: [], listContentStartIndex: -1 };
 }
 
-function ensureSummarySection(result: RenderedComment): void {
+function ensureSummarySection(result: RenderedComment, fallbackSummary?: string): void {
   let summary = result.sections.find(s => s.type === CommentSectionType.Summary);
   if (!summary) {
     summary = createSection(CommentSectionType.Summary);
@@ -667,7 +725,8 @@ function ensureSummarySection(result: RenderedComment): void {
 
   const isEmpty = summary.lines.length === 0 || summary.lines.every(l => isBlankLine(l));
   if (isEmpty) {
-    summary.lines = [{ segments: [{ text: NO_SUMMARY_PLACEHOLDER, type: SegmentType.Text }] }];
+    const text = fallbackSummary ?? NO_SUMMARY_PLACEHOLDER;
+    summary.lines = [{ segments: [{ text, type: SegmentType.Text }] }];
   }
 }
 
@@ -714,6 +773,313 @@ function populateLinesFromSections(result: RenderedComment): void {
 
     previousSection = section;
   }
+}
+
+// --- JSDoc/TSDoc Parser ---
+
+interface JsDocEntry {
+  tag: string;           // 'desc' for pre-tag text; otherwise lowercase tag name
+  type?: string;         // content from {braces}
+  name?: string;         // param name (cleaned: no [], no =default)
+  optional?: boolean;
+  defaultValue?: string;
+  descLines: string[];
+}
+
+interface ParsedJsDoc {
+  entries: JsDocEntry[];
+}
+
+/** Extracts a brace-balanced type expression from the start of a string. */
+function extractBracedType(s: string): { type: string; rest: string } | undefined {
+  if (!s.startsWith('{')) return undefined;
+  let depth = 0;
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] === '{') depth++;
+    else if (s[i] === '}') {
+      depth--;
+      if (depth === 0) {
+        return { type: s.substring(1, i).trim(), rest: s.substring(i + 1) };
+      }
+    }
+  }
+  return undefined; // unmatched brace
+}
+
+/** Extracts a parameter name (with optional/rest/dotted forms) from a string. */
+function extractParamName(s: string): { name: string; optional: boolean; defaultValue?: string; rest: string } | undefined {
+  if (!s) return undefined;
+
+  // Optional form: [name] or [name=default]
+  if (s.startsWith('[')) {
+    const closeIdx = s.indexOf(']');
+    if (closeIdx > 0) {
+      const inner = s.substring(1, closeIdx);
+      const eqIdx = inner.indexOf('=');
+      const name = (eqIdx >= 0 ? inner.substring(0, eqIdx) : inner).trim();
+      const defaultValue = eqIdx >= 0 ? inner.substring(eqIdx + 1).trim() : undefined;
+      return { name, optional: true, defaultValue, rest: s.substring(closeIdx + 1).trimStart() };
+    }
+  }
+
+  // Rest param prefix: ...name
+  const isRest = s.startsWith('...');
+  const nameStr = isRest ? s.substring(3) : s;
+
+  // First word, allowing dots for `options.sub` forms
+  const wordMatch = /^([\w.]+)(.*)/.exec(nameStr);
+  if (wordMatch) {
+    const name = (isRest ? '...' : '') + wordMatch[1];
+    return { name, optional: false, rest: wordMatch[2].trimStart() };
+  }
+
+  return undefined;
+}
+
+const JSDOC_TAG_RE = /^[ \t]*[@\\]([\w]+)(.*)/;
+
+/** Parses JSDoc/TSDoc/Doxygen content into structured entries. */
+function parseJsDoc(content: string): ParsedJsDoc {
+  const lines = content.split(/\r?\n/);
+  const entries: JsDocEntry[] = [];
+  let currentEntry: JsDocEntry = { tag: 'desc', descLines: [] };
+  entries.push(currentEntry);
+
+  for (const line of lines) {
+    const tagMatch = JSDOC_TAG_RE.exec(line);
+    if (tagMatch) {
+      const tag = tagMatch[1].toLowerCase();
+      let rest = tagMatch[2].trim();
+
+      // Extract {type} if present
+      let type: string | undefined;
+      const braceResult = extractBracedType(rest);
+      if (braceResult) {
+        type = braceResult.type;
+        rest = braceResult.rest.trim();
+      }
+
+      // Extract name for tags that have one
+      let name: string | undefined;
+      let optional = false;
+      let defaultValue: string | undefined;
+      if (['param', 'arg', 'argument', 'typeparam', 'template'].includes(tag)) {
+        const nameResult = extractParamName(rest);
+        if (nameResult) {
+          name = nameResult.name;
+          optional = nameResult.optional;
+          defaultValue = nameResult.defaultValue;
+          rest = nameResult.rest.trimStart();
+        }
+      }
+
+      // Strip leading " - " or "-" separator before description
+      rest = rest.replace(/^-\s*/, '').trim();
+
+      currentEntry = { tag, type, name, optional, defaultValue, descLines: rest ? [rest] : [] };
+      entries.push(currentEntry);
+    } else {
+      currentEntry.descLines.push(line.trim());
+    }
+  }
+
+  // Trim leading/trailing blank lines from each entry (but preserve blank lines inside @example)
+  for (const entry of entries) {
+    if (entry.tag !== 'example') {
+      while (entry.descLines.length > 0 && !entry.descLines[0]) entry.descLines.shift();
+      while (entry.descLines.length > 0 && !entry.descLines[entry.descLines.length - 1]) entry.descLines.pop();
+    }
+  }
+
+  // Remove the leading desc entry if it ended up empty
+  if (entries.length > 0 && entries[0].tag === 'desc' && entries[0].descLines.length === 0) {
+    entries.shift();
+  }
+
+  return { entries };
+}
+
+/** Appends JSDoc description lines to a section as rendered text. */
+function appendJsDocTextLines(section: RenderedCommentSection, lines: string[], repoInfo?: GitRepositoryInfo): void {
+  for (let i = 0; i < lines.length; i++) {
+    const text = lines[i];
+    if (text) {
+      const renderedLine = getOrCreateCurrentLine(section);
+      const segments = processMarkdownInText(text, repoInfo);
+      for (const seg of segments) {
+        renderedLine.segments.push(seg);
+      }
+    }
+    if (i < lines.length - 1) {
+      section.lines.push({ segments: [] });
+    }
+  }
+}
+
+/** Prepends a type ref segment followed by the description lines for param/returns entries. */
+function buildJsDocDescWithType(section: RenderedCommentSection, entry: JsDocEntry, repoInfo?: GitRepositoryInfo): void {
+  if (entry.type) {
+    const line = getOrCreateCurrentLine(section);
+    line.segments.push({ text: entry.type, type: SegmentType.TypeRef });
+    if (entry.descLines.length > 0 && entry.descLines[0]) {
+      line.segments.push({ text: ' — ', type: SegmentType.Text });
+      const segments = processMarkdownInText(entry.descLines[0], repoInfo);
+      for (const seg of segments) line.segments.push(seg);
+      section.lines.push({ segments: [] });
+      appendJsDocTextLines(section, entry.descLines.slice(1), repoInfo);
+    }
+  } else {
+    appendJsDocTextLines(section, entry.descLines, repoInfo);
+  }
+}
+
+/** Renders JSDoc/TSDoc content into a RenderedComment. */
+function renderJsDocContent(
+  content: string,
+  repoInfo?: GitRepositoryInfo,
+  languageId?: string,
+  indentation = '',
+  fallbackSummary?: string,
+): RenderedComment {
+  const result: RenderedComment = { lines: [], indentation, sections: [] };
+  const parsed = parseJsDoc(content);
+
+  for (const entry of parsed.entries) {
+    switch (entry.tag) {
+      case 'desc':
+      case 'description':
+      case 'summary': {
+        let summary = result.sections.find(s => s.type === CommentSectionType.Summary);
+        if (!summary) {
+          summary = createSection(CommentSectionType.Summary);
+          result.sections.push(summary);
+        }
+        appendJsDocTextLines(summary, entry.descLines, repoInfo);
+        break;
+      }
+
+      case 'brief': {
+        // Doxygen: use as summary only if no free-text description already added
+        const hasSummary = result.sections.some(
+          s => s.type === CommentSectionType.Summary && s.lines.length > 0 && !s.lines.every(l => isBlankLine(l)),
+        );
+        if (!hasSummary) {
+          let summary = result.sections.find(s => s.type === CommentSectionType.Summary);
+          if (!summary) {
+            summary = createSection(CommentSectionType.Summary);
+            result.sections.push(summary);
+          }
+          const briefLines = entry.type ? [`{${entry.type}}`, ...entry.descLines] : entry.descLines;
+          appendJsDocTextLines(summary, briefLines, repoInfo);
+        }
+        break;
+      }
+
+      case 'param':
+      case 'arg':
+      case 'argument': {
+        const section = createSection(CommentSectionType.Param, undefined, entry.name || '?');
+        buildJsDocDescWithType(section, entry, repoInfo);
+        result.sections.push(section);
+        break;
+      }
+
+      case 'returns':
+      case 'return': {
+        const section = createSection(CommentSectionType.Returns);
+        buildJsDocDescWithType(section, entry, repoInfo);
+        result.sections.push(section);
+        break;
+      }
+
+      case 'throws':
+      case 'throw':
+      case 'exception': {
+        const exceptionName = entry.type || entry.name || '?';
+        const section = createSection(CommentSectionType.Exception, undefined, exceptionName);
+        appendJsDocTextLines(section, entry.descLines, repoInfo);
+        result.sections.push(section);
+        break;
+      }
+
+      case 'example': {
+        const section = createSection(CommentSectionType.Example);
+        for (const line of entry.descLines) {
+          section.lines.push({ segments: [{ text: line, type: SegmentType.Code }] });
+        }
+        result.sections.push(section);
+        break;
+      }
+
+      case 'remarks':
+      case 'note': {
+        const section = createSection(CommentSectionType.Remarks);
+        appendJsDocTextLines(section, entry.descLines, repoInfo);
+        result.sections.push(section);
+        break;
+      }
+
+      case 'see':
+      case 'seealso': {
+        const section = createSection(CommentSectionType.SeeAlso);
+        const parts = [
+          ...(entry.type ? [entry.type] : []),
+          ...entry.descLines,
+        ].filter(Boolean);
+        if (parts.length > 0) {
+          section.lines.push({ segments: [{ text: parts.join(' '), type: SegmentType.Text }] });
+        }
+        result.sections.push(section);
+        break;
+      }
+
+      case 'type': {
+        // Prepend type annotation to summary
+        let summary = result.sections.find(s => s.type === CommentSectionType.Summary);
+        if (!summary) {
+          summary = createSection(CommentSectionType.Summary);
+          result.sections.unshift(summary);
+        }
+        if (entry.type) {
+          summary.lines.unshift({ segments: [{ text: entry.type, type: SegmentType.TypeRef }] });
+        }
+        break;
+      }
+
+      case 'deprecated': {
+        const section = createSection(CommentSectionType.Other, '⚠️ Deprecated');
+        appendJsDocTextLines(section, entry.descLines, repoInfo);
+        result.sections.push(section);
+        break;
+      }
+
+      case 'typeparam':
+      case 'template': {
+        const tpName = entry.name || entry.type || '?';
+        const section = createSection(CommentSectionType.TypeParam, undefined, tpName);
+        appendJsDocTextLines(section, entry.descLines, repoInfo);
+        result.sections.push(section);
+        break;
+      }
+
+      default: {
+        // Unknown tag — render as Other with @tagname heading
+        const section = createSection(CommentSectionType.Other, `@${entry.tag}`);
+        const allLines = [
+          ...(entry.type ? [`{${entry.type}}`] : []),
+          ...(entry.name ? [entry.name] : []),
+          ...entry.descLines,
+        ].filter(Boolean);
+        appendJsDocTextLines(section, allLines, repoInfo);
+        result.sections.push(section);
+        break;
+      }
+    }
+  }
+
+  ensureSummarySection(result, fallbackSummary);
+  populateLinesFromSections(result);
+  return result;
 }
 
 function renderTopLevelNode(node: XmlNode, result: RenderedComment, repoInfo?: GitRepositoryInfo): void {
@@ -973,7 +1339,12 @@ function renderCodeBlock(element: XmlElement, section: RenderedCommentSection): 
   section.lines.push({ segments: [] }); // blank before
 
   const codeContent = extractText(element.children);
-  const codeLines = codeContent.split(/\r?\n/);
+  const rawLines = codeContent.split(/\r?\n/);
+  let start = 0;
+  let end = rawLines.length - 1;
+  while (start <= end && !rawLines[start].trim()) start++;
+  while (end >= start && !rawLines[end].trim()) end--;
+  const codeLines = rawLines.slice(start, end + 1);
 
   // Find minimum indentation
   let minIndent = Infinity;

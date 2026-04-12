@@ -11,6 +11,9 @@ const XML_CLOSE_TAG_REGEX = /^\s*<\/(\w+)>\s*$/;
 const XML_SELF_CLOSE_TAG_REGEX = /^\s*<(\w+)([^>]*)\s*\/>\s*$/;
 const BLOCK_TAGS = new Set(['summary', 'remarks', 'returns', 'param', 'typeparam', 'value', 'example', 'exception', 'code', 'para', 'list', 'item', 'term', 'description', 'seealso', 'inheritdoc']);
 
+// JSDoc/TSDoc languages use non-XML content — reflow would corrupt @param/@returns etc.
+const JSDOC_REFLOW_SKIP = new Set(['javascript', 'typescript', 'typescriptreact', 'javascriptreact']);
+
 /** Returns the first non-empty trimmed line at or after `start`, or undefined. */
 function findNextNonEmpty(lines: string[], start: number): string | undefined {
   for (let j = start; j < lines.length; j++) {
@@ -98,13 +101,19 @@ export function reflowXmlContent(
 ): string[] {
   // Normalise: split lines where a closing block tag is followed by more content
   // (e.g. "text</para> <para>more") so the main loop always sees one element per line.
+  // JSDoc languages use non-XML content — skip reflow to avoid corrupting @param/@returns lines
+  if (JSDOC_REFLOW_SKIP.has(commentStyle.languageId)) {
+    return lines;
+  }
+
   lines = normalizeLines(lines);
 
   const result: string[] = [];
   let i = 0;
 
   // Calculate effective content width (subtract prefix overhead)
-  const prefixOverhead = indentation.length + commentStyle.singleLineDocPrefix.length + 1; // +1 for space after prefix
+  const singlePrefixLen = commentStyle.singleLineDocPrefix?.length ?? 3;
+  const prefixOverhead = indentation.length + singlePrefixLen + 1; // +1 for space after prefix
   const effectiveWidth = Math.max(20, maxWidth - prefixOverhead);
 
   while (i < lines.length) {
@@ -444,10 +453,11 @@ function formatAsCommentLines(
   }
 
   // Single-line style
+  const prefix = commentStyle.singleLineDocPrefix ?? '///';
   return xmlLines.map(line => {
     if (line === '') {
-      return `${indentation}${commentStyle.singleLineDocPrefix}`;
+      return `${indentation}${prefix}`;
     }
-    return `${indentation}${commentStyle.singleLineDocPrefix} ${line}`;
+    return `${indentation}${prefix} ${line}`;
   });
 }

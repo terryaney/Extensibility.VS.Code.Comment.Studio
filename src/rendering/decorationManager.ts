@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { CommentStudioConfig, RenderingMode, XmlDocCommentBlock } from '../types';
+import { CommentStudioConfig, XmlDocCommentBlock } from '../types';
 import { getCachedCommentBlocks } from '../parsing/commentParser';
 import { createDecorationStyles, disposeDecorationStyles, DecorationStyles } from './decorationFactory';
 import { setRenderingMode } from '../configuration';
@@ -37,9 +37,9 @@ export class DecorationManager implements vscode.Disposable {
 
   constructor(config: CommentStudioConfig) {
     this.config = config;
-    this.styles = createDecorationStyles(config.dimOpacity);
+    this.styles = createDecorationStyles(config.xmlCommentOpacity);
 
-    if (config.renderingMode === 'on') {
+    if (config.xmlCommentRendering) {
       this.startCursorTracking();
     }
   }
@@ -54,27 +54,27 @@ export class DecorationManager implements vscode.Disposable {
   }
 
   updateConfiguration(config: CommentStudioConfig): void {
-    const oldMode = this.config.renderingMode;
+    const oldMode = this.config.xmlCommentRendering;
     disposeDecorationStyles(this.styles);
     this.config = config;
-    this.styles = createDecorationStyles(config.dimOpacity);
+    this.styles = createDecorationStyles(config.xmlCommentOpacity);
 
     // If mode changed, handle folding transitions
-    if (oldMode !== config.renderingMode) {
+    if (oldMode !== config.xmlCommentRendering) {
       this.autoFoldedEditors.clear();
       this.clearAllRefoldTimers();
       this.clearAllExpandTimersFull();
       this.expandedBlocks.clear();
 
-      if (config.renderingMode === 'on') {
+      if (config.xmlCommentRendering) {
         this.startCursorTracking();
         for (const editor of vscode.window.visibleTextEditors) {
-          this.handleModeTransition(editor, oldMode, config.renderingMode);
+          this.handleModeTransition(editor, oldMode, config.xmlCommentRendering);
         }
       } else {
         this.stopCursorTracking();
         for (const editor of vscode.window.visibleTextEditors) {
-          this.handleModeTransition(editor, oldMode, config.renderingMode);
+          this.handleModeTransition(editor, oldMode, config.xmlCommentRendering);
         }
       }
     }
@@ -86,22 +86,18 @@ export class DecorationManager implements vscode.Disposable {
   }
 
   toggleRendering(): void {
-    if (this.config.renderingMode === 'off') {
-      setRenderingMode('on');
-    } else {
-      setRenderingMode('off');
-    }
+    setRenderingMode(!this.config.xmlCommentRendering);
   }
 
   private async handleModeTransition(
     editor: vscode.TextEditor,
-    oldMode: RenderingMode,
-    newMode: RenderingMode,
+    oldMode: boolean,
+    newMode: boolean,
   ): Promise<void> {
-    if (newMode === 'on') {
+    if (newMode) {
       await foldAllDocComments(editor);
       this.markAllBlocksFolded(editor);
-    } else if (oldMode === 'on') {
+    } else if (oldMode) {
       await unfoldAllDocComments(editor);
       this.codeLensProvider?.setAllUnfolded(editor.document.uri.toString());
     }
@@ -115,7 +111,7 @@ export class DecorationManager implements vscode.Disposable {
       return;
     }
 
-    if (this.config.renderingMode === 'off') return;
+    if (!this.config.xmlCommentRendering) return;
 
     const docKey = editor.document.uri.toString();
 
@@ -181,9 +177,7 @@ export class DecorationManager implements vscode.Disposable {
   }
 
   updateDecorations(editor: vscode.TextEditor): void {
-    if (this.config.renderingMode === 'off') {
-      this.clearDecorations(editor);
-      return;
+    if (!this.config.xmlCommentRendering) {
     }
 
     const docKey = editor.document.uri.toString();
@@ -219,15 +213,17 @@ export class DecorationManager implements vscode.Disposable {
     const transparentDecorations: vscode.DecorationOptions[] = [];
     const expanded = this.expandedBlocks.get(docKey) ?? new Set();
 
-    for (const block of blocks) {
-      const isMultiline = block.endLine > block.startLine;
+    if (this.config.xmlCommentOpacity < 100) {
+      for (const block of blocks) {
+        const isMultiline = block.endLine > block.startLine;
 
-      // Apply dim decoration to all lines of folded multi-line blocks
-      if (isMultiline && !expanded.has(block.startLine)) {
-        for (let line = block.startLine; line <= block.endLine; line++) {
-          transparentDecorations.push({
-            range: new vscode.Range(line, 0, line, lines[line].length),
-          });
+        // Apply dim decoration to all lines of folded multi-line blocks
+        if (isMultiline && !expanded.has(block.startLine)) {
+          for (let line = block.startLine; line <= block.endLine; line++) {
+            transparentDecorations.push({
+              range: new vscode.Range(line, 0, line, lines[line].length),
+            });
+          }
         }
       }
     }
@@ -254,7 +250,7 @@ export class DecorationManager implements vscode.Disposable {
    * Called when cursor position changes. Detects if cursor enters/leaves a comment block.
    */
   private onSelectionChanged(event: vscode.TextEditorSelectionChangeEvent): void {
-    if (this.config.renderingMode !== 'on') return;
+    if (!this.config.xmlCommentRendering) return;
 
     const editor = event.textEditor;
     const docKey = editor.document.uri.toString();
@@ -318,8 +314,8 @@ export class DecorationManager implements vscode.Disposable {
    * via the editor gutter and syncs our internal state.
    */
   private onVisibleRangesChanged(event: vscode.TextEditorVisibleRangesChangeEvent): void {
-    if (this.config.renderingMode !== 'on') return;
-    // Skip fold-state sync during our own programmatic edits — the transient
+    if (!this.config.xmlCommentRendering) return;
+    // Skip fold-state sync during our own programmatic edits— the transient
     // visible-range change from editor.edit() would be misread as a gutter fold.
     if (isAutoReflowEdit || isSmartPasteEdit) return;
 

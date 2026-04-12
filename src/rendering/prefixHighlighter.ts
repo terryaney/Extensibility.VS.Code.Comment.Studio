@@ -12,7 +12,7 @@ interface PrefixDefinition {
   /** ThemeColor ID */
   themeColorId: string;
   /** Config color key */
-  colorKey: keyof CommentStudioConfig['colors'];
+  colorKey: string;
   /** Optional CSS font style */
   fontStyle?: string;
   /** Optional CSS text-decoration */
@@ -45,7 +45,7 @@ export class PrefixHighlighter implements vscode.Disposable {
 
   private rebuildDecorations(): void {
     for (const def of PREFIX_DEFINITIONS) {
-      const colorOverride = this.config.colors[def.colorKey];
+      const colorOverride = this.config.colorOverrides[def.colorKey];
       const color: string | vscode.ThemeColor = colorOverride || new vscode.ThemeColor(def.themeColorId);
 
       const options: vscode.DecorationRenderOptions = { color };

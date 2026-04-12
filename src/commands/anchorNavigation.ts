@@ -10,9 +10,7 @@ async function navigateAnchor(direction: 'next' | 'previous'): Promise<void> {
   if (!editor) return;
 
   const config = getConfiguration();
-  const customTags = config.customTags
-    ? config.customTags.split(',').map(t => t.trim().toUpperCase()).filter(t => t)
-    : [];
+  const customTags = config.customTags.map(t => t.trim().toUpperCase()).filter(t => t);
   const tagPrefixes = config.tagPrefixes
     ? config.tagPrefixes.split(',').map(p => p.trim()).filter(p => p)
     : [];

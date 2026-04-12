@@ -7,10 +7,10 @@ export interface DecorationStyles {
 /**
  * Creates the set of decoration types used by the extension.
  */
-export function createDecorationStyles(dimOpacity = 0.05): DecorationStyles {
+export function createDecorationStyles(dimOpacity = 40): DecorationStyles {
   return {
     transparentComment: vscode.window.createTextEditorDecorationType({
-      opacity: String(dimOpacity),
+      opacity: String(dimOpacity / 100),
     }),
   };
 }

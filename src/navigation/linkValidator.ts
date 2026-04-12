@@ -1,5 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
+import * as path from 'path';
+import { CommentStudioConfig } from '../types';
 import { parseLinkAnchors, resolveLinkTarget } from './linkAnchorParser';
 
 /**
@@ -9,8 +11,10 @@ import { parseLinkAnchors, resolveLinkTarget } from './linkAnchorParser';
 export class LinkValidator implements vscode.Disposable {
   private diagnosticCollection: vscode.DiagnosticCollection;
   private disposables: vscode.Disposable[] = [];
+  private config: CommentStudioConfig;
 
-  constructor() {
+  constructor(config: CommentStudioConfig) {
+    this.config = config;
     this.diagnosticCollection = vscode.languages.createDiagnosticCollection('kat-comment-studio-links');
 
     this.disposables.push(
@@ -35,7 +39,28 @@ export class LinkValidator implements vscode.Disposable {
     }
   }
 
+  updateConfiguration(config: CommentStudioConfig): void {
+    this.config = config;
+    // Re-validate all open documents with the new config
+    for (const document of vscode.workspace.textDocuments) {
+      this.validateDocument(document);
+    }
+  }
+
+  private isFileAllowed(document: vscode.TextDocument): boolean {
+    const ext = path.extname(document.uri.fsPath).replace('.', '').toLowerCase();
+    if (!ext) return false;
+    const allowed = this.config.fileExtensionsToScan
+      .split(',').map(e => e.trim().toLowerCase()).filter(e => e);
+    return allowed.includes(ext);
+  }
+
   private validateDocument(document: vscode.TextDocument): void {
+    if (!this.isFileAllowed(document)) {
+      this.diagnosticCollection.delete(document.uri);
+      return;
+    }
+
     const diagnostics: vscode.Diagnostic[] = [];
     const lines = document.getText().split(/\r?\n/);
 

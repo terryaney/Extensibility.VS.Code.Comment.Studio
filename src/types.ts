@@ -1,6 +1,3 @@
-/** Rendering mode for XML doc comments */
-export type RenderingMode = 'off' | 'on';
-
 /** Prefix highlight style configuration */
 export interface PrefixStyle {
   prefix: string;
@@ -12,19 +9,17 @@ export interface PrefixStyle {
 
 /** Extension configuration */
 export interface CommentStudioConfig {
-  renderingMode: RenderingMode;
+  xmlCommentRendering: boolean;
   enabledLanguages: string[];
-  dimOriginalComments: boolean;
-  dimOpacity: number;
+  xmlCommentOpacity: number;
 
   // Reflow settings
-  maxLineLength: number;
+  reflowLineLength: number;
 
   // Anchor settings
-  customTags: string;
+  customTags: string[];
   tagPrefixes: string;
-  enableTagHighlighting: boolean;
-  anchorColorizeMode: 'never' | 'caseSensitive' | 'caseInsensitive';
+  anchorColorizeMode: 'never' | 'fullAnchor' | 'caseSensitive' | 'caseInsensitive';
   scanOnLoad: boolean;
   fileExtensionsToScan: string;
   foldersToIgnore: string;
@@ -33,38 +28,15 @@ export interface CommentStudioConfig {
   enablePrefixHighlighting: boolean;
   enableIssueLinks: boolean;
   enableReflowOnPaste: boolean;
-  enableReflowWhileTyping: boolean;
-  collapseByDefault: boolean;
+  enableReflowOnCommentExit: boolean;
+  collapseXmlWhenRenderingOff: boolean;
   interceptF1ForComments: boolean;
 
   // Visual settings
-  codeLensMaxLength: number;
+  codeLensSummaryTruncation: number;
 
-  // Color overrides(empty string = use ThemeColor default)
-  colors: {
-    // Anchor type colors
-    todo: string;
-    hack: string;
-    note: string;
-    bug: string;
-    fixme: string;
-    undone: string;
-    review: string;
-    anchor: string;
-    custom: string;
-    // Rendered comment colors
-    renderedText: string;
-    renderedHeading: string;
-    renderedCode: string;
-    renderedLink: string;
-    // Prefix highlight colors
-    prefixAlert: string;
-    prefixQuestion: string;
-    prefixHighlight: string;
-    prefixStrikethrough: string;
-    prefixDisabled: string;
-    prefixQuote: string;
-  };
+  // Color overrides — key/value map of color name → hex string (empty map = all theme defaults)
+  colorOverrides: Record<string, string>;
 }
 
 /** Represents a type of rendered segment */
@@ -142,6 +114,10 @@ export interface XmlDocCommentBlock {
   xmlContent: string;
   /** Whether this uses multiline comment style */
   isMultiLineStyle: boolean;
+  /** VS Code language ID of the source document */
+  languageId?: string;
+  /** Member name extracted from the declaration following this comment, if determinable */
+  memberName?: string;
 }
 
 /** Language comment style configuration */
@@ -149,7 +125,7 @@ export interface LanguageCommentStyle {
   /** The VS Code language ID */
   languageId: string;
   /** Single-line doc comment prefix (e.g., "///") */
-  singleLineDocPrefix: string;
+  singleLineDocPrefix?: string;
   /** Whether multiline doc comments are supported */
   supportsMultiLineDoc: boolean;
   /** Multiline doc comment start marker */

@@ -67,7 +67,7 @@ export class SmartPasteHandler implements vscode.Disposable {
   private async handleChange(event: vscode.TextDocumentChangeEvent): Promise<void> {
     const config = getConfiguration();
     if (!config.enableReflowOnPaste) return;
-    if (config.renderingMode !== 'on') return;
+    if (!config.xmlCommentRendering) return;
 
     const editor = vscode.window.activeTextEditor;
     if (!editor || event.document !== editor.document) return;
@@ -210,7 +210,7 @@ export class SmartPasteHandler implements vscode.Disposable {
 
     const config = getConfiguration();
     const editorConfigSettings = getEditorConfigSettings(document.uri.fsPath);
-    const maxLineWidth = editorConfigSettings.maxLineLength ?? config.maxLineLength;
+    const maxLineWidth = editorConfigSettings.maxLineLength ?? config.reflowLineLength;
 
     const reflowOptions: ReflowOptions = {
       maxLineWidth,

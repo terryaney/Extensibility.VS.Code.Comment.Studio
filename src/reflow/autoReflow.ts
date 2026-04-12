@@ -60,8 +60,8 @@ export class AutoReflowHandler implements vscode.Disposable {
 
   private handleChange(event: vscode.TextDocumentChangeEvent): void {
     const config = getConfiguration();
-    if (config.renderingMode !== 'on') return;
-    if (!config.enableReflowWhileTyping) return;
+    if (!config.xmlCommentRendering) return;
+    if (!config.enableReflowOnCommentExit) return;
 
     const editor = vscode.window.activeTextEditor;
     if (!editor || event.document !== editor.document) return;
@@ -106,8 +106,8 @@ export class AutoReflowHandler implements vscode.Disposable {
 
   private handleSelectionChange(event: vscode.TextEditorSelectionChangeEvent): void {
     const config = getConfiguration();
-    if (config.renderingMode !== 'on') return;
-    if (!config.enableReflowWhileTyping) return;
+    if (!config.xmlCommentRendering) return;
+    if (!config.enableReflowOnCommentExit) return;
 
     const editor = event.textEditor;
     if (!config.enabledLanguages.includes(editor.document.languageId)) return;
@@ -135,7 +135,7 @@ export class AutoReflowHandler implements vscode.Disposable {
       if (dirtyBlock) {
         dbg('autoReflow', 'handleSelectionChange TRIGGER reflow on exit', { block: `${dirtyBlock.startLine}-${dirtyBlock.endLine}` });
         const editorConfigSettings = getEditorConfigSettings(editor.document.uri.fsPath);
-        const maxLineWidth = editorConfigSettings.maxLineLength ?? config.maxLineLength;
+        const maxLineWidth = editorConfigSettings.maxLineLength ?? config.reflowLineLength;
         this.reflowBlock(editor, dirtyBlock, maxLineWidth).catch(err => {
           dbg('autoReflow', 'handleSelectionChange reflowBlock error', { err: String(err) });
         });

@@ -73,9 +73,9 @@ export function activate(context: vscode.ExtensionContext): void {
   codeLensProvider = new CommentCodeLensProvider();
   decorationManager.setCodeLensProvider(codeLensProvider);
 
-  const isRenderingOn = config.renderingMode === 'on';
+  const isRenderingOn = config.xmlCommentRendering;
   codeLensProvider.setEnabled(isRenderingOn);
-  codeLensProvider.setCodeLensMaxLength(config.codeLensMaxLength);
+  codeLensProvider.setCodeLensMaxLength(config.codeLensSummaryTruncation);
 
   context.subscriptions.push(
     vscode.languages.registerCodeLensProvider(SUPPORTED_LANGUAGES, codeLensProvider),
@@ -120,7 +120,7 @@ export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(autoReflowHandler);
 
   // LINK: validation (diagnostics)
-  linkValidator = new LinkValidator();
+  linkValidator = new LinkValidator(config);
   context.subscriptions.push(linkValidator);
 
   // Register commands
@@ -197,9 +197,36 @@ export function activate(context: vscode.ExtensionContext): void {
 
       if (editor.document.uri.toString() !== targetUri.toString()) return;
 
+      // When triggered from a CodeLens for a different item than where cursor sits,
+      // move cursor to the first /// line of the target block. This positions the
+      // hover widget near the clicked CodeLens. suppressNextAutoExpand() must be
+      // called BEFORE the cursor move — onSelectionChanged fires synchronously and
+      // would otherwise queue an expand timer for the comment block. C# LS has no
+      // hover for /// lines, so only our provider fires (no double render).
+      // If cursor is already associated with the target block, skip the move.
+      if (targetUri !== undefined && targetStartLine !== undefined) {
+        const linesForAssoc = editor.document.getText().split(/\r?\n/);
+        const blocksForAssoc = getCachedCommentBlocks(
+          editor.document.uri.toString(),
+          editor.document.version,
+          linesForAssoc,
+          editor.document.languageId,
+        );
+        const targetBlock = blocksForAssoc?.find(b => b.startLine === targetStartLine);
+
+        if (targetBlock) {
+          // Always move cursor to the first /// line before showing the hover. This:
+          // 1. Positions the hover widget near the clicked CodeLens (not at current cursor)
+          // 2. Prevents C# LS double-render (no hover for /// comment lines)
+          // suppressNextAutoExpand MUST be called before the cursor move —
+          // onSelectionChanged fires synchronously and would otherwise queue an expand timer.
+          decorationManager?.suppressNextAutoExpand();
+          editor.selection = new vscode.Selection(targetBlock.startLine, 0, targetBlock.startLine, 0);
+        }
+      }
+
       if (commentHoverProvider) {
         commentHoverProvider.setPendingHover(targetUri, targetStartLine);
-        decorationManager?.suppressNextAutoExpand();
         await vscode.commands.executeCommand('editor.action.showHover');
       }
     }),
@@ -219,7 +246,7 @@ export function activate(context: vscode.ExtensionContext): void {
   );
 
   // Set context for keybinding
-  vscode.commands.executeCommand('setContext', 'kat-comment-studio.renderingActive', config.renderingMode !== 'off');
+  vscode.commands.executeCommand('setContext', 'kat-comment-studio.renderingActive', config.xmlCommentRendering);
 
   // Listen for configuration changes
   context.subscriptions.push(
@@ -228,6 +255,7 @@ export function activate(context: vscode.ExtensionContext): void {
       decorationManager?.updateConfiguration(newConfig);
       anchorDecorationManager?.updateConfiguration(newConfig);
       prefixHighlighter?.updateConfiguration(newConfig);
+      linkValidator?.updateConfiguration(newConfig);
 
 	  for (const editor of vscode.window.visibleTextEditors) {
 		// Re-apply anchor decorations after config rebuild (fixes colorization loss on toggle)
@@ -236,12 +264,12 @@ export function activate(context: vscode.ExtensionContext): void {
 		prefixHighlighter?.updateDecorations(editor);
       }
 
-      const renderingOn = newConfig.renderingMode === 'on';
+      const renderingOn = newConfig.xmlCommentRendering;
       codeLensProvider?.setEnabled(renderingOn);
-      codeLensProvider?.setCodeLensMaxLength(newConfig.codeLensMaxLength);
+      codeLensProvider?.setCodeLensMaxLength(newConfig.codeLensSummaryTruncation);
       commentHoverProvider?.setEnabled(renderingOn);
 
-      vscode.commands.executeCommand('setContext', 'kat-comment-studio.renderingActive', newConfig.renderingMode !== 'off');
+      vscode.commands.executeCommand('setContext', 'kat-comment-studio.renderingActive', newConfig.xmlCommentRendering);
       updateRenderingStatusBar(renderingOn);
 
       // Re-evaluate interceptF1Active when config changes
@@ -259,7 +287,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
         // Collapse by default on file open
         const currentConfig = getConfiguration();
-        if (currentConfig.collapseByDefault && currentConfig.renderingMode === 'off') {
+        if (currentConfig.collapseXmlWhenRenderingOff && !currentConfig.xmlCommentRendering) {
           foldAllDocComments(editor);
         }
       }
@@ -305,7 +333,7 @@ export function activate(context: vscode.ExtensionContext): void {
         clearTimeout(anchorRescanTimer);
         anchorRescanTimer = setTimeout(() => {
           const currentConfig = getConfiguration();
-          const customTags = currentConfig.customTags ? currentConfig.customTags.split(',').map(t => t.trim().toUpperCase()).filter(t => t) : undefined;
+          const customTags = currentConfig.customTags.length ? currentConfig.customTags.map(t => t.trim().toUpperCase()).filter(t => t) : undefined;
           const tagPrefixes = currentConfig.tagPrefixes ? currentConfig.tagPrefixes.split(',').map(p => p.trim()).filter(p => p) : undefined;
           const anchors = scanDocument(event.document, customTags, tagPrefixes);
           anchorCache.update(event.document.uri.fsPath, anchors);
@@ -345,7 +373,7 @@ export function activate(context: vscode.ExtensionContext): void {
     const hasAssociated = findAssociatedBlock(blocks, lines, cursorLine) !== undefined;
 
     const currentConfig = getConfiguration();
-    const interceptF1Active = hasAssociated && currentConfig.interceptF1ForComments && currentConfig.renderingMode !== 'off';
+    const interceptF1Active = hasAssociated && currentConfig.interceptF1ForComments && currentConfig.xmlCommentRendering;
 
     void vscode.commands.executeCommand('setContext', 'kat-comment-studio.cursorInXmlComment', inComment);
     void vscode.commands.executeCommand('setContext', 'kat-comment-studio.cursorHasAssociatedComment', hasAssociated);
@@ -405,6 +433,10 @@ export function activate(context: vscode.ExtensionContext): void {
   });
   context.subscriptions.push(treeView);
 
+  // If the sidebar was already visible when VS Code restored the session, treat anchors
+  // as already acknowledged immediately — no badge or yellow highlight this session.
+  let anchorStatusBarHighlighted = !treeView.visible;
+
   // StatusBarItem for anchor count — always visible regardless of panel tab state.
   // Uses warning yellow text until the user focuses the Code Anchors pane,
   // matching the Problems badge yellow color.
@@ -412,7 +444,6 @@ export function activate(context: vscode.ExtensionContext): void {
   const anchorStatusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, -100);
   anchorStatusBarItem.command = 'kat-comment-studio.anchorsGrid.focus';
   anchorStatusBarItem.name = 'Code Anchor Count';
-  let anchorStatusBarHighlighted = true;
   const anchorHighlightColor = new vscode.ThemeColor('katCommentStudio.anchorCountForeground');
   context.subscriptions.push(anchorStatusBarItem);
 
@@ -460,7 +491,7 @@ export function activate(context: vscode.ExtensionContext): void {
       // Badge computed immediately in host — same thread, no IPC, no race conditions
       const badgeAnchors = filterAnchors(anchorCache.getAll(), { ...anchorViewState, searchQuery }, getCurrentAnchorFilterContext());
       katLog(`[KAT-BADGE] immediate badge count: ${badgeAnchors.length}`);
-      anchorsGridProvider.applyBadge(badgeAnchors.length);
+      anchorsGridProvider.applyBadge(anchorStatusBarHighlighted ? badgeAnchors.length : 0);
       clearTimeout(anchorSearchDebounceTimer);
       anchorSearchDebounceTimer = setTimeout(() => {
         katLog(`[KAT-BADGE] debounce FIRED with searchQuery='${anchorSearchLatestQuery}'`);
@@ -483,13 +514,16 @@ export function activate(context: vscode.ExtensionContext): void {
     // log
     katLog,
     // onViewResolved — clear the warning highlight once the user has focused the pane
-    () => {
-      anchorStatusBarHighlighted = false;
-      anchorStatusBarItem.color = undefined;
-    },
+    () => { markAnchorsAcknowledged(); },
   );
   context.subscriptions.push(
     vscode.window.registerWebviewViewProvider(AnchorsGridProvider.viewType, anchorsGridProvider),
+  );
+
+  context.subscriptions.push(
+    treeView.onDidChangeVisibility(e => {
+      if (e.visible) markAnchorsAcknowledged();
+    }),
   );
 
   function getCurrentAnchorFilterContext(): AnchorFilterContext {
@@ -531,6 +565,14 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   }
 
+  function markAnchorsAcknowledged(): void {
+    if (!anchorStatusBarHighlighted) return;
+    anchorStatusBarHighlighted = false;
+    anchorStatusBarItem.color = undefined;
+    treeView.badge = undefined;
+    anchorsGridProvider.applyBadge(0);
+  }
+
   function refreshAnchorPresentation(caller = 'unknown'): void {
     katLog(`[KAT-BADGE] refreshAnchorPresentation called by: ${caller}, anchorViewState.searchQuery='${anchorViewState.searchQuery}'`);
     const allAnchors = anchorCache.getAll();
@@ -570,7 +612,7 @@ export function activate(context: vscode.ExtensionContext): void {
     treeView.description = filteredAnchors.length === allAnchors.length
       ? `${filteredAnchors.length}`
       : `${filteredAnchors.length}/${allAnchors.length}`;
-    treeView.badge = filteredAnchors.length > 0
+    treeView.badge = (anchorStatusBarHighlighted && filteredAnchors.length > 0)
       ? {
           value: filteredAnchors.length,
           tooltip: `${filteredAnchors.length} code anchor${filteredAnchors.length === 1 ? '' : 's'}`,
@@ -586,7 +628,7 @@ export function activate(context: vscode.ExtensionContext): void {
     anchorStatusBarItem.color = anchorStatusBarHighlighted ? anchorHighlightColor : undefined;
     anchorStatusBarItem.show();
 
-    anchorsGridProvider.applyBadge(badgeAnchors.length);
+    anchorsGridProvider.applyBadge(anchorStatusBarHighlighted ? badgeAnchors.length : 0);
     anchorsGridProvider.updateModel({
       anchors: scopeOnlyAnchors,
       availableTypes: getAvailableAnchorTypes(scopeOnlyAnchors),
@@ -603,7 +645,7 @@ export function activate(context: vscode.ExtensionContext): void {
   const scanOptions = {
     fileExtensions: config.fileExtensionsToScan.split(',').map(e => e.trim()).filter(e => e),
     ignoredFolders: config.foldersToIgnore.split(',').map(f => f.trim()).filter(f => f),
-    customTags: config.customTags ? config.customTags.split(',').map(t => t.trim().toUpperCase()).filter(t => t) : undefined,
+    customTags: config.customTags.length ? config.customTags.map(t => t.trim().toUpperCase()).filter(t => t) : undefined,
     customTagPrefixes: config.tagPrefixes ? config.tagPrefixes.split(',').map(p => p.trim()).filter(p => p) : undefined,
   };
 
@@ -640,7 +682,7 @@ export function activate(context: vscode.ExtensionContext): void {
       const opts = {
         fileExtensions: currentConfig.fileExtensionsToScan.split(',').map(e => e.trim()).filter(e => e),
         ignoredFolders: currentConfig.foldersToIgnore.split(',').map(f => f.trim()).filter(f => f),
-        customTags: currentConfig.customTags ? currentConfig.customTags.split(',').map(t => t.trim().toUpperCase()).filter(t => t) : undefined,
+        customTags: currentConfig.customTags.length ? currentConfig.customTags.map(t => t.trim().toUpperCase()).filter(t => t) : undefined,
         customTagPrefixes: currentConfig.tagPrefixes ? currentConfig.tagPrefixes.split(',').map(p => p.trim()).filter(p => p) : undefined,
       };
       currentIgnoredFolders = opts.ignoredFolders;
@@ -778,7 +820,7 @@ export function activate(context: vscode.ExtensionContext): void {
         return;
       }
 
-      const customTags= currentConfig.customTags ? currentConfig.customTags.split(',').map(t => t.trim().toUpperCase()).filter(t => t) : undefined;
+      const customTags= currentConfig.customTags.length ? currentConfig.customTags.map(t => t.trim().toUpperCase()).filter(t => t) : undefined;
       const tagPrefixes = currentConfig.tagPrefixes ? currentConfig.tagPrefixes.split(',').map(p => p.trim()).filter(p => p) : undefined;
       const anchors = scanDocument(document, customTags, tagPrefixes);
       if (discoveredProjects.length === 0) {

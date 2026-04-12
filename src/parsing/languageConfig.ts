@@ -46,7 +46,6 @@ const languageConfigs: ReadonlyMap<string, LanguageCommentStyle> = new Map([
   // TypeScript
   ['typescript', {
     languageId: 'typescript',
-    singleLineDocPrefix: '///',
     supportsMultiLineDoc: true,
     multiLineDocStart: '/**',
     multiLineDocEnd: '*/',
@@ -55,7 +54,6 @@ const languageConfigs: ReadonlyMap<string, LanguageCommentStyle> = new Map([
   // JavaScript
   ['javascript', {
     languageId: 'javascript',
-    singleLineDocPrefix: '///',
     supportsMultiLineDoc: true,
     multiLineDocStart: '/**',
     multiLineDocEnd: '*/',
@@ -64,7 +62,6 @@ const languageConfigs: ReadonlyMap<string, LanguageCommentStyle> = new Map([
   // TypeScript React
   ['typescriptreact', {
     languageId: 'typescriptreact',
-    singleLineDocPrefix: '///',
     supportsMultiLineDoc: true,
     multiLineDocStart: '/**',
     multiLineDocEnd: '*/',
@@ -73,7 +70,6 @@ const languageConfigs: ReadonlyMap<string, LanguageCommentStyle> = new Map([
   // JavaScript React
   ['javascriptreact', {
     languageId: 'javascriptreact',
-    singleLineDocPrefix: '///',
     supportsMultiLineDoc: true,
     multiLineDocStart: '/**',
     multiLineDocEnd: '*/',

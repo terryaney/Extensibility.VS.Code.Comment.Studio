@@ -2,7 +2,7 @@
   "name": "kat-comment-studio",
   "displayName": "KAT Comment Studio",
   "description": "XML documentation comment rendering, reflow, code anchors, and link navigation for VS Code",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "publisher": "conduent-kat-team",
   "author": {
     "name": "Terry Aney",
@@ -32,8 +32,7 @@
     "onLanguage:razor",
     "onLanguage:sql",
     "onLanguage:powershell",
-    "onView:kat-comment-studio.anchorsView",
-    "onView:kat-comment-studio.anchorsGrid"
+    "onStartupFinished"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -57,14 +56,16 @@
       "kat-comment-studio": [
         {
           "id": "kat-comment-studio.anchorsView",
-          "name": "KAT Comment Studio"
+          "name": "KAT Comment Studio",
+		  "icon": "$(code-oss)"
         }
       ],
       "kat-comment-studio-panel": [
         {
           "type": "webview",
           "id": "kat-comment-studio.anchorsGrid",
-          "name": "KAT Comment Studio - Code Anchors"
+          "name": "KAT Comment Studio - Code Anchors",
+		  "icon": "$(code-oss)"
         }
       ]
     },
@@ -235,235 +236,123 @@
     "configuration": {
       "title": "KAT Comment Studio",
       "properties": {
-        "kat-comment-studio.renderingMode": {
-          "type": "string",
-          "default": "on",
-          "enum": [
-            "off",
-            "on"
-          ],
-          "enumDescriptions": [
-            "Disable comment rendering",
-            "Show CodeLens summary, rich hover, and auto-fold for XML doc comments"
-          ],
-          "description": "How XML doc comments are rendered in the editor"
-        },
-        "kat-comment-studio.enabledLanguages": {
-          "type": "array",
-          "default": [
-            "csharp",
-            "vb",
-            "fsharp",
-            "cpp",
-            "c",
-            "typescript",
-            "javascript",
-            "typescriptreact",
-            "javascriptreact",
-            "razor",
-            "sql",
-            "powershell"
-          ],
-          "items": {
-            "type": "string"
-          },
-          "description": "Language IDs for which comment rendering is enabled"
-        },
-        "kat-comment-studio.dimOriginalComments": {
+        "kat-comment-studio.xmlCommentRendering": {
           "type": "boolean",
           "default": true,
-          "description": "Dim original comment text when rendering is active"
+          "description": "Enable XML Comment Rendering (CodeLens summary, auto-fold, and apply Comment Opacity).",
+		  "order": 0
         },
-        "kat-comment-studio.dimOpacity": {
-          "type": "number",
-          "default": 0.05,
+        "kat-comment-studio.xmlCommentOpacity": {
+          "type": "integer",
+          "default": 40,
           "minimum": 0,
-          "maximum": 1,
-          "description": "Opacity for dimmed original comments (0-1.0). Set to 0 to make comment lines fully invisible (one blank line gap remains after folding)."
+          "maximum": 100,
+          "description": "When XML Comment Rendering is enabled, specify the opacity percentage (0-100) for dimmed original comments. 0 = fully invisible; 100 = no dimming.",
+		  "order": 2
         },
-        "kat-comment-studio.maxLineLength": {
+        "kat-comment-studio.codeLensSummaryTruncation": {
+          "type": "number",
+          "default": 205,
+          "minimum": 0,
+          "maximum": 500,
+          "description": "Maximum number of characters for the CodeLens summary text before truncation. Set to 0 for no truncation.",
+		  "order": 1
+        },
+        "kat-comment-studio.reflowLineLength": {
           "type": "number",
           "default": 120,
           "minimum": 40,
           "maximum": 500,
-          "description": "Maximum line width for comment reflow. Can be overridden by .editorconfig max_line_length."
+          "description": "Maximum line width for comment reflow. Can be overridden by .editorconfig max_line_length.",
+		  "order": 3
         },
-        "kat-comment-studio.customTags": {
-          "type": "string",
-          "default": "",
-          "description": "Comma-separated custom anchor tags (e.g., 'PERF, SECURITY, DEBT'). Highlighted in Goldenrod and appear in Code Anchors tree."
-        },
-        "kat-comment-studio.tagPrefixes": {
-          "type": "string",
-          "default": "@, $",
-          "description": "Comma-separated prefix characters for anchor tags (e.g., '@, $'). @TODO treated same as TODO."
-        },
-        "kat-comment-studio.enableTagHighlighting": {
+        "kat-comment-studio.enableReflowOnCommentExit": {
           "type": "boolean",
           "default": true,
-          "description": "Enable inline color highlighting of anchor tags (TODO, HACK, etc.)"
+          "description": "Automatically reflow a XML comment block after editing when the cursor leaves the block.",
+		  "order": 4
         },
-        "kat-comment-studio.anchorColorizeMode": {
+        "kat-comment-studio.enableReflowOnPaste": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically reflow XML comment blocks when pasting text into the block.",
+		  "order": 5
+        },
+        "kat-comment-studio.interceptF1ForComments": {
+          "type": "boolean",
+          "default": true,
+          "description": "When the cursor is inside XML comment block, or method that has XML comments, pressing F1 shows the KAT Comment Studio tooltip instead of the VS Code help menu. Disable to restore the default F1 behavior.",
+		  "order": 6
+        },
+        "kat-comment-studio.collapseXmlWhenRenderingOff": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically collapse XML comments when opening files when rendering is Off.  When rendering is toggled On, comments automatically collapse/expand based on cursor position.",
+		  "order": 7
+        },
+
+
+
+
+		"kat-comment-studio.anchorColorizeMode": {
           "type": "string",
           "enum": [
             "never",
+            "fullAnchor",
             "caseSensitive",
             "caseInsensitive"
           ],
           "default": "caseInsensitive",
           "enumDescriptions": [
-            "Never colorize anchor keywords that are not followed by ':' (or '(...):' / '[...]:' with metadata)",
-            "Colorize only when the keyword case exactly matches the tag definition",
-            "Colorize regardless of case (default behavior)"
+            "Disable all anchor keyword colorization",
+            "Only colorize when followed by ':' (e.g. 'TODO:') or a metadata block (e.g. 'TODO(owner):')",
+            "Colorize with or without ':', only when the keyword case exactly matches the tag definition",
+            "Colorize with or without ':', regardless of case (default behavior)"
           ],
-          "description": "Controls colorization of anchor keywords in editor comments when NOT followed by ':' (or '(...):' / '[...]:' with metadata). Keywords with a colon always colorize."
+          "description": "Controls inline colorization of anchor keywords in editor comments. ANCHOR without '(name):' is never colorized regardless of this setting.",
+		  "order": 8
         },
-        "kat-comment-studio.enablePrefixHighlighting": {
-          "type": "boolean",
-          "default": true,
-          "description": "Enable Better Comments-style prefix highlighting (! ? * // - >)"
+        "kat-comment-studio.colorOverrides": {
+          "type": "object",
+          "default": {},
+          "additionalProperties": {
+            "type": "string"
+          },
+          "markdownDescription": "Override colors for anchor tags and UI elements. Map a key to a hex color string (e.g. `\"todo\": \"#FFA500\"`). Omitted keys fall back to theme defaults.\n\n**Rendered comment keys:** `renderedText`, `renderedHeading`, `renderedCode`, `renderedLink`\n\n**Anchor type keys:** `todo`, `hack`, `note`, `bug`, `fixme`, `undone`, `review`, `anchor`, `custom`\n\n**Prefix highlight keys:** `prefixAlert`, `prefixQuestion`, `prefixHighlight`, `prefixStrikethrough`, `prefixDisabled`, `prefixQuote`",
+		  "order": 9
         },
         "kat-comment-studio.enableIssueLinks": {
           "type": "boolean",
           "default": true,
-          "description": "Enable clickable issue links (#123 \u2192 GitHub/GitLab/etc.)"
+          "description": "Enable clickable issue links (#123 \u2192 GitHub/GitLab/etc.)",
+		  "order": 10
         },
-        "kat-comment-studio.enableReflowOnPaste": {
+        "kat-comment-studio.enablePrefixHighlighting": {
           "type": "boolean",
           "default": true,
-          "description": "Automatically reflow doc comment blocks when pasting text into them"
+          "description": "Enable 'Better Comments'-style prefix highlighting (! ? * // - >)",
+		  "order": 11
         },
-        "kat-comment-studio.enableReflowWhileTyping": {
-          "type": "boolean",
-          "default": true,
-          "description": "Automatically reflow when a doc comment line exceeds max length while typing (300ms delay)"
-        },
-        "kat-comment-studio.collapseByDefault": {
-          "type": "boolean",
-          "default": false,
-          "description": "Automatically collapse XML doc comments when opening files (only applies when rendering is Off)"
-        },
-        "kat-comment-studio.interceptF1ForComments": {
-          "type": "boolean",
-          "default": true,
-          "description": "When the cursor is inside or immediately below an XML doc comment block, pressing F1 shows the KAT Comment Studio tooltip instead of the VS Code help menu. Disable to restore the default F1 behavior."
+        "kat-comment-studio.patternProcessing": {
+          "type": "object",
+          "default": {
+            "customTags": "",
+            "enabledLanguages": "csharp, vb, fsharp, cpp, c, typescript, javascript, typescriptreact, javascriptreact, razor, sql, powershell",
+            "fileExtensions": "cs, vb, fs, cpp, c, h, ts, tsx, js, jsx, razor, cshtml, sql, ps1, psm1",
+            "ignoreFolders": "node_modules, bin, obj, .git, dist, out, build, .vs, .vscode-test",
+            "tagPrefixes": "@, $"
+          },
+          "additionalProperties": {
+            "type": "string"
+          },
+          "markdownDescription": "Controls which files, folders, languages, and tags are processed. Values are comma-separated strings (like `files.associations`). Only override keys you want to change.\n\n| Key | Description |\n|---|---|\n| `customTags` | Custom anchor tags highlighted in Goldenrod and shown in Code Anchors tree |\n| `enabledLanguages` | VS Code language IDs for which rendering and anchors are active |\n| `fileExtensions` | File extensions included in anchor scan and LINK: validation |\n| `ignoreFolders` | Folder names excluded from anchor scan |\n| `tagPrefixes` | Prefix characters recognised before anchor tags — `@TODO` is treated as `TODO` |",
+		  "order": 12
         },
         "kat-comment-studio.scanOnLoad": {
           "type": "boolean",
           "default": true,
-          "description": "Automatically scan workspace for code anchors on activation"
-        },
-        "kat-comment-studio.fileExtensionsToScan": {
-          "type": "string",
-          "default": "cs,vb,fs,cpp,c,h,ts,tsx,js,jsx,razor,cshtml,sql,ps1,psm1",
-          "description": "Comma-separated file extensions to scan for code anchors"
-        },
-        "kat-comment-studio.foldersToIgnore": {
-          "type": "string",
-          "default": "node_modules,bin,obj,.git,dist,out,build,.vs,.vscode-test",
-          "description": "Comma-separated folder names to ignore when scanning for code anchors"
-        },
-        "kat-comment-studio.codeLensMaxLength": {
-          "type": "number",
-          "default": 205,
-          "minimum": 0,
-          "maximum": 500,
-          "description": "Maximum number of characters for the CodeLens summary text before truncation. Set to 0 for no truncation."
-        },
-        "kat-comment-studio.colors.todo": {
-          "type": "string",
-          "default": "",
-          "description": "Override color for TODO anchors (hex, e.g., '#FF8C00'). Empty = use theme default."
-        },
-        "kat-comment-studio.colors.hack": {
-          "type": "string",
-          "default": "",
-          "description": "Override color for HACK anchors (hex). Empty = use theme default."
-        },
-        "kat-comment-studio.colors.note": {
-          "type": "string",
-          "default": "",
-          "description": "Override color for NOTE anchors (hex). Empty = use theme default."
-        },
-        "kat-comment-studio.colors.bug": {
-          "type": "string",
-          "default": "",
-          "description": "Override color for BUG anchors (hex). Empty = use theme default."
-        },
-        "kat-comment-studio.colors.fixme": {
-          "type": "string",
-          "default": "",
-          "description": "Override color for FIXME anchors (hex). Empty = use theme default."
-        },
-        "kat-comment-studio.colors.undone": {
-          "type": "string",
-          "default": "",
-          "description": "Override color for UNDONE anchors (hex). Empty = use theme default."
-        },
-        "kat-comment-studio.colors.review": {
-          "type": "string",
-          "default": "",
-          "description": "Override color for REVIEW anchors (hex). Empty = use theme default."
-        },
-        "kat-comment-studio.colors.anchor": {
-          "type": "string",
-          "default": "",
-          "description": "Override color for ANCHOR anchors (hex). Empty = use theme default."
-        },
-        "kat-comment-studio.colors.custom": {
-          "type": "string",
-          "default": "#DAA520",
-          "description": "Color for custom anchor tags (hex, default: Goldenrod)"
-        },
-        "kat-comment-studio.colors.renderedText": {
-          "type": "string",
-          "default": "",
-          "description": "Override color for rendered comment text (hex). Empty = use theme default."
-        },
-        "kat-comment-studio.colors.renderedHeading": {
-          "type": "string",
-          "default": "",
-          "description": "Override color for rendered comment headings (hex). Empty = use theme default."
-        },
-        "kat-comment-studio.colors.renderedCode": {
-          "type": "string",
-          "default": "",
-          "description": "Override color for rendered inline code (hex). Empty = use theme default."
-        },
-        "kat-comment-studio.colors.renderedLink": {
-          "type": "string",
-          "default": "",
-          "description": "Override color for rendered links (hex). Empty = use theme default."
-        },
-        "kat-comment-studio.colors.prefixAlert": {
-          "type": "string",
-          "default": "",
-          "description": "Override color for // ! alert comments (hex). Empty = use theme default."
-        },
-        "kat-comment-studio.colors.prefixQuestion": {
-          "type": "string",
-          "default": "",
-          "description": "Override color for // ? question comments (hex). Empty = use theme default."
-        },
-        "kat-comment-studio.colors.prefixHighlight": {
-          "type": "string",
-          "default": "",
-          "description": "Override color for // * highlight comments (hex). Empty = use theme default."
-        },
-        "kat-comment-studio.colors.prefixStrikethrough": {
-          "type": "string",
-          "default": "",
-          "description": "Override color for // // strikethrough comments (hex). Empty = use theme default."
-        },
-        "kat-comment-studio.colors.prefixDisabled": {
-          "type": "string",
-          "default": "",
-          "description": "Override color for // - disabled comments (hex). Empty = use theme default."
-        },
-        "kat-comment-studio.colors.prefixQuote": {
-          "type": "string",
-          "default": "",
-          "description": "Override color for // > quote comments (hex). Empty = use theme default."
+          "description": "Automatically scan workspace for code anchors on activation",
+		  "order": 13
         }
       }
     },

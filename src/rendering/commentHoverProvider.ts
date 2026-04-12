@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { getCachedCommentBlocks } from '../parsing/commentParser';
 import { renderToMarkdown, SignatureInfo } from './commentRenderer';
+import { detectEnumMember } from './signatureUtils';
 
 /**
  * Provides rich hover tooltips for XML doc comment blocks.
@@ -89,10 +90,26 @@ export class CommentHoverProvider implements vscode.HoverProvider {
 }
 
 /**
+ * Scans backward from `beforeLine` (inclusive) looking for the C# `enum TypeName`
+ * declaration that encloses the current position.  Returns the type name, or
+ * `undefined` if no enum declaration is found within a reasonable search window.
+ */
+function findEnclosingEnumName(document: vscode.TextDocument, beforeLine: number): string | undefined {
+  for (let i = beforeLine; i >= Math.max(0, beforeLine - 100); i--) {
+    const m = /\benum\s+(\w+)/.exec(document.lineAt(i).text);
+    if (m) return m[1];
+  }
+  return undefined;
+}
+
+/**
  * Scans lines after the comment block's end to extract the method/property/class
  * declaration as a signature string. Skips blank lines and attribute lines
  * (e.g. [HttpGet]), then collects lines until hitting the opening brace or
  * a semicolon (abstract/interface members).
+ *
+ * Special case: when the first meaningful line is recognised as an enum member,
+ * returns `EnumType.MemberName [= value]` instead of the raw source text.
  */
 function extractSignatureInfo(document: vscode.TextDocument, afterLine: number): SignatureInfo | undefined {
   const lineCount = document.lineCount;
@@ -106,7 +123,24 @@ function extractSignatureInfo(document: vscode.TextDocument, afterLine: number):
       if (trimmed.length === 0) continue;
       if (trimmed.startsWith('[')) continue; // skip attributes
       started = true;
+
+      // Detect enum member before any other checks
+      const enumMember = detectEnumMember(trimmed);
+      if (enumMember) {
+        const enumName = findEnclosingEnumName(document, afterLine);
+        if (enumName) {
+          const valueClause = enumMember.value !== undefined ? ` = ${enumMember.value}` : '';
+          return {
+            text: `${enumName}.${enumMember.name}${valueClause}`,
+            languageId: document.languageId,
+          };
+        }
+        // No enclosing enum found — fall through to normal extraction
+      }
     }
+
+    // Stop at closing brace (e.g. end of enum body) to prevent spillover
+    if (trimmed === '}' || trimmed === '},') break;
 
     const braceIdx = trimmed.indexOf('{');
     if (braceIdx !== -1) {

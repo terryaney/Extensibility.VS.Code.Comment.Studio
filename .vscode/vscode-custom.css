@@ -1,0 +1,7 @@
+/* KAT Comment Studio — fenced code block background in hover popup */
+.monaco-tokenized-source.kat-comment-hover {
+	/* set to your editor.background */
+	background-color: #222222 !important;
+	border: #ffffff 1px solid !important;
+	padding: 5px !important;
+}
