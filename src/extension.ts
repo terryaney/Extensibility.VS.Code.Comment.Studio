@@ -625,7 +625,7 @@ export function activate(context: vscode.ExtensionContext): void {
     anchorStatusBarItem.tooltip = badgeAnchors.length === allAnchors.length
       ? `KAT Comment Studio - View ${badgeAnchors.length} Code Anchor${badgeAnchors.length === 1 ? '' : 's'}`
       : `KAT Comment Studio - View ${badgeAnchors.length} of ${allAnchors.length} Code Anchors (filtered)`;
-    anchorStatusBarItem.color = anchorStatusBarHighlighted ? anchorHighlightColor : undefined;
+    anchorStatusBarItem.color = (anchorStatusBarHighlighted && badgeAnchors.length > 0) ? anchorHighlightColor : undefined;
     anchorStatusBarItem.show();
 
     anchorsGridProvider.applyBadge(anchorStatusBarHighlighted ? badgeAnchors.length : 0);
