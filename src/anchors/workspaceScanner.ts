@@ -85,6 +85,23 @@ export function scanDocument(
   return findAnchorsInText(document.getText(), document.uri.fsPath, allTags, customTagPrefixes);
 }
 
+/**
+ * Reads a file from disk and scans it for anchors.
+ * Used when a file is not open in an editor (e.g., after an SCM revert).
+ */
+export async function scanFileUri(
+  uri: vscode.Uri,
+  customTags?: string[],
+  customTagPrefixes?: string[],
+): Promise<AnchorMatch[]> {
+  const text = await readFileText(uri);
+  const allTags = [...BUILTIN_ANCHOR_TYPES.keys()];
+  if (customTags) {
+    allTags.push(...customTags);
+  }
+  return findAnchorsInText(text, uri.fsPath, allTags, customTagPrefixes);
+}
+
 async function readFileText(uri: vscode.Uri): Promise<string> {
   const bytes = await vscode.workspace.fs.readFile(uri);
   return Buffer.from(bytes).toString('utf-8');

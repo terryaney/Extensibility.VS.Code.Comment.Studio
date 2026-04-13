@@ -15,7 +15,7 @@ import { CommentFoldingProvider, foldAllDocComments } from './rendering/commentF
 import { AnchorDecorationManager } from './anchors/anchorDecorationManager';
 import { AnchorTreeProvider } from './anchors/anchorTreeProvider';
 import { AnchorCache } from './anchors/anchorCache';
-import { scanWorkspace, scanDocument } from './anchors/workspaceScanner';
+import { scanWorkspace, scanDocument, scanFileUri } from './anchors/workspaceScanner';
 import { exportAnchorsToFile } from './anchors/anchorExporter';
 import { BUILTIN_ANCHOR_TYPES } from './anchors/anchorService';
 import { IssueLinkProvider } from './navigation/issueLinkProvider';
@@ -830,6 +830,54 @@ export function activate(context: vscode.ExtensionContext): void {
       anchorCache.update(document.uri.fsPath, enrichedAnchors);
       refreshAnchorPresentation('onDidSaveTextDocument');
       await anchorCache.save(context);
+    }),
+  );
+
+  // FileSystemWatcher — catches on-disk changes to closed files (e.g., SCM "Revert Changes").
+  // Open files are handled by onDidChangeTextDocument; this covers the gap for closed ones.
+  // Glob is scoped to the configured extensions at activation time; the handler re-checks config at runtime.
+  const watchedExtensions = config.fileExtensionsToScan.split(',').map(e => e.trim()).filter(e => e);
+  const fileWatcher = vscode.workspace.createFileSystemWatcher(`**/*.{${watchedExtensions.join(',')}}`);
+  const fileWatcherTimers = new Map<string, ReturnType<typeof setTimeout>>();
+
+  context.subscriptions.push(
+    fileWatcher,
+    fileWatcher.onDidChange(async (uri) => {
+      if (uri.scheme !== 'file') return;
+
+      // Skip files that are open — onDidChangeTextDocument already handles them.
+      const isOpen = vscode.workspace.textDocuments.some(doc => doc.uri.fsPath === uri.fsPath);
+      if (isOpen) return;
+
+      const currentConfig = getConfiguration();
+      const allowedExtensions = currentConfig.fileExtensionsToScan.split(',').map(e => e.trim().toLowerCase()).filter(e => e);
+      const ext = uri.fsPath.split('.').pop()?.toLowerCase() ?? '';
+      if (!allowedExtensions.includes(ext)) return;
+
+      const normalizedPath = uri.fsPath.replace(/\\/g, '/');
+      const ignoredFolders = currentConfig.foldersToIgnore.split(',').map(f => f.trim()).filter(f => f);
+      if (ignoredFolders.some(folder => normalizedPath.includes(`/${folder}/`))) return;
+
+      const existing = fileWatcherTimers.get(uri.fsPath);
+      if (existing) clearTimeout(existing);
+
+      fileWatcherTimers.set(uri.fsPath, setTimeout(async () => {
+        fileWatcherTimers.delete(uri.fsPath);
+        try {
+          const customTags = currentConfig.customTags.length ? currentConfig.customTags.map(t => t.trim().toUpperCase()).filter(t => t) : undefined;
+          const tagPrefixes = currentConfig.tagPrefixes ? currentConfig.tagPrefixes.split(',').map(p => p.trim()).filter(p => p) : undefined;
+          const anchors = await scanFileUri(uri, customTags, tagPrefixes);
+          if (discoveredProjects.length === 0) {
+            discoveredProjects = await discoverWorkspaceProjects(currentIgnoredFolders);
+          }
+          const enrichedAnchors = await enrichAnchorsWithMetadata(anchors, discoveredProjects);
+          anchorCache.update(uri.fsPath, enrichedAnchors);
+          refreshAnchorPresentation('fileWatcher-onDidChange');
+          await anchorCache.save(context);
+        } catch {
+          // File may have become inaccessible (deleted, permission change, etc.)
+        }
+      }, 200));
     }),
   );
 }

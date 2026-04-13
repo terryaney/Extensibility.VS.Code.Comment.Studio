@@ -4,7 +4,7 @@
 
 Transform raw XML doc comments and JSDoc blocks into clean inline summaries with workspace-wide code anchors, smart comment reflow, clickable issue links, and cross-file `LINK:` navigation — all inside VS Code.
 
-[⬇ Download v1.0.6 (.vsix)](https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/dist/kat-comment-studio-1.0.6.vsix)
+[⬇ Download v1.0.6 (.vsix)](https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/dist/kat-comment-studio-1.0.7.vsix)
 
 > **Note:** KAT Comment Studio is not on the VS Code Marketplace. Install via VSIX using the link above.
 
@@ -12,12 +12,12 @@ Transform raw XML doc comments and JSDoc blocks into clean inline summaries with
 
 ## Getting Started
 
-1. [Download the extension](https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/dist/kat-comment-studio-1.0.6.vsix).
+1. [Download the extension](https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/dist/kat-comment-studio-1.0.7.vsix).
 2. Press `Ctrl+Shift+P`, type `VSIX`, and select **Extensions: Install from VSIX...**
 
 ![Install from VSIX](media/install.png)
 
-3. Browse to the downloaded `kat-comment-studio-1.0.6.vsix` and select it.
+3. Browse to the downloaded `kat-comment-studio-1.0.7.vsix` and select it.
 
 Install [previous versions](#previous-versions) if needed.
 
@@ -870,7 +870,7 @@ In VS Code: **Extensions** panel → `⋯` menu (top-right) → **Install from V
 Or from the terminal:
 
 ```bash
-code --install-extension kat-comment-studio-1.0.6.vsix
+code --install-extension kat-comment-studio-1.0.7.vsix
 ```
 
 ### Running Tests
@@ -937,6 +937,7 @@ This extension is a port and adaptation of [madskristensen/CommentsVS](https://g
 
 ## Previous Versions
 
+1. [1.0.6](https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/dist/kat-comment-studio-1.0.6.vsix)
 1. [1.0.5](https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/dist/kat-comment-studio-1.0.5.vsix)
 1. [1.0.4](https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/dist/kat-comment-studio-1.0.4.vsix)
 1. [1.0.3](https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/dist/kat-comment-studio-1.0.3.vsix)
