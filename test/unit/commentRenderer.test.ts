@@ -635,9 +635,9 @@ function makeBlock(overrides: Partial<XmlDocCommentBlock> = {}): XmlDocCommentBl
   };
 }
 
-describe('◆ memberName Details fallback', () => {
+describe('memberName Details fallback', () => {
   describe('renderCommentBlock', () => {
-    it('uses ◆ name Details when summary is missing and memberName is set', () => {
+    it('uses name Details when summary is missing and memberName is set', () => {
       const block = makeBlock({
         xmlContent: '@param {string} id - The id.',
         languageId: 'javascript',
@@ -646,7 +646,7 @@ describe('◆ memberName Details fallback', () => {
       const result = renderCommentBlock(block);
       const summary = result.sections.find(s => s.type === CommentSectionType.Summary)!;
       const text = summary.lines.flatMap(l => l.segments).map(s => s.text).join('');
-      expect(text).toBe('◆ navigate Details');
+      expect(text).toBe('navigate Details');
     });
 
     it('does NOT override a real summary with member name', () => {
@@ -659,7 +659,7 @@ describe('◆ memberName Details fallback', () => {
       const summary = result.sections.find(s => s.type === CommentSectionType.Summary)!;
       const text = summary.lines.flatMap(l => l.segments).map(s => s.text).join('');
       expect(text).toContain('Real description');
-      expect(text).not.toContain('◆');
+      expect(text).not.toContain('MyMethod Details');
     });
 
     it('falls back to NO_SUMMARY_PLACEHOLDER when memberName is not set', () => {
@@ -673,7 +673,7 @@ describe('◆ memberName Details fallback', () => {
       expect(text).toBe(NO_SUMMARY_PLACEHOLDER);
     });
 
-    it('uses ◆ name Details for C# XML block without summary', () => {
+    it('uses name Details for C# XML block without summary', () => {
       const block = makeBlock({
         xmlContent: '<param name="id">The id.</param>',
         languageId: 'csharp',
@@ -682,18 +682,18 @@ describe('◆ memberName Details fallback', () => {
       const result = renderCommentBlock(block);
       const summary = result.sections.find(s => s.type === CommentSectionType.Summary)!;
       const text = summary.lines.flatMap(l => l.segments).map(s => s.text).join('');
-      expect(text).toBe('◆ GetById Details');
+      expect(text).toBe('GetById Details');
     });
   });
 
   describe('getStrippedSummary', () => {
-    it('returns ◆ name Details when summary is missing and memberName set', () => {
+    it('returns name Details when summary is missing and memberName set', () => {
       const block = makeBlock({
         xmlContent: '@param {string} id - The id.',
         languageId: 'javascript',
         memberName: 'navigate',
       });
-      expect(getStrippedSummary(block)).toBe('◆ navigate Details');
+      expect(getStrippedSummary(block)).toBe('navigate Details');
     });
 
     it('returns real summary text when present', () => {
@@ -705,9 +705,9 @@ describe('◆ memberName Details fallback', () => {
       expect(getStrippedSummary(block)).toBe('Does the work.');
     });
 
-    it('returns ◆ name Details for empty xmlContent with memberName', () => {
+    it('returns name Details for empty xmlContent with memberName', () => {
       const block = makeBlock({ xmlContent: '', memberName: 'myVar' });
-      expect(getStrippedSummary(block)).toBe('◆ myVar Details');
+      expect(getStrippedSummary(block)).toBe('myVar Details');
     });
 
     it('returns NO_SUMMARY_PLACEHOLDER for empty xmlContent without memberName', () => {

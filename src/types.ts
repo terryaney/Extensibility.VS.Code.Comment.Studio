@@ -31,6 +31,7 @@ export interface CommentStudioConfig {
   enableReflowOnCommentExit: boolean;
   collapseXmlWhenRenderingOff: boolean;
   interceptF1ForComments: boolean;
+  showAnchorCountBadges: boolean;
 
   // Visual settings
   codeLensSummaryTruncation: number;

@@ -2,7 +2,7 @@
   "name": "kat-comment-studio",
   "displayName": "KAT Comment Studio",
   "description": "XML documentation comment rendering, reflow, code anchors, and link navigation for VS Code",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "publisher": "conduent-kat-team",
   "author": {
     "name": "Terry Aney",
@@ -291,9 +291,6 @@
 		  "order": 7
         },
 
-
-
-
 		"kat-comment-studio.anchorColorizeMode": {
           "type": "string",
           "enum": [
@@ -353,6 +350,12 @@
           "default": true,
           "description": "Automatically scan workspace for code anchors on activation",
 		  "order": 13
+        },
+        "kat-comment-studio.showAnchorCountBadges": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show a count badge on the sidebar icon and highlight the status bar yellow until the Code Anchors pane is viewed. Disable to suppress both the badge and the yellow highlight.",
+		  "order": 14
         }
       }
     },

@@ -24,7 +24,6 @@ export class AnchorsGridProvider implements vscode.WebviewViewProvider, vscode.D
 
   private view: vscode.WebviewView | undefined;
   private _webviewReady = false;
-  private _lastBadgeCount = 0;
   private model: AnchorsGridModel = {
     anchors: [],
     availableTypes: [],
@@ -129,13 +128,11 @@ export class AnchorsGridProvider implements vscode.WebviewViewProvider, vscode.D
 
     webviewView.onDidChangeVisibility(() => {
       if (webviewView.visible) {
-        this.applyBadge(this._lastBadgeCount);
         this.pushModel();
       }
     });
 
     this.applyViewMetadata();
-    this.applyBadge(this._lastBadgeCount);
     this.onViewResolved();
   }
 
@@ -194,26 +191,6 @@ export class AnchorsGridProvider implements vscode.WebviewViewProvider, vscode.D
     this.view.description = isFiltered
       ? `⊜ ${this.model.scopeLabel}`
       : this.model.scopeLabel;
-  }
-
-  applyBadge(count: number): void {
-    this._lastBadgeCount = count;
-    if (!this.view) {
-      return;
-    }
-
-    // Always set a ViewBadge object — never undefined.
-    // WebviewView.badge = undefined is unreliable (VS Code doesn't always clear the UI).
-    // { value: 0 } causes VS Code to hide the badge naturally.
-    const isFiltered = this.isFilterActive();
-    this.view.badge = {
-      tooltip: count > 0
-        ? (isFiltered
-            ? `Code Anchors (filtered ${count} of ${this.model.totalCount})`
-            : `${count} code anchor${count === 1 ? '' : 's'}`)
-        : '',
-      value: count,
-    };
   }
 
   private isFilterActive(): boolean {

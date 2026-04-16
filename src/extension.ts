@@ -272,6 +272,8 @@ export function activate(context: vscode.ExtensionContext): void {
       vscode.commands.executeCommand('setContext', 'kat-comment-studio.renderingActive', newConfig.xmlCommentRendering);
       updateRenderingStatusBar(renderingOn);
 
+      refreshAnchorPresentation('configChanged');
+
       // Re-evaluate interceptF1Active when config changes
       updateCursorInCommentContext(vscode.window.activeTextEditor);
     })
@@ -484,14 +486,10 @@ export function activate(context: vscode.ExtensionContext): void {
     (includedTypes) => {
       updateAnchorViewState({ includedTypes });
     },
-    // search query change — badge updated synchronously on host; full refresh debounced 300ms
+    // search query change — full refresh debounced 300ms
     (searchQuery) => {
       anchorSearchLatestQuery = searchQuery;
       katLog(`[KAT-BADGE] onSearchQueryChange called with: '${searchQuery}', resetting 300ms timer`);
-      // Badge computed immediately in host — same thread, no IPC, no race conditions
-      const badgeAnchors = filterAnchors(anchorCache.getAll(), { ...anchorViewState, searchQuery }, getCurrentAnchorFilterContext());
-      katLog(`[KAT-BADGE] immediate badge count: ${badgeAnchors.length}`);
-      anchorsGridProvider.applyBadge(anchorStatusBarHighlighted ? badgeAnchors.length : 0);
       clearTimeout(anchorSearchDebounceTimer);
       anchorSearchDebounceTimer = setTimeout(() => {
         katLog(`[KAT-BADGE] debounce FIRED with searchQuery='${anchorSearchLatestQuery}'`);
@@ -565,12 +563,15 @@ export function activate(context: vscode.ExtensionContext): void {
     }
   }
 
+  function isHighlightActive(): boolean {
+    return anchorStatusBarHighlighted && getConfiguration().showAnchorCountBadges;
+  }
+
   function markAnchorsAcknowledged(): void {
     if (!anchorStatusBarHighlighted) return;
     anchorStatusBarHighlighted = false;
     anchorStatusBarItem.color = undefined;
     treeView.badge = undefined;
-    anchorsGridProvider.applyBadge(0);
   }
 
   function refreshAnchorPresentation(caller = 'unknown'): void {
@@ -612,7 +613,7 @@ export function activate(context: vscode.ExtensionContext): void {
     treeView.description = filteredAnchors.length === allAnchors.length
       ? `${filteredAnchors.length}`
       : `${filteredAnchors.length}/${allAnchors.length}`;
-    treeView.badge = (anchorStatusBarHighlighted && filteredAnchors.length > 0)
+    treeView.badge = (isHighlightActive() && filteredAnchors.length > 0)
       ? {
           value: filteredAnchors.length,
           tooltip: `${filteredAnchors.length} code anchor${filteredAnchors.length === 1 ? '' : 's'}`,
@@ -625,10 +626,9 @@ export function activate(context: vscode.ExtensionContext): void {
     anchorStatusBarItem.tooltip = badgeAnchors.length === allAnchors.length
       ? `KAT Comment Studio - View ${badgeAnchors.length} Code Anchor${badgeAnchors.length === 1 ? '' : 's'}`
       : `KAT Comment Studio - View ${badgeAnchors.length} of ${allAnchors.length} Code Anchors (filtered)`;
-    anchorStatusBarItem.color = (anchorStatusBarHighlighted && badgeAnchors.length > 0) ? anchorHighlightColor : undefined;
+    anchorStatusBarItem.color = (isHighlightActive() && badgeAnchors.length > 0) ? anchorHighlightColor : undefined;
     anchorStatusBarItem.show();
 
-    anchorsGridProvider.applyBadge(anchorStatusBarHighlighted ? badgeAnchors.length : 0);
     anchorsGridProvider.updateModel({
       anchors: scopeOnlyAnchors,
       availableTypes: getAvailableAnchorTypes(scopeOnlyAnchors),

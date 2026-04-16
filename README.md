@@ -4,7 +4,7 @@
 
 Transform raw XML doc comments and JSDoc blocks into clean inline summaries with workspace-wide code anchors, smart comment reflow, clickable issue links, and cross-file `LINK:` navigation — all inside VS Code.
 
-[⬇ Download v1.0.6 (.vsix)](https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/dist/kat-comment-studio-1.0.8.vsix)
+[⬇ Download v1.0.6 (.vsix)](https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/dist/kat-comment-studio-1.0.9.vsix)
 
 > **Note:** KAT Comment Studio is not on the VS Code Marketplace. Install via VSIX using the link above.
 
@@ -12,12 +12,12 @@ Transform raw XML doc comments and JSDoc blocks into clean inline summaries with
 
 ## Getting Started
 
-1. [Download the extension](https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/dist/kat-comment-studio-1.0.8.vsix).
+1. [Download the extension](https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/dist/kat-comment-studio-1.0.9.vsix).
 2. Press `Ctrl+Shift+P`, type `VSIX`, and select **Extensions: Install from VSIX...**
 
 ![Install from VSIX](media/install.png)
 
-3. Browse to the downloaded `kat-comment-studio-1.0.8.vsix` and select it.
+3. Browse to the downloaded `kat-comment-studio-1.0.9.vsix` and select it.
 
 Install [previous versions](#previous-versions) if needed.
 
@@ -343,7 +343,7 @@ Access via: Command Palette → `Focus on KAT Comment Studio - Code Anchors View
 An anchor count badge is always visible in the VS Code status bar:
 
 - Shows **`N Anchors`** (total visible anchors after scope and type filters)
-- **Highlighted** in warning yellow until you open the Code Anchors pane for the first time
+- **Highlighted** in warning yellow until you open the Code Anchors pane for the first time (controlled by `showAnchorCountBadges`)
 - **Click** to focus the Code Anchors grid panel
 
 The badge updates live as you scan, filter, or search.
@@ -745,6 +745,7 @@ Controls which files, folders, languages, and tags are processed. Only override 
 | `enablePrefixHighlighting` | `boolean` | `true` | Enable Better Comments-style prefix highlighting. |
 | `patternProcessing` | `object` | *(see keys)* | Controls which files, folders, languages, and tags are processed. See [Pattern Processing](#pattern-processing). |
 | `scanOnLoad` | `boolean` | `true` | Automatically scan workspace for code anchors on activation. |
+| `showAnchorCountBadges` | `boolean` | `true` | Show a count badge on the sidebar icon and highlight the status bar yellow until the Code Anchors pane is viewed. Disable to suppress both. |
 
 ---
 
@@ -870,7 +871,7 @@ In VS Code: **Extensions** panel → `⋯` menu (top-right) → **Install from V
 Or from the terminal:
 
 ```bash
-code --install-extension kat-comment-studio-1.0.8.vsix
+code --install-extension kat-comment-studio-1.0.9.vsix
 ```
 
 ### Running Tests
@@ -937,6 +938,7 @@ This extension is a port and adaptation of [madskristensen/CommentsVS](https://g
 
 ## Previous Versions
 
+1. [1.0.8](https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/dist/kat-comment-studio-1.0.8.vsix)
 1. [1.0.7](https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/dist/kat-comment-studio-1.0.7.vsix)
 1. [1.0.6](https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/dist/kat-comment-studio-1.0.6.vsix)
 1. [1.0.5](https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/dist/kat-comment-studio-1.0.5.vsix)

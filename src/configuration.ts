@@ -32,6 +32,7 @@ export function getConfiguration(): CommentStudioConfig {
     enableReflowOnCommentExit: config.get<boolean>('enableReflowOnCommentExit', true),
     collapseXmlWhenRenderingOff: config.get<boolean>('collapseXmlWhenRenderingOff', false),
     interceptF1ForComments: config.get<boolean>('interceptF1ForComments', true),
+    showAnchorCountBadges: config.get<boolean>('showAnchorCountBadges', true),
 
     // Visual
     codeLensSummaryTruncation: config.get<number>('codeLensSummaryTruncation', 205),

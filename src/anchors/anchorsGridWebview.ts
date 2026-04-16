@@ -73,8 +73,43 @@ export function generateAnchorsGridHtml(nonce: string, codiconsCssUri: string, c
       max-width: 260px;
     }
 
+    .search-wrapper {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+    }
+
     .search-input {
       width: 220px;
+      padding-right: 24px;
+    }
+
+    .search-clear-btn {
+      position: absolute;
+      right: 4px;
+      top: 50%;
+      transform: translateY(-50%);
+      display: none;
+      background: none;
+      border: none;
+      padding: 0;
+      cursor: pointer;
+      color: var(--vscode-icon-foreground);
+      font-size: 14px;
+      line-height: 1;
+      opacity: 0.7;
+    }
+
+    .search-clear-btn:hover {
+      opacity: 1;
+      color: var(--vscode-textLink-foreground);
+    }
+
+    .anchor-count-label {
+      font-size: 11px;
+      color: var(--vscode-descriptionForeground);
+      white-space: nowrap;
+      flex-shrink: 0;
     }
 
     .scope-select:focus,
@@ -323,8 +358,12 @@ export function generateAnchorsGridHtml(nonce: string, codiconsCssUri: string, c
   <div class="toolbar">
     <span class="codicon codicon-surround-with toolbar-icon" title="Anchor Scope"></span>
     <select class="scope-select" id="scopeSelect"></select>
+    <span class="anchor-count-label" id="anchorCountLabel"></span>
     <span class="codicon codicon-list-filter toolbar-icon toolbar-icon-btn filter-search-icon" id="filterTypeBtn" title="Filter Anchor Types"></span>
-    <input type="text" class="search-input" id="searchInput" placeholder="Filter anchor text..." />
+    <div class="search-wrapper">
+      <input type="text" class="search-input" id="searchInput" placeholder="Filter anchor text..." />
+      <button class="search-clear-btn" id="searchClearBtn" title="Clear filter"><span class="codicon codicon-close"></span></button>
+    </div>
   </div>
   <div class="grid-container" id="gridContainer">
     <table id="anchorsTable">
@@ -391,6 +430,8 @@ export function generateAnchorsGridHtml(nonce: string, codiconsCssUri: string, c
     const emptyHint = document.getElementById('emptyHint');
     const table = document.getElementById('anchorsTable');
     const searchInput = document.getElementById('searchInput');
+    const searchClearBtn = document.getElementById('searchClearBtn');
+    const anchorCountLabel = document.getElementById('anchorCountLabel');
     const filterTypeBtn = document.getElementById('filterTypeBtn');
     const scopeSelect = document.getElementById('scopeSelect');
     const gridContainer = document.getElementById('gridContainer');
@@ -405,9 +446,20 @@ export function generateAnchorsGridHtml(nonce: string, codiconsCssUri: string, c
     searchInput.addEventListener('input', () => {
       model.state.searchQuery = searchInput.value;
       vscode.postMessage({ type: 'debugLog', message: '[KAT-BADGE WV] input event, searchQuery=' + JSON.stringify(model.state.searchQuery) });
+      searchClearBtn.style.display = searchInput.value !== '' ? 'block' : 'none';
       persistLocalState();
       render();
       vscode.postMessage({ type: 'setSearchQuery', searchQuery: model.state.searchQuery });
+    });
+
+    searchClearBtn.addEventListener('click', () => {
+      searchInput.value = '';
+      model.state.searchQuery = '';
+      searchClearBtn.style.display = 'none';
+      persistLocalState();
+      render();
+      vscode.postMessage({ type: 'setSearchQuery', searchQuery: '' });
+      searchInput.focus();
     });
 
     scopeSelect.addEventListener('change', () => {
@@ -543,6 +595,7 @@ export function generateAnchorsGridHtml(nonce: string, codiconsCssUri: string, c
       if (document.activeElement !== searchInput && searchInput.value !== model.state.searchQuery) {
         searchInput.value = model.state.searchQuery;
       }
+      searchClearBtn.style.display = searchInput.value !== '' ? 'block' : 'none';
     }
 
     function buildScopeOptions() {
@@ -668,6 +721,14 @@ export function generateAnchorsGridHtml(nonce: string, codiconsCssUri: string, c
       const filtered = getFilteredAnchors();
       vscode.postMessage({ type: 'debugLog', message: '[KAT-BADGE WV] render() called, searchQuery=' + JSON.stringify(model.state.searchQuery) + ', anchors=' + model.anchors.length + ', filtered=' + filtered.length });
       const sorted = getSortedAnchors(filtered);
+
+      // Update anchor count label
+      if (filtered.length > 0) {
+        const fileCount = new Set(filtered.map((a) => a.filePath)).size;
+        anchorCountLabel.textContent = filtered.length + ' anchor' + (filtered.length === 1 ? '' : 's') + ' in ' + fileCount + ' file' + (fileCount === 1 ? '' : 's');
+      } else {
+        anchorCountLabel.textContent = 'No anchors found';
+      }
 
       if (sorted.length === 0) {
         body.innerHTML = '';
