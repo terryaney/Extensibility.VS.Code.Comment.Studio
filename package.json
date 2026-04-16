@@ -2,7 +2,7 @@
   "name": "kat-comment-studio",
   "displayName": "KAT Comment Studio",
   "description": "XML documentation comment rendering, reflow, code anchors, and link navigation for VS Code",
-  "version": "1.0.9",
+  "version": "1.0.10",
   "publisher": "conduent-kat-team",
   "author": {
     "name": "Terry Aney",

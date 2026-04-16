@@ -63,13 +63,13 @@ export class AnchorsGridProvider implements vscode.WebviewViewProvider, vscode.D
     webviewView.webview.options = {
       enableScripts: true,
       localResourceRoots: [
-        vscode.Uri.joinPath(this.extensionUri, 'node_modules', '@vscode', 'codicons'),
+        vscode.Uri.joinPath(this.extensionUri, 'media'),
       ],
     };
 
     const nonce = getNonce();
     const codiconsCssUri = webviewView.webview.asWebviewUri(
-      vscode.Uri.joinPath(this.extensionUri, 'node_modules', '@vscode', 'codicons', 'dist', 'codicon.css'),
+      vscode.Uri.joinPath(this.extensionUri, 'media', 'codicon.css'),
     );
     const cspSource = webviewView.webview.cspSource;
     webviewView.webview.html = generateAnchorsGridHtml(nonce, codiconsCssUri.toString(), cspSource);
