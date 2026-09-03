@@ -4,7 +4,7 @@
 
 Transform raw XML doc comments and JSDoc blocks into clean inline summaries with workspace-wide code anchors, smart comment reflow, clickable issue links, and cross-file `LINK:` navigation — all inside VS Code.
 
-[⬇ Download v1.0.6 (.vsix)](https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/dist/kat-comment-studio-1.0.10.vsix)
+[⬇ Download v1.0.6 (.vsix)](https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/dist/kat-comment-studio-1.0.11.vsix)
 
 > **Note:** KAT Comment Studio is not on the VS Code Marketplace. Install via VSIX using the link above.
 
@@ -12,12 +12,12 @@ Transform raw XML doc comments and JSDoc blocks into clean inline summaries with
 
 ## Getting Started
 
-1. [Download the extension](https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/dist/kat-comment-studio-1.0.10.vsix).
+1. [Download the extension](https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/dist/kat-comment-studio-1.0.11.vsix).
 2. Press `Ctrl+Shift+P`, type `VSIX`, and select **Extensions: Install from VSIX...**
 
 ![Install from VSIX](media/install.png)
 
-3. Browse to the downloaded `kat-comment-studio-1.0.10.vsix` and select it.
+3. Browse to the downloaded `kat-comment-studio-1.0.11.vsix` and select it.
 
 Install [previous versions](#previous-versions) if needed.
 
@@ -154,8 +154,9 @@ Here is the same block from above after reflow — before rendering is applied:
 
 1. XML elements are never split. The entire `<paramref>` element is moved to the next line as a unit.
 2. All lines are adjusted to fit within `kat-comment-studio.reflowLineLength`.
-3. Unnecessary blank lines between XML elements are removed.
+3. Blank lines directly after an opening tag (for example `<summary>`) are removed. A blank line you placed *between* two elements is kept — that spacing is treated as intentional.
 4. `<summary>` is always forced onto its own line.
+5. If a `<summary>` starts with a `<para>` but later content is left untagged, the loose content is wrapped in `<para>` elements too (split on blank lines), so the whole summary is consistently paragraphed.
 
 ![XML comment block after reflow](./media/xml.comments.after.reflow.png)
 
@@ -172,15 +173,28 @@ The extension does not register a document or range formatting provider, avoidin
 
 ### Smart Paste
 
-Pasting text into an XML doc comment block automatically reflows the entire block.
+Pasting text into an XML doc comment block reflows the entire block — but only once the caret has left the block. While you are still editing inside the comment, no reformatting is applied, so pasting and then typing never fights your cursor.
 
 Controlled by `kat-comment-studio.enableReflowOnPaste` (default: `true`).
 
 ### Auto-Reflow on Edit Exit
 
-When you leave a doc comment block after editing, the block is automatically reflowed.
+When you leave a doc comment block after editing, the block is automatically reflowed. This is the *only* point at which the extension reformats a comment you have edited — nothing is reflowed while the caret is inside the block.
+
+The reflow does not fire the instant you leave. It is held for `kat-comment-studio.autoCollapseDelay` milliseconds (default `1000`), so reflow and auto-collapse happen together rather than the text shifting while the block is still expanded. If you move the caret back into the block before that delay elapses, the queued reflow is cancelled and the block stays exactly as you left it — it is re-queued the next time you leave.
+
+The reflow is recorded as its own undo step, so `Ctrl+Z` immediately after leaving a comment reverts the reflow and leaves your text as you typed it. Undo and redo never re-trigger a reflow.
 
 Controlled by `kat-comment-studio.enableReflowOnCommentExit` (default: `true`).
+
+### Auto-Expand and Auto-Collapse Timing
+
+A folded comment expands shortly after the caret enters it, and re-collapses shortly after the caret leaves. Both delays are configurable:
+
+| Setting | Default | Description |
+|---|---|---|
+| `kat-comment-studio.autoExpandDelay` | `500` | Milliseconds before a folded block expands once the caret enters it. |
+| `kat-comment-studio.autoCollapseDelay` | `1000` | Milliseconds before an expanded block re-collapses once the caret leaves it. Also gates how long the exit-reflow waits before rewriting the block. |
 
 ### Line Width
 
@@ -735,6 +749,8 @@ Controls which files, folders, languages, and tags are processed. Only override 
 | `xmlCommentOpacity` | `integer` | `40` | Opacity percentage (0-100) for dimmed original comments. 0 = fully invisible; 100 = no dimming. |
 | `codeLensSummaryTruncation` | `number` | `205` | Maximum characters for the CodeLens summary text. Set to 0 for no truncation. |
 | `reflowLineLength` | `number` | `120` | Maximum line width for comment reflow. Can be overridden by `.editorconfig max_line_length`. |
+| `autoExpandDelay` | `number` | `500` | Milliseconds before a folded XML comment auto-expands after the cursor enters it. |
+| `autoCollapseDelay` | `number` | `1000` | Milliseconds before an expanded XML comment auto-collapses after the cursor leaves it. Also delays the exit-reflow by the same amount. |
 | `enableReflowOnCommentExit` | `boolean` | `true` | Automatically reflow a comment block when the cursor leaves it after editing. |
 | `enableReflowOnPaste` | `boolean` | `true` | Automatically reflow comment blocks when pasting text into them. |
 | `interceptF1ForComments` | `boolean` | `true` | Press F1 inside or below an XML doc comment to show the KAT tooltip instead of the VS Code help menu. |
@@ -871,7 +887,7 @@ In VS Code: **Extensions** panel → `⋯` menu (top-right) → **Install from V
 Or from the terminal:
 
 ```bash
-code --install-extension kat-comment-studio-1.0.10.vsix
+code --install-extension kat-comment-studio-1.0.11.vsix
 ```
 
 ### Running Tests
@@ -938,6 +954,7 @@ This extension is a port and adaptation of [madskristensen/CommentsVS](https://g
 
 ## Previous Versions
 
+1. [1.0.10](https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/dist/kat-comment-studio-1.0.10.vsix)
 1. [1.0.9](https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/dist/kat-comment-studio-1.0.9.vsix)
 1. [1.0.8](https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/dist/kat-comment-studio-1.0.8.vsix)
 1. [1.0.7](https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/dist/kat-comment-studio-1.0.7.vsix)

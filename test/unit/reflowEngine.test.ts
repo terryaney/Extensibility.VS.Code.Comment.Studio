@@ -253,3 +253,84 @@ describe('reflowXmlContent', () => {
     expect(beforeIdx).toBeLessThan(paraIdx);
   });
 });
+
+describe('summary <para> normalisation', () => {
+  it('wraps loose content in <para> when the summary starts with a <para>', () => {
+    const lines = [
+      '<summary>',
+      '<para>The guided tasks this participant is entitled to.</para>',
+      "xDS 'aiAgents' rows the site also has a definition for. Row presence is the entitlement — there is no separate",
+      'enabled flag — so an agent absent from the table is invisible to the model, cannot be proposed.',
+      '',
+      'Resolved here rather than in AgentDefinitionLoader because that cache is static and keyed by site alone, with',
+      'no user dimension.',
+      '</summary>',
+    ];
+
+    const result = reflowXmlContent(lines, 120, '\t', csharpStyle);
+
+    // Three <para> elements, no blank lines, nothing lost.
+    expect(result.filter(l => l.startsWith('<para>'))).toHaveLength(3);
+    expect(result.filter(l => l.endsWith('</para>'))).toHaveLength(3);
+    expect(result).not.toContain('');
+    expect(result.join(' ')).toContain('Resolved here rather than in AgentDefinitionLoader');
+    expect(result.join(' ')).toContain('no user dimension.</para>');
+  });
+
+  it('is idempotent — re-running produces the same output', () => {
+    const lines = [
+      '<summary>',
+      '<para>Intro.</para>',
+      'Loose tail that was never wrapped.',
+      '</summary>',
+    ];
+
+    const once = reflowXmlContent(lines, 120, '', csharpStyle);
+    const twice = reflowXmlContent(once, 120, '', csharpStyle);
+    expect(twice).toEqual(once);
+  });
+
+  it('leaves a summary alone when the first element is not a <para>', () => {
+    const lines = [
+      '<summary>',
+      'Lead text that is not in a para.',
+      '<para>Second.</para>',
+      '</summary>',
+    ];
+
+    const result = reflowXmlContent(lines, 120, '', csharpStyle);
+    expect(result).toContain('Lead text that is not in a para.');
+    expect(result.filter(l => l.startsWith('<para>'))).toHaveLength(1);
+  });
+
+  it('does not wrap structural elements such as <code> or <list>', () => {
+    const lines = [
+      '<summary>',
+      '<para>Intro.</para>',
+      '<code>',
+      '  var x = 1;',
+      '</code>',
+      '</summary>',
+    ];
+
+    const result = reflowXmlContent(lines, 120, '', csharpStyle);
+    expect(result).toContain('<code>');
+    expect(result).toContain('  var x = 1;');
+    expect(result.filter(l => l.startsWith('<para>'))).toHaveLength(1);
+  });
+
+  it('preserves an author-inserted blank line between two <para> elements', () => {
+    const lines = [
+      '<summary>',
+      '<para>First para.</para>',
+      '',
+      '<para>Second para.</para>',
+      '</summary>',
+    ];
+
+    const result = reflowXmlContent(lines, 120, '', csharpStyle);
+    const firstClose = result.findIndex(l => l.endsWith('</para>'));
+    expect(result[firstClose + 1]).toBe('');
+    expect(result[firstClose + 2]).toContain('Second para.');
+  });
+});

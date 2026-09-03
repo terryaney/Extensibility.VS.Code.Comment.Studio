@@ -17,6 +17,10 @@ export function getConfiguration(): CommentStudioConfig {
     // Reflow
     reflowLineLength: config.get<number>('reflowLineLength', 120),
 
+    // Fold/unfold timing
+    autoExpandDelay: config.get<number>('autoExpandDelay', 500),
+    autoCollapseDelay: config.get<number>('autoCollapseDelay', 1000),
+
     // Anchors
     customTags: splitTrim(pp['customTags'] ?? ''),
     tagPrefixes: pp['tagPrefixes'] ?? '@, $',

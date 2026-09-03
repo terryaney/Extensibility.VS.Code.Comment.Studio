@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { computeMinimalEditRange } from '../../src/reflow/reflowUtils';
+import { computeMinimalEditRange, isDoubledCommentPrefix, collapseDuplicatedPrefix } from '../../src/reflow/reflowUtils';
 
 describe('computeMinimalEditRange', () => {
   it('returns null when old and new lines are identical', () => {
@@ -87,5 +87,33 @@ describe('computeMinimalEditRange', () => {
     expect(result).not.toBeNull();
     expect(result!.range.startLine).toBe(21);
     expect(result!.range.endLine).toBe(21);
+  });
+});
+
+describe('duplicated comment prefix repair', () => {
+  it('detects a prefix-only line with two /// prefixes', () => {
+    expect(isDoubledCommentPrefix('\t/// /// ')).toBe(true);
+    expect(isDoubledCommentPrefix('    //////')).toBe(true);
+  });
+
+  it('does not treat a normal comment line as doubled', () => {
+    expect(isDoubledCommentPrefix('\t/// Some text')).toBe(false);
+    expect(isDoubledCommentPrefix('\t/// ')).toBe(false);
+    expect(isDoubledCommentPrefix('\t//// ')).toBe(false);
+    expect(isDoubledCommentPrefix('\t// // ')).toBe(false);
+  });
+
+  it('collapses a doubled prefix back to a single one, keeping indentation', () => {
+    expect(collapseDuplicatedPrefix('\t/// /// ')).toBe('\t/// ');
+    expect(collapseDuplicatedPrefix('    /// ///')).toBe('    /// ');
+  });
+
+  it('keeps trailing content when collapsing', () => {
+    expect(collapseDuplicatedPrefix('\t/// /// Typing in comment')).toBe('\t/// Typing in comment');
+  });
+
+  it('returns undefined for a line that needs no repair', () => {
+    expect(collapseDuplicatedPrefix('\t/// Typing in comment')).toBeUndefined();
+    expect(collapseDuplicatedPrefix('        var x = 1;')).toBeUndefined();
   });
 });

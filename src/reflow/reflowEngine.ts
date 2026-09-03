@@ -91,6 +91,124 @@ export function reflowCommentBlock(block: XmlDocCommentBlock, options: ReflowOpt
 }
 
 /**
+ * Wraps loose (un-paragraphed) content inside a <summary> in <para> elements when the
+ * summary already starts with a <para>. Mixed content — some paragraphs tagged, the rest
+ * bare — renders inconsistently, so we normalise to "all <para>". Loose content is split
+ * into paragraphs on blank lines.
+ *
+ * Only applies when:
+ *   - the first non-blank element in the summary is a <para>, and
+ *   - at least one loose plain-text chunk follows.
+ * A summary that is entirely <para> elements is left untouched (including any blank
+ * separator lines the author added between them).
+ */
+export function wrapLooseSummaryParagraphs(lines: string[]): string[] {
+  const startIdx = lines.findIndex(l => l.trim().toLowerCase() === '<summary>');
+  if (startIdx === -1) return lines;
+  const endIdx = lines.findIndex((l, i) => i > startIdx && l.trim().toLowerCase() === '</summary>');
+  if (endIdx === -1) return lines;
+
+  const interior = lines.slice(startIdx + 1, endIdx);
+
+  type Item =
+    | { kind: 'para'; lines: string[] }
+    | { kind: 'blank' }
+    | { kind: 'loose'; line: string }
+    | { kind: 'other'; lines: string[] };
+
+  const items: Item[] = [];
+  let i = 0;
+  let sawPara = false;
+  let firstIsPara = false;
+  let sawLoose = false;
+
+  while (i < interior.length) {
+    const trimmed = interior[i].trim();
+
+    if (!trimmed) {
+      items.push({ kind: 'blank' });
+      i++;
+      continue;
+    }
+
+    const openTag = trimmed.match(/^<(\w+)/)?.[1]?.toLowerCase();
+
+    if (openTag === 'para') {
+      const paraLines: string[] = [];
+      // Consume until the line closing this <para>, or a line that opens a new one.
+      while (i < interior.length) {
+        const cur = interior[i];
+        paraLines.push(cur);
+        i++;
+        if (/<\/para>\s*$/i.test(cur.trim())) break;
+        const nextTag = interior[i]?.trim().match(/^<(\w+)/)?.[1]?.toLowerCase();
+        if (nextTag === 'para') break;
+      }
+      if (items.every(it => it.kind === 'blank')) firstIsPara = true;
+      sawPara = true;
+      items.push({ kind: 'para', lines: paraLines });
+      continue;
+    }
+
+    if (openTag && BLOCK_TAGS.has(openTag)) {
+      // Some other structural element (code, list, ...) — copy verbatim and never wrap.
+      const otherLines: string[] = [];
+      const closeRe = new RegExp(`</${openTag}>\\s*$`, 'i');
+      while (i < interior.length) {
+        const cur = interior[i];
+        otherLines.push(cur);
+        i++;
+        if (closeRe.test(cur.trim())) break;
+      }
+      items.push({ kind: 'other', lines: otherLines });
+      continue;
+    }
+
+    sawLoose = true;
+    items.push({ kind: 'loose', line: interior[i] });
+    i++;
+  }
+
+  if (!sawPara || !firstIsPara || !sawLoose) return lines;
+
+  const rebuilt: string[] = [];
+  let looseChunk: string[] = [];
+
+  const flushLoose = (): void => {
+    if (looseChunk.length === 0) return;
+    const wrapped = [...looseChunk];
+    wrapped[0] = `<para>${wrapped[0].trim()}`;
+    wrapped[wrapped.length - 1] = `${wrapped[wrapped.length - 1].trim()}</para>`;
+    rebuilt.push(...wrapped);
+    looseChunk = [];
+  };
+
+  for (const item of items) {
+    switch (item.kind) {
+      case 'loose':
+        looseChunk.push(item.line);
+        break;
+      case 'blank':
+        // A blank between loose lines ends the paragraph; the <para> now carries the
+        // separation, so the blank itself is dropped.
+        if (looseChunk.length > 0) {
+          flushLoose();
+        } else {
+          rebuilt.push('');
+        }
+        break;
+      default:
+        flushLoose();
+        rebuilt.push(...item.lines);
+        break;
+    }
+  }
+  flushLoose();
+
+  return [...lines.slice(0, startIdx + 1), ...rebuilt, ...lines.slice(endIdx)];
+}
+
+/**
  * Reflows raw XML content lines to fit within maxWidth.
  */
 export function reflowXmlContent(
@@ -107,6 +225,7 @@ export function reflowXmlContent(
   }
 
   lines = normalizeLines(lines);
+  lines = wrapLooseSummaryParagraphs(lines);
 
   const result: string[] = [];
   let i = 0;
@@ -119,17 +238,12 @@ export function reflowXmlContent(
   while (i < lines.length) {
     const line = lines[i].trim();
 
-    // Empty line - preserve as paragraph break, but skip blanks that fall
-    // between a closing block tag and an opening block tag (e.g. between
-    // consecutive <para> elements) since <para> itself provides separation.
+    // Empty line - preserve as paragraph break. Blank lines directly after an opening
+    // block tag (e.g. <summary>) are dropped, but a blank the author placed *between*
+    // two elements (e.g. </para> … <para>) is kept — that spacing is intentional.
     if (!line) {
       const prevEntry = result.length > 0 ? result[result.length - 1] : '';
       const nextLine = findNextNonEmpty(lines, i + 1);
-      const prevEndsWithBlockClose = (() => {
-        if (!prevEntry) return false;
-        const m = prevEntry.match(/<\/(\w+)>\s*$/);
-        return m !== null && BLOCK_TAGS.has(m[1].toLowerCase());
-      })();
       const prevIsBlockOpen = (() => {
         if (!prevEntry) return false;
         const m = prevEntry.match(XML_OPEN_TAG_REGEX);
@@ -140,7 +254,7 @@ export function reflowXmlContent(
         const m = nextLine.match(/^<(\w+)/);
         return m !== null && BLOCK_TAGS.has(m[1].toLowerCase());
       })();
-      if ((prevEndsWithBlockClose || prevIsBlockOpen) && nextStartsWithBlockTag) {
+      if (prevIsBlockOpen && nextStartsWithBlockTag) {
         i++;
         continue;
       }
@@ -209,15 +323,16 @@ export function reflowXmlContent(
         }
 
         if (contentLine === '') {
-          // Paragraph break within block — suppress if the next non-empty line is a
-          // block tag opener (open-open or close-open pattern); <para> provides its own separation.
+          // Paragraph break within block. Suppress only when it sits directly after the
+          // block's opening tag; a blank the author put between two child elements
+          // (e.g. between <para> blocks) is intentional spacing and is preserved.
           if (contentLines.length > 0) {
             result.push(...wrapParagraph(contentLines.join(' '), effectiveWidth));
             contentLines.length = 0;
           }
-          const nextNonEmpty = findNextNonEmpty(lines, i + 1);
-          const nextM = nextNonEmpty?.match(/^<(\w+)/);
-          if (!nextM || !BLOCK_TAGS.has(nextM[1].toLowerCase())) {
+          const prevEntry = result.length > 0 ? result[result.length - 1] : '';
+          const prevIsBlockOpen = XML_OPEN_TAG_REGEX.test(prevEntry);
+          if (prevEntry !== '' && !prevIsBlockOpen) {
             result.push('');
           }
         } else {

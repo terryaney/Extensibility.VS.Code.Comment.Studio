@@ -16,6 +16,10 @@ export interface CommentStudioConfig {
   // Reflow settings
   reflowLineLength: number;
 
+  // Fold/unfold timing (ms)
+  autoExpandDelay: number;
+  autoCollapseDelay: number;
+
   // Anchor settings
   customTags: string[];
   tagPrefixes: string;

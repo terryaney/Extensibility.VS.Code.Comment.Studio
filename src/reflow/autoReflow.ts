@@ -30,6 +30,13 @@ interface BlockTracker {
   isDirty: boolean;
 }
 
+/** A reflow that has been queued on comment exit but not yet applied. */
+interface PendingReflow {
+  timer: ReturnType<typeof setTimeout>;
+  /** Start line of the block awaiting reflow, used to detect the user coming back. */
+  blockStart: number;
+}
+
 /**
  * Monitors typing and auto-reflows doc comment blocks when the cursor leaves
  * a block that was edited. Reflow only fires on cursor-exit, not on every keystroke.
@@ -38,6 +45,7 @@ export class AutoReflowHandler implements vscode.Disposable {
   private changeListener: vscode.Disposable;
   private selectionListener: vscode.Disposable;
   private docTrackers = new Map<string, BlockTracker>();
+  private pendingReflows = new Map<string, PendingReflow>();
   private lastDocUri: string | undefined;
 
   constructor() {
@@ -52,10 +60,20 @@ export class AutoReflowHandler implements vscode.Disposable {
 
   /** Clear dirty flag for a document so auto-reflow won't fire after a manual reflow. */
   clearDirty(docUri: string): void {
+    this.cancelPendingReflow(docUri);
     const tracker = this.docTrackers.get(docUri);
     if (tracker) {
       tracker.isDirty = false;
     }
+  }
+
+  /** Drop a queued exit-reflow, e.g. because the caret came back or a manual reflow ran. */
+  private cancelPendingReflow(docUri: string): void {
+    const pending = this.pendingReflows.get(docUri);
+    if (!pending) return;
+    clearTimeout(pending.timer);
+    this.pendingReflows.delete(docUri);
+    dbg('autoReflow', 'cancelPendingReflow', { blockStart: pending.blockStart });
   }
 
   private handleChange(event: vscode.TextDocumentChangeEvent): void {
@@ -68,6 +86,16 @@ export class AutoReflowHandler implements vscode.Disposable {
 
     // Skip our own programmatic edits to avoid marking the block dirty again.
     if (isAutoReflowEdit) return;
+
+    // Skip undo/redo: re-marking the block dirty here causes a reflow to fire the
+    // moment the cursor leaves, which silently re-applies what the user just undid.
+    if (event.reason === vscode.TextDocumentChangeReason.Undo ||
+        event.reason === vscode.TextDocumentChangeReason.Redo) {
+      dbg('autoReflow', 'handleChange SKIP undo-redo', { reason: event.reason });
+      const undoTracker = this.docTrackers.get(event.document.uri.toString());
+      if (undoTracker) undoTracker.isDirty = false;
+      return;
+    }
 
     const docUri = event.document.uri.toString();
 
@@ -125,24 +153,80 @@ export class AutoReflowHandler implements vscode.Disposable {
     const currentBlock = blocks.find(b => cursorLine >= b.startLine && cursorLine <= b.endLine);
     const currentBlockStart = currentBlock?.startLine;
 
+    // The caret came back into a block whose reflow is still queued. Cancel it and
+    // restore the dirty flag so the reflow is re-queued when they leave again.
+    const pending = this.pendingReflows.get(docUri);
+    if (pending && currentBlockStart !== undefined && currentBlockStart === pending.blockStart) {
+      this.cancelPendingReflow(docUri);
+      tracker.isDirty = true;
+      tracker.lastBlockStart = currentBlockStart;
+      return;
+    }
+
     if (tracker.isDirty && tracker.lastBlockStart !== undefined && currentBlockStart !== tracker.lastBlockStart) {
-      // Cursor moved out of the dirty block — trigger reflow now.
+      // Cursor left the dirty block. Hold the reflow until the collapse delay has
+      // elapsed so the block isn't rewritten under a caret that may come straight back.
       const dirtyBlockStart = tracker.lastBlockStart;
       tracker.isDirty = false;
       tracker.lastBlockStart = currentBlockStart;
 
       const dirtyBlock = blocks.find(b => b.startLine === dirtyBlockStart);
       if (dirtyBlock) {
-        dbg('autoReflow', 'handleSelectionChange TRIGGER reflow on exit', { block: `${dirtyBlock.startLine}-${dirtyBlock.endLine}` });
         const editorConfigSettings = getEditorConfigSettings(editor.document.uri.fsPath);
         const maxLineWidth = editorConfigSettings.maxLineLength ?? config.reflowLineLength;
-        this.reflowBlock(editor, dirtyBlock, maxLineWidth).catch(err => {
-          dbg('autoReflow', 'handleSelectionChange reflowBlock error', { err: String(err) });
-        });
+        this.schedulePendingReflow(docUri, dirtyBlock, maxLineWidth, config.autoCollapseDelay);
       }
     } else {
       tracker.lastBlockStart = currentBlockStart;
     }
+  }
+
+  /**
+   * Queue a reflow to run once the caret has stayed outside the block for the
+   * auto-collapse delay, so editing is never interrupted by a rewrite.
+   */
+  private schedulePendingReflow(
+    docUri: string,
+    block: { startLine: number; endLine: number; indentation: string },
+    maxLineWidth: number,
+    delayMs: number,
+  ): void {
+    this.cancelPendingReflow(docUri);
+
+    const delay = Number.isFinite(delayMs) && delayMs > 0 ? delayMs : 0;
+    dbg('autoReflow', 'schedulePendingReflow', { block: `${block.startLine}-${block.endLine}`, delay });
+
+    const timer = setTimeout(() => {
+      this.pendingReflows.delete(docUri);
+
+      // Only reflow if this document is still the one being edited; otherwise the
+      // ranges we captured may no longer line up with what the user sees.
+      const active = vscode.window.activeTextEditor;
+      if (!active || active.document.uri.toString() !== docUri) {
+        dbg('autoReflow', 'pendingReflow SKIP editor-changed', { docUri });
+        return;
+      }
+
+      // The caret may have returned to the block after this timer was queued.
+      const commentStyle = getLanguageCommentStyle(active.document.languageId);
+      if (commentStyle) {
+        const cursorLine = active.selection.active.line;
+        const currentLines = active.document.getText().split(/\r?\n/);
+        const currentBlock = findAllCommentBlocks(currentLines, commentStyle)
+          .find(b => cursorLine >= b.startLine && cursorLine <= b.endLine);
+        if (currentBlock && currentBlock.startLine === block.startLine) {
+          dbg('autoReflow', 'pendingReflow SKIP caret-returned', { block: block.startLine });
+          return;
+        }
+      }
+
+      dbg('autoReflow', 'pendingReflow TRIGGER reflow', { block: `${block.startLine}-${block.endLine}` });
+      this.reflowBlock(active, block, maxLineWidth).catch(err => {
+        dbg('autoReflow', 'pendingReflow reflowBlock error', { err: String(err) });
+      });
+    }, delay);
+
+    this.pendingReflows.set(docUri, { timer, blockStart: block.startLine });
   }
 
   private async reflowBlock(
@@ -200,7 +284,7 @@ export class AutoReflowHandler implements vscode.Disposable {
             const r = minimal.range;
             editBuilder.replace(new vscode.Range(r.startLine, r.startChar, r.endLine, r.endChar), minimal.text);
           }
-        }, { undoStopBefore: false, undoStopAfter: false });
+        }, { undoStopBefore: true, undoStopAfter: true });
       } finally {
         isAutoReflowEdit = false;
       }
@@ -210,6 +294,10 @@ export class AutoReflowHandler implements vscode.Disposable {
   dispose(): void {
     this.changeListener.dispose();
     this.selectionListener.dispose();
+    for (const pending of this.pendingReflows.values()) {
+      clearTimeout(pending.timer);
+    }
+    this.pendingReflows.clear();
     if (activeHandler === this) activeHandler = undefined;
   }
 }

@@ -2,7 +2,7 @@
   "name": "kat-comment-studio",
   "displayName": "KAT Comment Studio",
   "description": "XML documentation comment rendering, reflow, code anchors, and link navigation for VS Code",
-  "version": "1.0.10",
+  "version": "1.0.11",
   "publisher": "conduent-kat-team",
   "author": {
     "name": "Terry Aney",
@@ -257,6 +257,22 @@
           "maximum": 500,
           "description": "Maximum number of characters for the CodeLens summary text before truncation. Set to 0 for no truncation.",
 		  "order": 1
+        },
+        "kat-comment-studio.autoExpandDelay": {
+          "type": "number",
+          "default": 500,
+          "minimum": 0,
+          "maximum": 10000,
+          "description": "Delay in milliseconds before a folded XML comment block auto-expands after the cursor enters it.",
+		  "order": 3
+        },
+        "kat-comment-studio.autoCollapseDelay": {
+          "type": "number",
+          "default": 1000,
+          "minimum": 0,
+          "maximum": 10000,
+          "description": "Delay in milliseconds before an expanded XML comment block auto-collapses after the cursor leaves it. Also delays auto-reflow on comment exit by the same amount, so the block is not rewritten while it is still expanded.",
+		  "order": 3
         },
         "kat-comment-studio.reflowLineLength": {
           "type": "number",

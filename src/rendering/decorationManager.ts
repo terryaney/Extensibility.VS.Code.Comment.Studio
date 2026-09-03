@@ -9,9 +9,11 @@ import { isAutoReflowEdit } from '../reflow/autoReflow';
 import { isSmartPasteEdit } from '../reflow/smartPaste';
 import { dbg, DEBUG } from '../diagnostics/debugLog';
 
-// Delay before auto-re-folding after cursor leaves a comment block (ms)
-const AUTO_REFOLD_DELAY = 500;
-// Delay before auto-expanding when cursor enters a folded comment block (ms)
+// Fallback delay before auto-re-folding after cursor leaves a comment block (ms).
+// Overridden by kat-comment-studio.autoCollapseDelay.
+const AUTO_REFOLD_DELAY = 1000;
+// Fallback delay before auto-expanding when cursor enters a folded comment block (ms).
+// Overridden by kat-comment-studio.autoExpandDelay.
 const AUTO_EXPAND_DELAY = 500;
 // Debounce delay for edit suppression (ms)
 const EDIT_SUPPRESSION_DELAY = 1500;
@@ -386,6 +388,18 @@ export class DecorationManager implements vscode.Disposable {
     }
   }
 
+  /** Configured auto-expand delay (ms), falling back to the built-in default. */
+  private expandDelay(): number {
+    const v = this.config.autoExpandDelay;
+    return typeof v === 'number' && v >= 0 ? v : AUTO_EXPAND_DELAY;
+  }
+
+  /** Configured auto-collapse delay (ms), falling back to the built-in default. */
+  private refoldDelay(): number {
+    const v = this.config.autoCollapseDelay;
+    return typeof v === 'number' && v >= 0 ? v : AUTO_REFOLD_DELAY;
+  }
+
   private startRefoldTimer(editor: vscode.TextEditor, docKey: string, block: XmlDocCommentBlock): void {
     // Don't start if one already exists
     const docTimers = this.refoldTimers.get(docKey);
@@ -424,7 +438,7 @@ export class DecorationManager implements vscode.Disposable {
 
       // Re-apply decorations
       this.updateDecorations(editor);
-    }, AUTO_REFOLD_DELAY);
+    }, this.refoldDelay());
 
     if (!this.refoldTimers.has(docKey)) {
       this.refoldTimers.set(docKey, new Map());
@@ -473,7 +487,7 @@ export class DecorationManager implements vscode.Disposable {
 
       // Re-apply decorations to remove dim
       this.updateDecorations(editor);
-    }, AUTO_EXPAND_DELAY);
+    }, this.expandDelay());
 
     if (!this.expandTimers.has(docKey)) {
       this.expandTimers.set(docKey, new Map());

@@ -4,33 +4,18 @@ import { findAllCommentBlocks } from '../parsing/commentParser';
 import { reflowCommentBlock, ReflowOptions } from './reflowEngine';
 import { getConfiguration } from '../configuration';
 import { getEditorConfigSettings } from '../services/editorconfigService';
-import { computeMinimalEditRange } from './reflowUtils';
+import { computeMinimalEditRange, isDoubledCommentPrefix, collapseDuplicatedPrefix } from './reflowUtils';
 import { isAutoReflowEdit } from './autoReflow';
 import { dbg } from '../diagnostics/debugLog';
 
 export let isSmartPasteEdit = false;
 
 const PASTE_DEBOUNCE_MS = 100;
+// Delay before re-checking changed lines for a duplicated comment prefix injected
+// asynchronously by another extension's enter-continuation.
+const PREFIX_REPAIR_DELAY_MS = 250;
 // Heuristic: paste events insert more than one character at once
 const PASTE_MIN_CHARS = 2;
-
-/**
- * Returns true if a line consists entirely of two or more adjacent comment prefixes
- * with no actual text content — indicating a double-injection where both the VS Code
- * language enter-rule and the C# extension inserted a comment prefix on the same line.
- *
- * Example: "\t/// /// " → trimmed to "/// ///" → two "///" prefixes, no text → true.
- * Example: "\t/// some text" → has content after prefix → false.
- */
-function isDoubledCommentPrefix(lineText: string): boolean {
-  const trimmed = lineText.trim();
-  return (
-    /^(\/\/\/?[ \t]*){2,}$/.test(trimmed) ||
-    /^(#[ \t]*){2,}$/.test(trimmed) ||
-    /^(-{2}[ \t]*){2,}$/.test(trimmed) ||
-    /^('[ \t]*){2,}$/.test(trimmed)
-  );
-}
 
 /**
  * Returns true if this change looks like a VS Code enter-rule insertion:
@@ -54,6 +39,7 @@ function isEnterRuleInsertion(text: string): boolean {
  */
 export class SmartPasteHandler implements vscode.Disposable {
   private debounceTimer: NodeJS.Timeout | undefined;
+  private prefixRepairTimer: NodeJS.Timeout | undefined;
   private disposable: vscode.Disposable;
 
   constructor() {
@@ -66,7 +52,6 @@ export class SmartPasteHandler implements vscode.Disposable {
 
   private async handleChange(event: vscode.TextDocumentChangeEvent): Promise<void> {
     const config = getConfiguration();
-    if (!config.enableReflowOnPaste) return;
     if (!config.xmlCommentRendering) return;
 
     const editor = vscode.window.activeTextEditor;
@@ -97,17 +82,13 @@ export class SmartPasteHandler implements vscode.Disposable {
 
     // Guard: detect secondary comment-prefix injection from the C# extension.
     // When Enter is pressed in a C# XML doc comment, VS Code's language enter-rule
-    // inserts "\r\n\t/// " on the new line (handled above as enter-rule). The C#
-    // extension also fires ~100ms later inserting a bare "/// " on that same line,
-    // resulting in "\t/// /// " (doubled prefix with no content).
+    // inserts "\r\n\t/// " on the new line. The C# extension also fires shortly after
+    // inserting a bare "/// " on that same line, resulting in "\t/// /// ".
     //
-    // Restricted to C# — this race has only been confirmed with the C# extension's
-    // XML doc comment continuation. Extend to other languages if the same pattern
-    // is observed elsewhere.
-    //
-    // Detect: single pure insertion of a bare comment prefix (no newline, no content)
-    // that produces a doubled-prefix line. Delete the extra prefix immediately.
-    if (event.document.languageId === 'csharp' && event.contentChanges.length === 1) {
+    // The immediate check below catches the common shape (one pure prefix insertion);
+    // scheduleDuplicatedPrefixRepair covers the rest, because the duplicate can also
+    // arrive batched with other changes or as a later async workspace edit.
+    if (event.contentChanges.length === 1) {
       const c = event.contentChanges[0];
       if (c.rangeLength === 0 &&
           c.text.indexOf('\n') === -1 &&
@@ -136,6 +117,12 @@ export class SmartPasteHandler implements vscode.Disposable {
         }
       }
     }
+
+    // Fallback: re-check the changed lines shortly after the burst settles. Another
+    // extension's async continuation edit lands after our synchronous check above.
+    this.scheduleDuplicatedPrefixRepair(editor, event);
+
+    if (!config.enableReflowOnPaste) return;
 
     // Detect paste: at least one change with multiple characters inserted.
     // Explicitly exclude VS Code enter-rule insertions (newline + comment prefix,
@@ -180,6 +167,20 @@ export class SmartPasteHandler implements vscode.Disposable {
       return;
     }
 
+    // While the caret is still inside the pasted-into block the user is mid-edit.
+    // Reformatting now fights their typing (cursor jumps, re-render, undo churn).
+    // AutoReflowHandler already marked the block dirty, so the reflow happens
+    // exactly once when the caret leaves the block.
+    const cursorLine = editor.selection.active.line;
+    if (cursorLine >= affectedBlock.startLine && cursorLine <= affectedBlock.endLine) {
+      dbg('smartPaste', 'handleChange DEFER reflow cursor-still-in-block', {
+        block: `${affectedBlock.startLine}-${affectedBlock.endLine}`,
+        cursorLine,
+      });
+      if (this.debounceTimer) clearTimeout(this.debounceTimer);
+      return;
+    }
+
     dbg('smartPaste', 'handleChange SCHEDULE reflow', { block: `${affectedBlock.startLine}-${affectedBlock.endLine}`, delayMs: PASTE_DEBOUNCE_MS });
 
     // Debounce to avoid double-triggering
@@ -187,6 +188,63 @@ export class SmartPasteHandler implements vscode.Disposable {
     this.debounceTimer = setTimeout(() => {
       this.reflowBlock(editor, affectedBlock, lines);
     }, PASTE_DEBOUNCE_MS);
+  }
+
+  /**
+   * Re-checks the lines touched by a change after the edit burst settles and collapses
+   * any duplicated leading comment prefix. This covers the case where a second
+   * extension injects its own continuation prefix asynchronously, after our
+   * synchronous per-change check has already run.
+   */
+  private scheduleDuplicatedPrefixRepair(
+    editor: vscode.TextEditor,
+    event: vscode.TextDocumentChangeEvent,
+  ): void {
+    const candidateLines = new Set<number>();
+    for (const c of event.contentChanges) {
+      candidateLines.add(c.range.start.line);
+      candidateLines.add(c.range.start.line + (c.text.match(/\n/g)?.length ?? 0));
+    }
+    if (candidateLines.size === 0) return;
+
+    if (this.prefixRepairTimer) clearTimeout(this.prefixRepairTimer);
+    this.prefixRepairTimer = setTimeout(() => {
+      this.prefixRepairTimer = undefined;
+      void this.repairDuplicatedPrefixes(editor, candidateLines);
+    }, PREFIX_REPAIR_DELAY_MS);
+  }
+
+  private async repairDuplicatedPrefixes(editor: vscode.TextEditor, candidateLines: Set<number>): Promise<void> {
+    if (isSmartPasteEdit || isAutoReflowEdit) return;
+    if (vscode.window.activeTextEditor !== editor) return;
+
+    const document = editor.document;
+    const repairs: { range: vscode.Range; text: string }[] = [];
+    for (const lineNumber of candidateLines) {
+      if (lineNumber < 0 || lineNumber >= document.lineCount) continue;
+      const line = document.lineAt(lineNumber);
+      // Only repair prefix-only lines. A line with real content may legitimately
+      // contain a doubled token, and rewriting it would eat the user's text.
+      if (!isDoubledCommentPrefix(line.text)) continue;
+      const collapsed = collapseDuplicatedPrefix(line.text);
+      if (!collapsed) continue;
+      repairs.push({ range: line.range, text: collapsed });
+    }
+    if (repairs.length === 0) return;
+
+    dbg('smartPaste', 'repairDuplicatedPrefixes APPLY', {
+      lines: repairs.map(r => r.range.start.line),
+    });
+
+    isSmartPasteEdit = true;
+    try {
+      await editor.edit(
+        editBuilder => { for (const r of repairs) editBuilder.replace(r.range, r.text); },
+        { undoStopBefore: false, undoStopAfter: false },
+      );
+    } finally {
+      isSmartPasteEdit = false;
+    }
   }
 
   private async reflowBlock(
@@ -235,7 +293,7 @@ export class SmartPasteHandler implements vscode.Disposable {
             const r = minimal.range;
             editBuilder.replace(new vscode.Range(r.startLine, r.startChar, r.endLine, r.endChar), minimal.text);
           }
-        }, { undoStopBefore: false, undoStopAfter: false });
+        }, { undoStopBefore: true, undoStopAfter: true });
       } finally {
         isSmartPasteEdit = false;
       }
@@ -244,6 +302,7 @@ export class SmartPasteHandler implements vscode.Disposable {
 
   dispose(): void {
     if (this.debounceTimer) clearTimeout(this.debounceTimer);
+    if (this.prefixRepairTimer) clearTimeout(this.prefixRepairTimer);
     this.disposable.dispose();
   }
 }
