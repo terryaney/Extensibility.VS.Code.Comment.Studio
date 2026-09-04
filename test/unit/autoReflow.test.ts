@@ -116,4 +116,43 @@ describe('duplicated comment prefix repair', () => {
     expect(collapseDuplicatedPrefix('\t/// Typing in comment')).toBeUndefined();
     expect(collapseDuplicatedPrefix('        var x = 1;')).toBeUndefined();
   });
+
+  describe('prefix-aware collapsing', () => {
+    it('repairs a doubled prefix on a line that carries content', () => {
+      expect(collapseDuplicatedPrefix('\t/// /// TheKeep returns the key itself.', '///'))
+        .toBe('\t/// TheKeep returns the key itself.');
+    });
+
+    it('collapses a run of three or more prefixes', () => {
+      expect(collapseDuplicatedPrefix('\t/// /// /// text', '///')).toBe('\t/// text');
+    });
+
+    it('leaves a correctly prefixed line alone', () => {
+      expect(collapseDuplicatedPrefix('\t/// TheKeep returns the key.', '///')).toBeUndefined();
+    });
+
+    it('does not treat a prefix appearing later in the text as a duplicate', () => {
+      expect(collapseDuplicatedPrefix('\t/// see <c>a /// b</c>', '///')).toBeUndefined();
+    });
+
+    it('matches multi-character prefixes in full', () => {
+      expect(collapseDuplicatedPrefix('  --- --- note', '---')).toBe('  --- note');
+      expect(collapseDuplicatedPrefix('  ## ## note', '##')).toBe('  ## note');
+    });
+
+    it('does not eat markdown headings that follow a shorter prefix', () => {
+      // Without a known prefix the generic pattern would treat "# ##" as a duplicate run.
+      expect(collapseDuplicatedPrefix('# ## Heading', '#')).toBeUndefined();
+      expect(collapseDuplicatedPrefix('## ### Heading', '##')).toBeUndefined();
+    });
+
+    it('does not treat a longer run of the prefix character as a repeat', () => {
+      expect(collapseDuplicatedPrefix('\t//// x', '///')).toBeUndefined();
+    });
+
+    it('preserves indentation exactly', () => {
+      expect(collapseDuplicatedPrefix('\t\t/// /// x', '///')).toBe('\t\t/// x');
+      expect(collapseDuplicatedPrefix('    /// /// x', '///')).toBe('    /// x');
+    });
+  });
 });

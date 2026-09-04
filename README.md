@@ -4,7 +4,7 @@
 
 Transform raw XML doc comments and JSDoc blocks into clean inline summaries, with workspace-wide code anchors, smart comment reflow, clickable issue links, and cross-file `LINK:` navigation — all inside VS Code.
 
-[⬇ Download the latest release (.vsix)](https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/dist/kat-comment-studio-1.0.12.vsix)
+[⬇ Download the latest release (.vsix)](https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/dist/kat-comment-studio-1.0.13.vsix)
  · 📖 [Documentation](https://terryaney.github.io/Extensibility.VS.Code.Comment.Studio/)
 
 > **Note:** KAT Comment Studio is not on the VS Code Marketplace. Install via VSIX using the link above.
@@ -13,12 +13,12 @@ Transform raw XML doc comments and JSDoc blocks into clean inline summaries, wit
 
 ## Getting Started
 
-1. [Download the extension](https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/dist/kat-comment-studio-1.0.12.vsix).
+1. [Download the extension](https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/dist/kat-comment-studio-1.0.13.vsix).
 2. Press `Ctrl+Shift+P`, type `VSIX`, and select **Extensions: Install from VSIX...**
 
 ![Install from VSIX](https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/media/install.png)
 
-3. Browse to the downloaded `kat-comment-studio-1.0.12.vsix` and select it.
+3. Browse to the downloaded `kat-comment-studio-1.0.13.vsix` and select it.
 
 Nothing needs configuring afterwards — rendering, anchor scanning, prefix highlighting and issue links are all on by default.
 

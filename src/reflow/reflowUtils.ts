@@ -34,15 +34,36 @@ export function isDoubledCommentPrefix(lineText: string): boolean {
  */
 const DUPLICATED_PREFIX_LINE = /^([ \t]*)(\/\/\/|#|--|')((?:[ \t]*\2)+)[ \t]*(.*)$/;
 
+/** Escapes a literal string for use inside a RegExp. */
+function escapeForRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 /**
  * Collapses a duplicated leading comment prefix run down to a single prefix.
+ *
+ * When `prefix` is supplied only that exact token is collapsed, which is both safer
+ * and more accurate than the generic pattern: a language's real doc prefix (e.g. "---"
+ * for SQL or "##" for PowerShell) is matched in full, and content that merely looks
+ * like a prefix — markdown "## Heading" inside a "#" comment, say — is left alone.
+ *
  * Returns undefined when the line has no duplicated prefix.
  */
-export function collapseDuplicatedPrefix(lineText: string): string | undefined {
-  const m = lineText.match(DUPLICATED_PREFIX_LINE);
+export function collapseDuplicatedPrefix(lineText: string, prefix?: string): string | undefined {
+  let pattern = DUPLICATED_PREFIX_LINE;
+  if (prefix) {
+    const p = escapeForRegExp(prefix);
+    // The prefix must appear as a whole token. Without this guard a "#" prefix would
+    // treat the "##" of a markdown heading as a repeat and silently eat one level,
+    // and "////" would be read as "///" + "/".
+    const notMore = `(?!${escapeForRegExp(prefix[prefix.length - 1])})`;
+    pattern = new RegExp(`^([ \\t]*)(${p})${notMore}((?:[ \\t]*${p}${notMore})+)[ \\t]*(.*)$`);
+  }
+
+  const m = lineText.match(pattern);
   if (!m) return undefined;
-  const [, indent, prefix, , rest] = m;
-  const collapsed = rest ? `${indent}${prefix} ${rest}` : `${indent}${prefix} `;
+  const [, indent, matchedPrefix, , rest] = m;
+  const collapsed = rest ? `${indent}${matchedPrefix} ${rest}` : `${indent}${matchedPrefix} `;
   return collapsed === lineText ? undefined : collapsed;
 }
 

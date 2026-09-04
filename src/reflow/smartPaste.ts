@@ -94,7 +94,12 @@ export class SmartPasteHandler implements vscode.Disposable {
           c.text.indexOf('\n') === -1 &&
           /^\s*(\/\/\/?\s*|#\s*|'\s*|--\s*)$/.test(c.text)) {
         const lineText = event.document.lineAt(c.range.start.line).text;
-        if (isDoubledCommentPrefix(lineText)) {
+        const docPrefix = getLanguageCommentStyle(event.document.languageId)?.singleLineDocPrefix;
+        // Repair whether or not the line carries content: pressing Enter mid-sentence
+        // leaves "/// /// TheKeep…", which the prefix-only check used to miss entirely.
+        const isDoubled = isDoubledCommentPrefix(lineText) ||
+          (docPrefix !== undefined && collapseDuplicatedPrefix(lineText, docPrefix) !== undefined);
+        if (isDoubled) {
           dbg('smartPaste', 'handleChange REMOVE doubled-prefix', {
             line: c.range.start.line,
             injected: JSON.stringify(c.text),
@@ -219,14 +224,18 @@ export class SmartPasteHandler implements vscode.Disposable {
     if (vscode.window.activeTextEditor !== editor) return;
 
     const document = editor.document;
+    const commentStyle = getLanguageCommentStyle(document.languageId);
+    const docPrefix = commentStyle?.singleLineDocPrefix;
+    if (!docPrefix) return;
+
     const repairs: { range: vscode.Range; text: string }[] = [];
     for (const lineNumber of candidateLines) {
       if (lineNumber < 0 || lineNumber >= document.lineCount) continue;
       const line = document.lineAt(lineNumber);
-      // Only repair prefix-only lines. A line with real content may legitimately
-      // contain a doubled token, and rewriting it would eat the user's text.
-      if (!isDoubledCommentPrefix(line.text)) continue;
-      const collapsed = collapseDuplicatedPrefix(line.text);
+      // Collapse a duplicated run of this language's doc prefix. Lines carrying real
+      // content are repaired too: pressing Enter mid-sentence leaves "/// /// TheKeep…",
+      // and only the leading prefix run is rewritten, so the text itself is untouched.
+      const collapsed = collapseDuplicatedPrefix(line.text, docPrefix);
       if (!collapsed) continue;
       repairs.push({ range: line.range, text: collapsed });
     }
