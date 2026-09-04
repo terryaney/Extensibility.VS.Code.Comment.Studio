@@ -18,6 +18,7 @@
 		<tr><td><code>UNDONE</code></td><td><span class="ks-swatch" style="background:#808080"></span><code>#808080</code></td><td><img class="ks-icon" src="https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/media/codicon-circle-slash.png" alt=""></td><td>Reverted or incomplete</td></tr>
 		<tr><td><code>REVIEW</code></td><td><span class="ks-swatch" style="background:#9370DB"></span><code>#9370DB</code></td><td><img class="ks-icon" src="https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/media/codicon-eye.png" alt=""></td><td>Needs review</td></tr>
 		<tr><td><code>ANCHOR</code></td><td><span class="ks-swatch" style="background:#20B2AA"></span><code>#20B2AA</code></td><td><img class="ks-icon" src="https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/media/codicon-link.png" alt=""></td><td>Named navigation target for <a href="#/link-navigation"><code>LINK:</code></a></td></tr>
+		<tr><td><code>LINK</code></td><td><span class="ks-swatch" style="background:#3CB371"></span><code>#3CB371</code></td><td><img class="ks-icon" src="https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/media/codicon-arrow-right.png" alt=""></td><td>Cross-file reference — see <a href="#/link-navigation">LINK: Navigation</a></td></tr>
 	</tbody>
 </table>
 </div>
@@ -48,7 +49,8 @@
 // BUG: Off-by-one in edge case
 // FIXME: This crashes on null input
 // NOTE: This method is called from multiple threads
-// ANCHOR(MyAnchor): navigation target</code></pre>
+// ANCHOR(MyAnchor): navigation target
+// LINK: ./services/Exporter.cs   — cross-file reference</code></pre>
 
 <div class="ks-note">
 	<strong>Word boundaries are enforced.</strong>
@@ -60,6 +62,12 @@
 	<strong><code>ANCHOR</code> always needs a name.</strong>
 	A bare <code>// ANCHOR:</code> is ignored entirely — it is not colorized and never appears in the tree or grid.
 	Write <code>// ANCHOR(MyName): …</code>.
+</div>
+
+<div class="ks-warn">
+	<strong><code>LINK</code> always needs a delimiter and a target.</strong>
+	A bare <code>LINK</code> word in prose is ignored, and so is an empty <code>// LINK:</code> — matching the
+	<a href="#/link-navigation">LINK: navigation</a> parser. Valid links appear in the tree and grid alongside the other anchors.
 </div>
 
 <h2>Metadata</h2>

@@ -4,7 +4,7 @@ import { getCachedCommentBlocks } from '../parsing/commentParser';
 import { isLanguageSupported } from '../parsing/languageConfig';
 import { createDecorationStyles, disposeDecorationStyles, DecorationStyles } from './decorationFactory';
 import { setRenderingMode } from '../configuration';
-import { foldAllDocComments, unfoldAllDocComments } from './commentFoldingProvider';
+import { foldAllDocComments, unfoldAllDocComments, preserveViewport } from './commentFoldingProvider';
 import { CommentCodeLensProvider } from './commentCodeLensProvider';
 import { isAutoReflowEdit } from '../reflow/autoReflow';
 import { isSmartPasteEdit } from '../reflow/smartPaste';
@@ -426,13 +426,10 @@ export class DecorationManager implements vscode.Disposable {
       }
 
       // Re-fold in the editor
-      const savedSelections = editor.selections;
-      vscode.commands.executeCommand('editor.fold', {
+      void preserveViewport(editor, () => vscode.commands.executeCommand('editor.fold', {
         selectionLines: [block.startLine],
         levels: 1,
-      }).then(() => {
-        editor.selections = savedSelections;
-      });
+      }));
 
       // Update CodeLens
       this.codeLensProvider?.setFoldState(docKey, block.startLine, true);
@@ -475,13 +472,10 @@ export class DecorationManager implements vscode.Disposable {
       this.expandedBlocks.set(docKey, expanded);
 
       // Unfold in the editor
-      const savedSelections = editor.selections;
-      vscode.commands.executeCommand('editor.unfold', {
+      void preserveViewport(editor, () => vscode.commands.executeCommand('editor.unfold', {
         selectionLines: [block.startLine],
         levels: 1,
-      }).then(() => {
-        editor.selections = savedSelections;
-      });
+      }));
 
       // Update CodeLens
       this.codeLensProvider?.setFoldState(docKey, block.startLine, false);
@@ -552,10 +546,10 @@ export class DecorationManager implements vscode.Disposable {
       const blocks = getCachedCommentBlocks(docKey, editor.document.version, lines, editor.document.languageId);
       const block = blocks?.find(b => b.startLine === startLine);
 
-      await vscode.commands.executeCommand('editor.fold', {
+      await preserveViewport(editor, () => vscode.commands.executeCommand('editor.fold', {
         selectionLines: [startLine],
         levels: 1,
-      });
+      }));
 
       // Move cursor outside the comment block so auto-expand doesn't retrigger
       if (block) {
@@ -576,12 +570,10 @@ export class DecorationManager implements vscode.Disposable {
       expanded.add(startLine);
       this.expandedBlocks.set(docKey, expanded);
 
-      const savedSelections = editor.selections;
-      await vscode.commands.executeCommand('editor.unfold', {
+      await preserveViewport(editor, () => vscode.commands.executeCommand('editor.unfold', {
         selectionLines: [startLine],
         levels: 1,
-      });
-      editor.selections = savedSelections;
+      }));
 
       this.codeLensProvider?.setFoldState(docKey, startLine, false);
     }

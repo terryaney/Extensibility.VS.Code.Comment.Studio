@@ -53,6 +53,7 @@ export const BUILTIN_ANCHOR_TYPES: ReadonlyMap<string, AnchorType> = new Map([
   ['UNDONE', { tag: 'UNDONE', displayName: 'Undone', icon: 'circle-slash', color: '#808080', themeColorId: 'katCommentStudio.anchorUndone' }],
   ['REVIEW', { tag: 'REVIEW', displayName: 'Review', icon: 'eye', color: '#9370DB', themeColorId: 'katCommentStudio.anchorReview' }],
   ['ANCHOR', { tag: 'ANCHOR', displayName: 'Anchor', icon: 'link', color: '#20B2AA', themeColorId: 'katCommentStudio.anchorAnchor' }],
+  ['LINK', { tag: 'LINK', displayName: 'Link', icon: 'arrow-right', color: '#3CB371', themeColorId: 'katCommentStudio.anchorLink' }],
 ]);
 
 /** Characters accepted as a tag delimiter, e.g. `TODO:` or `TODO!`. */
@@ -166,6 +167,12 @@ export function findAnchorsInLine(
 
   // ANCHOR requires a name — skip if no anchorName parsed
   if (tag === 'ANCHOR' && !anchorName) {
+    return undefined;
+  }
+
+  // LINK requires the `:` delimiter and a target, matching the navigation
+  // parser — a bare `LINK` word in prose is not a link.
+  if (tag === 'LINK' && (!match[0].includes(':') || !description)) {
     return undefined;
   }
 

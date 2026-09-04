@@ -344,6 +344,32 @@ line 2
     });
   });
 
+  describe('LINK anchors', () => {
+    it('should detect a LINK with a file target', () => {
+      const results = findAnchorsInText('// LINK: ./services/foo.cs', 'test.cs');
+      expect(results).toHaveLength(1);
+      expect(results[0].tag).toBe('LINK');
+      expect(results[0].description).toBe('./services/foo.cs');
+    });
+
+    it('should detect a LINK to a local anchor', () => {
+      const results = findAnchorsInText('// LINK: #MyAnchor', 'test.cs');
+      expect(results).toHaveLength(1);
+      expect(results[0].tag).toBe('LINK');
+      expect(results[0].description).toBe('#MyAnchor');
+    });
+
+    it('should ignore a bare LINK word with no delimiter', () => {
+      const results = findAnchorsInText('// See the LINK below', 'test.cs');
+      expect(results).toHaveLength(0);
+    });
+
+    it('should ignore LINK with no target', () => {
+      const results = findAnchorsInText('// LINK:', 'test.cs');
+      expect(results).toHaveLength(0);
+    });
+  });
+
   describe('buildAnchorRegex', () => {
     it('should build regex for default tags', () => {
       const regex = buildAnchorRegex([...BUILTIN_ANCHOR_TYPES.keys()]);

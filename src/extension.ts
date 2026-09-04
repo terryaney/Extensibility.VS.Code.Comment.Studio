@@ -743,6 +743,15 @@ export function activate(context: vscode.ExtensionContext): void {
 
 
 
+  // Documentation command
+  context.subscriptions.push(
+    vscode.commands.registerCommand('kat-comment-studio.openDocumentation', () => {
+      void vscode.env.openExternal(
+        vscode.Uri.parse('https://terryaney.github.io/Extensibility.VS.Code.Comment.Studio/'),
+      );
+    }),
+  );
+
   // Scope change command
   context.subscriptions.push(
     vscode.commands.registerCommand('kat-comment-studio.setAnchorScope', async () => {

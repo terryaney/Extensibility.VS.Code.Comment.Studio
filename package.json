@@ -2,7 +2,7 @@
   "name": "kat-comment-studio",
   "displayName": "KAT Comment Studio",
   "description": "XML documentation comment rendering, reflow, code anchors, and link navigation for VS Code",
-  "version": "1.0.13",
+  "version": "1.0.14",
   "publisher": "conduent-kat-team",
   "author": {
     "name": "Terry Aney",
@@ -127,6 +127,11 @@
           "group": "navigation@4"
         },
         {
+          "command": "kat-comment-studio.openDocumentation",
+          "when": "view == kat-comment-studio.anchorsView",
+          "group": "navigation@5"
+        },
+        {
           "command": "kat-comment-studio.scanAnchors",
           "when": "view == kat-comment-studio.anchorsGrid",
           "group": "navigation@1"
@@ -135,6 +140,11 @@
           "command": "kat-comment-studio.exportAnchors",
           "when": "view == kat-comment-studio.anchorsGrid",
           "group": "navigation@2"
+        },
+        {
+          "command": "kat-comment-studio.openDocumentation",
+          "when": "view == kat-comment-studio.anchorsGrid",
+          "group": "navigation@3"
         }
       ]
     },
@@ -186,6 +196,12 @@
         "title": "Filter Anchor Types",
         "category": "KAT Comment Studio",
         "icon": "$(list-filter)"
+      },
+      {
+        "command": "kat-comment-studio.openDocumentation",
+        "title": "Open Documentation",
+        "category": "KAT Comment Studio",
+        "icon": "$(question)"
       },
       {
         "command": "kat-comment-studio.nextAnchor",
@@ -449,6 +465,15 @@
           "dark": "#20B2AA",
           "light": "#108880",
           "highContrast": "#40D0C8"
+        }
+      },
+      {
+        "id": "katCommentStudio.anchorLink",
+        "description": "LINK anchor color",
+        "defaults": {
+          "dark": "#3CB371",
+          "light": "#2E8B57",
+          "highContrast": "#5FD98F"
         }
       },
       {

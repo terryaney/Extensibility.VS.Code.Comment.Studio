@@ -73,10 +73,18 @@ export class AnchorDecorationManager implements vscode.Disposable {
       }
     }
 
-    // LINK: keyword decoration
+    // LINK: keyword decoration — LINK is a built-in anchor type, but it is
+    // decorated here instead of by the generic loop so the trailing `:` is
+    // coloured too.
+    const linkType = BUILTIN_ANCHOR_TYPES.get('LINK')!;
+    const linkColor = colorOverrides
+      ? resolveAnchorColor(linkType, colorOverrides)
+      : new vscode.ThemeColor(linkType.themeColorId);
     this.linkDecorationType = vscode.window.createTextEditorDecorationType({
-      color: new vscode.ThemeColor('textLink.foreground'),
+      color: linkColor,
       fontWeight: 'bold',
+      overviewRulerColor: linkColor,
+      overviewRulerLane: vscode.OverviewRulerLane.Right,
     });
 
     // Anchor metadata decoration — uses the type-name color (light blue by default)
@@ -129,6 +137,9 @@ export class AnchorDecorationManager implements vscode.Disposable {
 
         // Standalone ANCHOR (no `(name)` syntax) is never colorized.
         if (tag === 'ANCHOR' && !metadataText?.trim()) continue;
+
+        // LINK is decorated separately so that `LINK:` includes the delimiter.
+        if (tag === 'LINK') continue;
 
         const prefixLen = groups.prefix ? groups.prefix.length : 0;
         const decorationStart = commentStart + match.index;
