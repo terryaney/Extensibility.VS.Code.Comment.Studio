@@ -254,12 +254,24 @@ Code anchors are specially tagged comments that mark items of interest across yo
 
 ### Basic Syntax
 
-Tags are **case-insensitive** — `todo`, `Todo`, and `TODO` are all recognized and normalized to uppercase in all views. Colorization behavior is controlled by `kat-comment-studio.anchorColorizeMode` (default: `caseInsensitive`).
+A tag is recognized when **either** of the following is true:
+
+- It is written in **exact uppercase** — `TODO`, `HACK`, `NOTE`. A delimiter is optional, so `// TODO fix this` is recognized.
+- It carries a **delimiter** (`:` or `!`) or a **metadata container attached with no space** — `// todo: fix this`, `// Todo! fix this`, `// todo(@alice) fix this`.
+
+Matched tags are normalized to uppercase in all views, so `todo:` appears as `TODO`.
+
+This two-part rule is what keeps ordinary prose from lighting up. In the comment below, neither `review` nor `note` is a tag — they are lowercase, mid-sentence, and carry no delimiter:
+
+```
+// Mid-review elections and a half-written note are not anchors.
+```
 
 ```
 // TODO: Add input validation
+// TODO Add input validation — uppercase, so the colon is optional
 // todo: also works — normalized to TODO
-// HACK: Temporary workaround until v2
+// HACK! Temporary workaround until v2
 // BUG: Off-by-one in edge case
 // FIXME: This crashes on null input
 // NOTE: This method is called from multiple threads
@@ -299,7 +311,16 @@ Add your own tags via `kat-comment-studio.patternProcessing` (`customTags` key).
 
 ### Tag Prefixes
 
-Allow prefix characters before tags so `// @TODO:` is treated the same as `// TODO:`. Configure via `kat-comment-studio.patternProcessing` (`tagPrefixes` key, default: `"@, $"`).
+Some developers prefix their tags with a sigil like `@` or `$` so they are easier to grep for. Configured prefixes are recognized and treated as equivalent to the bare tag, and the prefix character is colored along with it.
+
+```
+// @TODO: treated exactly like TODO
+// $HACK: works too
+```
+
+Configure via `kat-comment-studio.patternProcessing` (`tagPrefixes` key, default: `"@, $"`). Prefixes are stripped in the Code Anchors tree and grid, so `@TODO` is displayed as `TODO`.
+
+> This is unrelated to `@owner` metadata. A prefix sits *before* the tag (`@TODO`); an owner sits *inside* the metadata container (`TODO(@alice)`).
 
 ### Inline Decorations
 
@@ -755,7 +776,7 @@ Controls which files, folders, languages, and tags are processed. Only override 
 | `enableReflowOnPaste` | `boolean` | `true` | Automatically reflow comment blocks when pasting text into them. |
 | `interceptF1ForComments` | `boolean` | `true` | Press F1 inside or below an XML doc comment to show the KAT tooltip instead of the VS Code help menu. |
 | `collapseXmlWhenRenderingOff` | `boolean` | `false` | Automatically collapse XML comments when opening files and rendering is Off. |
-| `anchorColorizeMode` | `string` | `"caseInsensitive"` | `never` = off; `fullAnchor` = only `TAG:` / `TAG(meta):`; `caseSensitive` / `caseInsensitive` = with or without `:`. |
+| `anchorColorizeMode` | `string` | `"default"` | `never` = off; `default` = colorize exact-uppercase tags, plus any-case tags carrying a delimiter or attached metadata. |
 | `colorOverrides` | `object` | `{}` | Key/value color overrides. See [Color Customization](#color-customization). |
 | `enableIssueLinks` | `boolean` | `true` | Enable clickable issue links (`#123` → GitHub/GitLab/etc.) |
 | `enablePrefixHighlighting` | `boolean` | `true` | Enable Better Comments-style prefix highlighting. |

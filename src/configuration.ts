@@ -24,7 +24,7 @@ export function getConfiguration(): CommentStudioConfig {
     // Anchors
     customTags: splitTrim(pp['customTags'] ?? ''),
     tagPrefixes: pp['tagPrefixes'] ?? '@, $',
-    anchorColorizeMode: config.get<'never' | 'fullAnchor' | 'caseSensitive' | 'caseInsensitive'>('anchorColorizeMode', 'caseInsensitive'),
+    anchorColorizeMode: config.get<string>('anchorColorizeMode', 'default') === 'never' ? 'never' : 'default',
     scanOnLoad: config.get<boolean>('scanOnLoad', true),
     fileExtensionsToScan: (pp['fileExtensions'] ?? 'cs,vb,fs,cpp,c,h,ts,tsx,js,jsx,razor,cshtml,sql,ps1,psm1').replace(/\s+/g, ''),
     foldersToIgnore: (pp['ignoreFolders'] ?? 'node_modules,bin,obj,.git,dist,out,build,.vs,.vscode-test').replace(/\s+/g, ''),

@@ -55,31 +55,75 @@ export const BUILTIN_ANCHOR_TYPES: ReadonlyMap<string, AnchorType> = new Map([
   ['ANCHOR', { tag: 'ANCHOR', displayName: 'Anchor', icon: 'link', color: '#20B2AA', themeColorId: 'katCommentStudio.anchorAnchor' }],
 ]);
 
+/** Characters accepted as a tag delimiter, e.g. `TODO:` or `TODO!`. */
+const DELIMITERS = ':!';
+
+/** Optional metadata container — `(...)` and `[...]` are interchangeable. */
+function metadata(groupName: string): string {
+  return `[\\(\\[](?<${groupName}>[^\\)\\]]*)[\\)\\]]`;
+}
+
 /**
- * Builds the anchor detection regex from the given tags and optional prefixes.
+ * Expands a literal into a case-insensitive pattern using character classes,
+ * e.g. `TODO` → `[Tt][Oo][Dd][Oo]`. Needed because only the tag portion of the
+ * anchor pattern is case-insensitive — the `i` flag would apply to everything.
+ */
+function anyCaseLiteral(text: string): string {
+  return text
+    .split('')
+    .map(ch => {
+      const upper = ch.toUpperCase();
+      const lower = ch.toLowerCase();
+      return upper === lower ? escapeRegex(ch) : `[${escapeRegex(upper)}${escapeRegex(lower)}]`;
+    })
+    .join('');
+}
+
+/**
+ * Builds the shared anchor pattern matching a tag and its optional metadata,
+ * stopping before the description. Both inline colorization and the workspace
+ * scanner use this so the two can never disagree about what an anchor is.
+ *
+ * A tag qualifies when either:
+ *  - it is written in exact uppercase (`TODO`), where a delimiter is optional; or
+ *  - it carries a delimiter (`todo:`, `Todo!`) or a metadata container attached
+ *    with no intervening space (`todo(@terry)`).
+ *
+ * The second rule is what keeps prose such as `a half-written note - ...` from
+ * being treated as an anchor.
+ *
+ * Named groups: `prefix`, `exact`/`loose` (tag), `metaExact`/`metaLoose`.
+ */
+export function buildAnchorPattern(tags: string[], tagPrefixes?: string[]): string {
+  const exactTags = tags.map(t => escapeRegex(t.toUpperCase())).join('|');
+  const looseTags = tags.map(t => anyCaseLiteral(t)).join('|');
+
+  // Reject a word character before the tag (or before its prefix), so `mid-review`
+  // is eligible but `NOTES` and `x@TODO` are not.
+  const prefixChars = (tagPrefixes ?? []).map(p => escapeRegex(p)).join('');
+  const boundary = prefixChars ? `(?<![\\w${prefixChars}])` : '(?<!\\w)';
+  const prefix = prefixChars ? `(?<prefix>[${prefixChars}])?` : '';
+
+  const delimiter = `[${DELIMITERS}]`;
+
+  // Uppercase: metadata may be spaced, delimiter optional.
+  const exactBranch = `(?<exact>${exactTags})\\b(?:\\s?${metadata('metaExact')})?\\s*${delimiter}?`;
+  // Any case: requires an attached metadata container or a delimiter.
+  const looseBranch = `(?<loose>${looseTags})\\b(?:${metadata('metaLoose')}\\s*${delimiter}?|${delimiter})`;
+
+  return `${boundary}${prefix}(?:${exactBranch}|${looseBranch})`;
+}
+
+/**
+ * Builds the anchor detection regex used by the scanner: the shared pattern
+ * plus the trailing description capture.
  *
  * Metadata delimiters `()` and `[]` are interchangeable. Tokens inside are
  * comma-separated and parsed by type: `@owner`, `#issue`, `yyyy-MM-dd` date,
  * or plain name (ANCHOR only).
  */
 export function buildAnchorRegex(tags: string[], tagPrefixes?: string[]): RegExp {
-  const escapedTags = tags.map(t => escapeRegex(t));
-  const tagPattern = escapedTags.join('|');
-
-  let prefixPattern = '';
-  if (tagPrefixes && tagPrefixes.length > 0) {
-    const escapedPrefixes = tagPrefixes.map(p => escapeRegex(p));
-    prefixPattern = `(?:${escapedPrefixes.join('|')})?`;
-  }
-
-  // Single optional metadata group: either (...) or [...]
-  // Captures comma-separated tokens parsed in findAnchorsInLine
-  return new RegExp(
-    `\\b${prefixPattern}(${tagPattern})` +
-    `(?:\\s?[\\(\\[]([^\\)\\]]+)[\\)\\]])?` + // optional (tokens) or [tokens], with optional space
-    `:\\s*(.*)$`,                           // colon + description
-    'i',
-  );
+  return new RegExp(`${buildAnchorPattern(tags, tagPrefixes)}\\s*(?<description>.*)$`);
 }
 
 /**
@@ -94,9 +138,10 @@ export function findAnchorsInLine(
   const match = regex.exec(line);
   if (!match) return undefined;
 
-  const tag = match[1].toUpperCase();
-  const metadataGroup = match[2]?.trim();
-  const description = match[3]?.trim() || '';
+  const groups = match.groups ?? {};
+  const tag = (groups.exact ?? groups.loose ?? '').toUpperCase();
+  const metadataGroup = (groups.metaExact ?? groups.metaLoose)?.trim();
+  const description = groups.description?.trim() || '';
 
   let owner: string | undefined;
   let anchorName: string | undefined;

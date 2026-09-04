@@ -23,7 +23,7 @@ export interface CommentStudioConfig {
   // Anchor settings
   customTags: string[];
   tagPrefixes: string;
-  anchorColorizeMode: 'never' | 'fullAnchor' | 'caseSensitive' | 'caseInsensitive';
+  anchorColorizeMode: 'never' | 'default';
   scanOnLoad: boolean;
   fileExtensionsToScan: string;
   foldersToIgnore: string;

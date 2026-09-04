@@ -311,18 +311,14 @@
           "type": "string",
           "enum": [
             "never",
-            "fullAnchor",
-            "caseSensitive",
-            "caseInsensitive"
+            "default"
           ],
-          "default": "caseInsensitive",
+          "default": "default",
           "enumDescriptions": [
             "Disable all anchor keyword colorization",
-            "Only colorize when followed by ':' (e.g. 'TODO:') or a metadata block (e.g. 'TODO(owner):')",
-            "Colorize with or without ':', only when the keyword case exactly matches the tag definition",
-            "Colorize with or without ':', regardless of case (default behavior)"
+            "Colorize exact-uppercase tags (TODO), and any-case tags carrying a delimiter or attached metadata (todo:, Todo!, todo(@me))"
           ],
-          "description": "Controls inline colorization of anchor keywords in editor comments. ANCHOR without '(name):' is never colorized regardless of this setting.",
+          "markdownDescription": "Controls inline colorization of anchor keywords in editor comments.\n\nA keyword is colorized when it is written in **exact uppercase** (`TODO`, delimiter optional), or when it carries a **delimiter** (`todo:`, `Todo!`) or a **metadata container attached with no space** (`todo(@me)`). This keeps prose such as `a half-written note - ...` from being highlighted.\n\n`ANCHOR` without `(name)` is never colorized regardless of this setting.",
 		  "order": 8
         },
         "kat-comment-studio.colorOverrides": {

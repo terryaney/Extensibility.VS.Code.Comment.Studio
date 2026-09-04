@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { BUILTIN_ANCHOR_TYPES, AnchorType } from './anchorService';
+import { BUILTIN_ANCHOR_TYPES, AnchorType, buildAnchorPattern } from './anchorService';
 import { scanCommentLinesMap } from './commentScanner';
 import { CommentStudioConfig } from '../types';
 
@@ -7,9 +7,6 @@ interface AnchorDecorationEntry {
   tag: string;
   decorationType: vscode.TextEditorDecorationType;
 }
-
-// Matches optional whitespace then a (…) or […] metadata group at start of string
-const METADATA_RE = /^(\s*)([\(\[][^\)\]]*[\)\]])/;
 
 /**
  * Resolves the color for an anchor type: hex setting override > ThemeColor default.
@@ -89,7 +86,7 @@ export class AnchorDecorationManager implements vscode.Disposable {
   }
 
   updateDecorations(editor: vscode.TextEditor): void {
-    const colorizeMode = this.config?.anchorColorizeMode ?? 'caseInsensitive';
+    const colorizeMode = this.config?.anchorColorizeMode ?? 'default';
 
     if (colorizeMode === 'never') {
       this.clearDecorations(editor);
@@ -108,76 +105,52 @@ export class AnchorDecorationManager implements vscode.Disposable {
       ? this.config.tagPrefixes.split(',').map(p => p.trim()).filter(p => p)
       : [];
 
-    // Regex that matches optional metadata tokens then colon: e.g. (owner, #issue): or [tokens]:
-    const HAS_COLON_RE = /^(?:\s*[\(\[][^\)\]]*[\)\]])?\s*:/;
+    const tags = this.decorationTypes.map(e => e.tag);
+    if (tags.length === 0) return;
+    const anchorRegex = new RegExp(buildAnchorPattern(tags, prefixes), 'g');
 
     for (const [lineIdx, commentStart] of commentMap) {
-      const line = lines[lineIdx];
-      const commentPortion = line.substring(commentStart);
+      const commentPortion = lines[lineIdx].substring(commentStart);
 
-      for (const entry of this.decorationTypes) {
-        const tag = entry.tag;
-        const upperPortion = commentPortion.toUpperCase();
-        let searchFrom = 0;
+      anchorRegex.lastIndex = 0;
+      let match: RegExpExecArray | null;
+      while ((match = anchorRegex.exec(commentPortion)) !== null) {
+        // Zero-length matches would loop forever; the pattern always consumes a
+        // tag, but guard anyway.
+        if (match[0].length === 0) {
+          anchorRegex.lastIndex++;
+          continue;
+        }
 
-        while (true) {
-          const tagIdx = upperPortion.indexOf(tag, searchFrom);
-          if (tagIdx < 0) break;
-          searchFrom = tagIdx + 1; // advance past this match for next iteration
+        const groups = match.groups ?? {};
+        const tagText = groups.exact ?? groups.loose ?? '';
+        const tag = tagText.toUpperCase();
+        const metadataText = groups.metaExact ?? groups.metaLoose;
 
-          const absIdx = commentStart + tagIdx;
+        // Standalone ANCHOR (no `(name)` syntax) is never colorized.
+        if (tag === 'ANCHOR' && !metadataText?.trim()) continue;
 
-          // Check for optional prefix character before tag
-          let decorationStart = absIdx;
-          if (absIdx > 0 && prefixes.includes(line[absIdx - 1])) {
-            if (absIdx - 1 === 0 || !isWordChar(line[absIdx - 2])) {
-              decorationStart = absIdx - 1;
-            } else if (isWordChar(line[absIdx - 1])) {
-              continue;
-            }
-          } else if (absIdx > 0 && isWordChar(line[absIdx - 1])) {
-            continue; // Must be preceded by non-word char (word boundary)
-          }
+        const prefixLen = groups.prefix ? groups.prefix.length : 0;
+        const decorationStart = commentStart + match.index;
+        const tagEnd = decorationStart + prefixLen + tagText.length;
 
-          // Must not be immediately followed by a word character (word boundary at end)
-          const afterIdx = absIdx + tag.length;
-          if (afterIdx < line.length && isWordChar(line[afterIdx])) {
-            continue;
-          }
+        const ranges = rangesMap.get(tag);
+        if (ranges) {
+          ranges.push(new vscode.Range(lineIdx, decorationStart, lineIdx, tagEnd));
+        }
 
-          // Check if this match has a colon (with optional metadata tokens) after it
-          const textAfterTag = line.substring(afterIdx);
-          const hasColon = HAS_COLON_RE.test(textAfterTag);
-
-          if (hasColon) {
-            // Always colorize tags followed by a colon (with or without metadata)
-            // Extract metadata (…) or […] range if present, for separate coloring
-            const metaMatch = METADATA_RE.exec(textAfterTag);
-            if (metaMatch) {
-              const metaStart = afterIdx + metaMatch[1].length; // skip leading whitespace
-              const metaEnd = metaStart + metaMatch[2].length;
-              metadataRanges.push(new vscode.Range(lineIdx, metaStart, lineIdx, metaEnd));
-            }
-          } else if (tag === 'ANCHOR') {
-            // Standalone ANCHOR (no (name): syntax) is never colorized per Item 9
-            continue;
-          } else {
-            // Apply colorizeMode for bare tags (no colon)
-            if (colorizeMode === 'fullAnchor') {
-              continue;
-            } else if (colorizeMode === 'caseSensitive') {
-              // Only colorize if source text matches the tag definition exactly
-              const sourceText = line.substring(absIdx, absIdx + tag.length);
-              if (sourceText !== tag) {
-                continue;
-              }
-            }
-            // 'caseInsensitive': colorize regardless (current behavior)
-          }
-
-          const ranges = rangesMap.get(tag);
-          if (ranges) {
-            ranges.push(new vscode.Range(lineIdx, decorationStart, lineIdx, absIdx + tag.length));
+        // Colour the metadata container separately, brackets included.
+        if (metadataText !== undefined) {
+          const openIdx = match[0].search(/[\(\[]/);
+          if (openIdx >= 0) {
+            metadataRanges.push(
+              new vscode.Range(
+                lineIdx,
+                decorationStart + openIdx,
+                lineIdx,
+                decorationStart + openIdx + metadataText.length + 2,
+              ),
+            );
           }
         }
       }
@@ -235,8 +208,4 @@ export class AnchorDecorationManager implements vscode.Disposable {
   dispose(): void {
     this.disposeDecorations();
   }
-}
-
-function isWordChar(ch: string): boolean {
-  return /\w/.test(ch);
 }

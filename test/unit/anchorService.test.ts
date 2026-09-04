@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { findAnchorsInText, buildAnchorRegex, BUILTIN_ANCHOR_TYPES } from '../../src/anchors/anchorService';
+import { findAnchorsInText, buildAnchorRegex, buildAnchorPattern, BUILTIN_ANCHOR_TYPES } from '../../src/anchors/anchorService';
 
 describe('anchorService', () => {
   describe('findAnchorsInText', () => {
@@ -149,8 +149,62 @@ line 2
       expect(results[0].owner).toBe('terry');
     });
 
-    it('should not match tag without colon', () => {
+    it('should match bare uppercase tag without delimiter', () => {
       const text = '// TODO fix this later';
+      const results = findAnchorsInText(text, 'test.cs');
+      expect(results).toHaveLength(1);
+      expect(results[0].tag).toBe('TODO');
+      expect(results[0].description).toBe('fix this later');
+    });
+
+    it('should match uppercase tag with ! delimiter', () => {
+      const text = '// TODO! urgent fix';
+      const results = findAnchorsInText(text, 'test.cs');
+      expect(results).toHaveLength(1);
+      expect(results[0].description).toBe('urgent fix');
+    });
+
+    it('should match lowercase tag with ! delimiter', () => {
+      const text = '// todo! urgent fix';
+      const results = findAnchorsInText(text, 'test.cs');
+      expect(results).toHaveLength(1);
+      expect(results[0].tag).toBe('TODO');
+    });
+
+    it('should not match lowercase tag without delimiter or metadata', () => {
+      const text = '// todo fix this later';
+      const results = findAnchorsInText(text, 'test.cs');
+      expect(results).toHaveLength(0);
+    });
+
+    it('should not match lowercase tag used as prose mid-sentence', () => {
+      const text = '// progress with it - mid-review elections, a half-written note - gone.';
+      const results = findAnchorsInText(text, 'test.cs');
+      expect(results).toHaveLength(0);
+    });
+
+    it('should match lowercase tag with attached metadata and no delimiter', () => {
+      const text = '// todo(@terry) fix this';
+      const results = findAnchorsInText(text, 'test.cs');
+      expect(results).toHaveLength(1);
+      expect(results[0].owner).toBe('terry');
+    });
+
+    it('should not match lowercase tag when metadata is separated by a space', () => {
+      const text = '// note (see below) about this';
+      const results = findAnchorsInText(text, 'test.cs');
+      expect(results).toHaveLength(0);
+    });
+
+    it('should match uppercase tag mid-sentence', () => {
+      const text = '// this is a known BUG in the parser';
+      const results = findAnchorsInText(text, 'test.cs');
+      expect(results).toHaveLength(1);
+      expect(results[0].tag).toBe('BUG');
+    });
+
+    it('should not match a longer word starting with a tag', () => {
+      const text = '// NOTES: plural is not a tag';
       const results = findAnchorsInText(text, 'test.cs');
       expect(results).toHaveLength(0);
     });
@@ -302,6 +356,43 @@ line 2
       const regex = buildAnchorRegex(['TODO'], ['@']);
       expect(regex.test('@TODO: something')).toBe(true);
       expect(regex.test('TODO: something')).toBe(true);
+    });
+
+    it('should not treat a prefixed tag glued to a word as an anchor', () => {
+      const regex = buildAnchorRegex(['TODO'], ['@']);
+      expect(regex.test('user@TODO: something')).toBe(false);
+    });
+  });
+
+  describe('buildAnchorPattern', () => {
+    const matchAll = (text: string, tags?: string[], prefixes?: string[]) => [
+      ...text.matchAll(new RegExp(buildAnchorPattern(tags ?? [...BUILTIN_ANCHOR_TYPES.keys()], prefixes), 'g')),
+    ];
+
+    it('should find multiple qualifying tags on one line', () => {
+      const matches = matchAll('// TODO: fix, and NOTE: also this');
+      expect(matches).toHaveLength(2);
+      expect(matches[0].groups?.exact).toBe('TODO');
+      expect(matches[1].groups?.exact).toBe('NOTE');
+    });
+
+    it('should capture the prefix separately', () => {
+      const matches = matchAll('// @TODO: fix', ['TODO'], ['@', '$']);
+      expect(matches).toHaveLength(1);
+      expect(matches[0].groups?.prefix).toBe('@');
+      expect(matches[0].index).toBe(3);
+    });
+
+    it('should capture metadata for a loose tag', () => {
+      const matches = matchAll('// todo(@terry): fix');
+      expect(matches).toHaveLength(1);
+      expect(matches[0].groups?.loose).toBe('todo');
+      expect(matches[0].groups?.metaLoose).toBe('@terry');
+    });
+
+    it('should ignore prose words that are not qualifying tags', () => {
+      const matches = matchAll('// mid-review elections and a half-written note - gone');
+      expect(matches).toHaveLength(0);
     });
   });
 });
