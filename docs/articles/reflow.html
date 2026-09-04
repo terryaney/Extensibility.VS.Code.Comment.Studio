@@ -1,0 +1,79 @@
+<h1>Comment Reflow</h1>
+
+<p class="ks-lede">Rewraps XML doc comment blocks to a line width, without ever splitting an XML element. It runs when you leave a block you edited, when you paste into one, or on demand.</p>
+
+<img class="ks-shot" src="https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/media/xml.comments.after.reflow.png" alt="An XML doc comment block after reflow">
+
+<h2>What reflow changes</h2>
+
+<ol>
+	<li>XML elements are never split — a <code>&lt;paramref&gt;</code> moves to the next line as a unit.</li>
+	<li>Lines are wrapped to fit the resolved <a href="#/reflow/line-width">line width</a>.</li>
+	<li>A blank line directly after an opening tag such as <code>&lt;summary&gt;</code> is removed. A blank line you put <em>between</em> two elements is kept — that spacing reads as intentional.</li>
+	<li><code>&lt;summary&gt;</code> is always forced onto its own line.</li>
+	<li>If a <code>&lt;summary&gt;</code> opens with a <code>&lt;para&gt;</code> but later content is left untagged, the loose content is wrapped in <code>&lt;para&gt;</code> elements as well, split on blank lines.</li>
+	<li><code>&lt;code&gt;</code> blocks are preserved verbatim and never reflowed.</li>
+	<li>Block tags (<code>&lt;summary&gt;</code>, <code>&lt;remarks&gt;</code>, <code>&lt;param&gt;</code>, …) each wrap their content independently.</li>
+</ol>
+
+<div class="ks-warn">
+	<strong>XML doc comments only.</strong>
+	JSDoc <code>/** */</code> blocks are never reflowed — see <a href="#/jsdoc">JSDoc / TSDoc</a>.
+</div>
+
+<h2>Running reflow manually</h2>
+
+<div class="ks-table-wrap">
+<table>
+	<thead><tr><th>Where</th><th>How</th></tr></thead>
+	<tbody>
+		<tr><td>Command palette</td><td><code>KAT Comment Studio: Reflow Current Comment</code></td></tr>
+		<tr><td>Command palette</td><td><code>KAT Comment Studio: Reflow Comments in File</code></td></tr>
+		<tr><td>Editor context menu</td><td><strong>KAT Comment Studio</strong> submenu</td></tr>
+		<tr><td>Light bulb</td><td><code>Ctrl+.</code> with the caret inside a comment block</td></tr>
+	</tbody>
+</table>
+</div>
+
+<div class="ks-note">
+	<strong>No format-on-save integration.</strong>
+	The extension does not register a document or range formatting provider, so it never competes with
+	C# Dev Kit, OmniSharp, or Prettier. Use <strong>Reflow Comments in File</strong> instead.
+</div>
+
+<h2>Auto-reflow on edit exit</h2>
+
+<p>When you leave a doc comment block you edited, it is reflowed. This is the <em>only</em> moment the extension rewrites a comment you typed — nothing is reformatted while the caret is inside the block.</p>
+
+<p>The reflow is held for <code>autoCollapseDelay</code> milliseconds (default <code>1000</code>) so that reflow and auto-collapse happen together, instead of the text shifting while the block is still open. Move the caret back into the block before the delay elapses and the queued reflow is cancelled; it re-queues next time you leave.</p>
+
+<p>The reflow is its own undo step, so <code>Ctrl+Z</code> right after leaving a comment reverts the reflow and keeps your text exactly as typed. Undo and redo never re-trigger a reflow.</p>
+
+<p>Controlled by <code>enableReflowOnCommentExit</code> (default <code>true</code>).</p>
+
+<h2>Smart paste</h2>
+
+<p>Pasting into an XML doc comment block reflows the whole block — but only once the caret has left it. While you are still editing, nothing is reformatted, so paste-then-type never fights your cursor.</p>
+
+<p>Controlled by <code>enableReflowOnPaste</code> (default <code>true</code>).</p>
+
+<h2>Auto-expand and auto-collapse timing</h2>
+
+<div class="ks-table-wrap">
+<table>
+	<thead><tr><th>Setting</th><th>Default</th><th>Effect</th></tr></thead>
+	<tbody>
+		<tr><td><code>autoExpandDelay</code></td><td><code>500</code></td><td>Milliseconds before a folded block expands after the caret enters it.</td></tr>
+		<tr><td><code>autoCollapseDelay</code></td><td><code>1000</code></td><td>Milliseconds before an expanded block re-collapses after the caret leaves. Also gates how long the exit-reflow waits.</td></tr>
+	</tbody>
+</table>
+</div>
+
+<h2>Line width</h2>
+
+<p>Resolved in this order, first match wins:</p>
+
+<ol>
+	<li><code>max_line_length</code> from the nearest <a href="#/editorconfig"><code>.editorconfig</code></a> for the file's directory</li>
+	<li>the <code>reflowLineLength</code> setting (default <code>120</code>)</li>
+</ol>

@@ -9,7 +9,7 @@ export interface ScanOptions {
 }
 
 const DEFAULT_SCAN_OPTIONS: ScanOptions = {
-  fileExtensions: ['cs', 'vb', 'fs', 'cpp', 'c', 'h', 'ts', 'tsx', 'js', 'jsx', 'razor', 'cshtml', 'sql', 'ps1', 'psm1'],
+  fileExtensions: ['cs', 'vb', 'fs', 'cpp', 'c', 'h', 'ts', 'tsx', 'js', 'jsx', 'razor', 'cshtml', 'sql', 'ps1', 'psm1', 'md'],
   ignoredFolders: ['node_modules', 'bin', 'obj', '.git', 'dist', 'out', 'build', '.vs', '.vscode-test'],
 };
 

@@ -1,0 +1,62 @@
+<h1>VS vs VS Code</h1>
+
+<p class="ks-lede">This extension is a port of <a href="https://github.com/madskristensen/CommentsVS" target="_blank" rel="noopener">madskristensen/CommentsVS</a> for Visual Studio 2022. Some things the VS extension does are impossible or unwise in VS Code; this page records what changed and why.</p>
+
+<h2>Implemented differently</h2>
+
+<div class="ks-table-wrap">
+<table>
+	<thead><tr><th>Visual Studio</th><th>VS Code port</th></tr></thead>
+	<tbody>
+		<tr>
+			<td>WPF inline adornment replacing the comment with styled controls</td>
+			<td>CodeLens plus a hover popup. The VS Code decoration API cannot replace text with arbitrary rendered content.</td>
+		</tr>
+		<tr>
+			<td>Off / Compact / Full rendering modes</td>
+			<td>A single <strong>on</strong> mode — CodeLens, hover, auto-fold. A compact inline summary is not achievable through the extension API.</td>
+		</tr>
+		<tr>
+			<td>Double-click a rendered comment to edit the raw source</td>
+			<td>Not available; decorations do not receive click events. Auto-unfold when the caret enters is used instead.</td>
+		</tr>
+		<tr>
+			<td>Auto-reflow while typing</td>
+			<td>Reflow on caret <em>exit</em> from the block. Per-keystroke reflow would fight the undo stack. See <a href="#/reflow/auto-reflow-on-edit-exit">auto-reflow</a>.</td>
+		</tr>
+		<tr>
+			<td>Format Document integration (<code>Ctrl+K, Ctrl+D</code>)</td>
+			<td>No formatting provider is registered — it would conflict with C# Dev Kit and OmniSharp. Use <strong>Reflow Comments in File</strong>.</td>
+		</tr>
+		<tr>
+			<td>Background parallel solution scanning</td>
+			<td>A synchronous scan with a progress notification. Fast enough for typical workspaces.</td>
+		</tr>
+	</tbody>
+</table>
+</div>
+
+<h2>Not implemented</h2>
+
+<div class="ks-table-wrap">
+<table>
+	<thead><tr><th>Visual Studio feature</th><th>Why not</th></tr></thead>
+	<tbody>
+		<tr><td>Left border indicator on rendered comments</td><td>No persistent left-border gutter marker exists in the decoration API.</td></tr>
+		<tr><td>Comment Remover — 7 specialized commands</td><td>Reduced to two: <a href="#/comment-remover">Remove Current</a> and Remove All.</td></tr>
+		<tr><td>Export to TSV</td><td>CSV, Markdown and JSON are supported; TSV is a spreadsheet save-as away.</td></tr>
+		<tr><td>“Use Compact Style for Short Summaries”</td><td>There is only one rendering mode.</td></tr>
+		<tr><td>“Preserve Blank Lines”</td><td>Blank lines between XML elements are normalized during reflow for consistency.</td></tr>
+	</tbody>
+</table>
+</div>
+
+<h2>Added in the VS Code port</h2>
+
+<ul>
+	<li><a href="#/link-navigation"><code>LINK:</code> navigation</a> — hover previews, path completion, go-to-definition, and diagnostics for broken targets.</li>
+	<li><a href="#/jsdoc">JSDoc / TSDoc rendering</a> for JavaScript and TypeScript.</li>
+	<li><a href="#/code-anchors/markdown-and-prose-files">Markdown anchor scanning</a>, where every line is prose.</li>
+	<li>A sortable, resizable <a href="#/code-anchors/bottom-panel-grid">grid panel</a> with scope, search and type filters shared with the tree.</li>
+	<li><a href="#/editorconfig"><code>.editorconfig</code></a> support for reflow line width.</li>
+</ul>

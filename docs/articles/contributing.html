@@ -1,0 +1,100 @@
+<h1>Building the Extension</h1>
+
+<p class="ks-lede">Everything needed to clone, run, test and package KAT Comment Studio. The same content lives in <a href="https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener">CONTRIBUTING.md</a>.</p>
+
+<h2>Prerequisites</h2>
+
+<ul>
+	<li><strong>Node.js</strong> 20 or later</li>
+	<li><strong>VS Code</strong>, any recent version</li>
+	<li>No global <code>vsce</code> — the repo uses a local <code>@vscode/vsce</code> dev dependency</li>
+</ul>
+
+<pre><code>git clone https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio.git
+cd Extensibility.VS.Code.Comment.Studio
+npm install</code></pre>
+
+<h2>Scripts</h2>
+
+<div class="ks-table-wrap">
+<table>
+	<thead><tr><th>Script</th><th>Does</th></tr></thead>
+	<tbody>
+		<tr><td><code>npm run compile</code></td><td><code>tsc -p ./</code> — TypeScript to <code>out/</code></td></tr>
+		<tr><td><code>npm run watch</code></td><td>Incremental compile in watch mode</td></tr>
+		<tr><td><code>npm test</code></td><td>Run the Vitest suite once</td></tr>
+		<tr><td><code>npm run test:watch</code></td><td>Tests in watch mode</td></tr>
+		<tr><td><code>npm run package</code></td><td>Bump the patch version, compile, and write a <code>.vsix</code></td></tr>
+	</tbody>
+</table>
+</div>
+
+<h2>Running and debugging</h2>
+
+<p>Press <strong>F5</strong>. The <code>Run Extension</code> launch config compiles first (<code>preLaunchTask: compile</code>), then opens an Extension Development Host with the extension loaded. Edit <code>src/</code>, save, then press <code>Ctrl+R</code> in the host window to reload.</p>
+
+<p>Two tasks are defined in <code>.vscode/tasks.json</code>: <strong>compile</strong> (the build task, <code>Ctrl+Shift+B</code>) and <strong>watch</strong> (the default background task, surfacing TypeScript errors in the Problems panel).</p>
+
+<h2>Tests</h2>
+
+<p>Tests live in <code>test/</code> and use <a href="https://vitest.dev/" target="_blank" rel="noopener">Vitest</a>. They are pure unit tests — no VS Code host is needed, so they run in a second or two.</p>
+
+<div class="ks-note">
+	<strong>Nothing that imports <code>vscode</code> is unit-testable.</strong>
+	Keep logic in modules that take plain values, and keep the VS Code API at the edges. That is why the anchor
+	matching, comment scanning, parsing and reflow engines are all separate from their providers.
+</div>
+
+<h2>Packaging a release</h2>
+
+<pre><code>npm run package</code></pre>
+
+<p><code>scripts/release.ps1</code> then does three things:</p>
+
+<ol>
+	<li>Bumps the patch version in <code>package.json</code> — file only, no git tag</li>
+	<li>Runs <code>@vscode/vsce package</code>, which triggers <code>vscode:prepublish</code> and compiles</li>
+	<li>Writes the <code>.vsix</code> to <code>dist/</code> and rewrites the version in every file that names it</li>
+</ol>
+
+<div class="ks-warn">
+	<strong>Two files contain the VSIX filename.</strong>
+	<code>README.md</code> and <code>docs/articles/install.html</code> both contain the literal
+	<code>kat-comment-studio-&lt;version&gt;.vsix</code>. The release script string-replaces it. Keep that literal
+	intact when editing either file, or the download links go stale — the script warns when it finds no match.
+</div>
+
+<p>Commit the version bump and the new <code>.vsix</code> afterwards.</p>
+
+<h2>Project layout</h2>
+
+<pre><code>src/
+  extension.ts        activation; all command and provider registration
+  types.ts            shared types
+  configuration.ts    settings + .editorconfig integration
+  anchors/            anchor service, comment scanner, workspace scan, tree, grid, export
+  commands/           comment remover
+  diagnostics/        LINK: validation
+  navigation/         LINK: parser and navigator, issue links, git service
+  parsing/            comment block detection, XML/JSDoc parsers, language config
+  reflow/             reflow engine, auto-reflow, smart paste
+  rendering/          CodeLens provider, decoration manager, prefix highlighter
+  services/           editorconfig service
+docs/                 this documentation site
+test/                 Vitest unit tests
+out/                  compiled output (git-ignored)</code></pre>
+
+<h2>The documentation site</h2>
+
+<p>This site is plain static files under <code>docs/</code>, published by GitHub Pages from the <code>main</code> branch. There is no build step — push and it is live.</p>
+
+<ul>
+	<li><code>docs/index.html</code> — the shell</li>
+	<li><code>docs/assets/manifest.json</code> — the ordered topic list that drives the nav and the pager</li>
+	<li><code>docs/articles/&lt;id&gt;.html</code> — one HTML fragment per topic, semantic markup only</li>
+	<li><code>docs/assets/docs.css</code>, <code>docs/assets/docs.js</code> — styling and hash routing</li>
+</ul>
+
+<p>To add a topic, drop a fragment in <code>articles/</code> and add an entry to <code>manifest.json</code>. Headings get IDs and an on-this-page entry automatically; link to one with <code>#/&lt;article&gt;/&lt;heading-id&gt;</code>.</p>
+
+<p>Preview locally with any static server, for example <code>npx serve docs</code>.</p>

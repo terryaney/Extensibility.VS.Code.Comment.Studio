@@ -1,0 +1,87 @@
+<h1>KAT Comment Studio</h1>
+
+<p class="ks-lede">A VS Code extension that turns raw XML doc comments and JSDoc blocks into clean inline summaries, and tracks <code>TODO</code>-style anchors, issue references, and cross-file links across your whole workspace.</p>
+
+<img class="ks-shot" src="https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/media/xml.comments.after.rendered.png" alt="An XML doc comment collapsed to a single CodeLens summary line">
+
+<h2>Topics</h2>
+
+<ul class="ks-cards">
+	<li><a href="#/rendering"><strong>XML Doc Rendering</strong><span>Fold XML doc blocks into a one-line CodeLens with a formatted popup.</span></a></li>
+	<li><a href="#/jsdoc"><strong>JSDoc / TSDoc</strong><span>The same rendering for <code>/** */</code> blocks in JS and TS.</span></a></li>
+	<li><a href="#/reflow"><strong>Comment Reflow</strong><span>Wrap and normalize doc comments on exit, paste, or on demand.</span></a></li>
+	<li><a href="#/code-anchors"><strong>Code Anchors</strong><span>TODO, HACK, BUG and custom tags tracked across the workspace.</span></a></li>
+	<li><a href="#/prefix-highlighting"><strong>Prefix Highlighting</strong><span>Better Comments-style coloring for <code>!</code>, <code>?</code>, <code>*</code>, <code>//</code>, <code>-</code>, <code>&gt;</code>.</span></a></li>
+	<li><a href="#/link-navigation"><strong>LINK: Navigation</strong><span>Cross-file references with hover, completion, and Ctrl+Click.</span></a></li>
+	<li><a href="#/issue-links"><strong>Issue Links</strong><span>Turn <code>#123</code> into a link to your tracker.</span></a></li>
+	<li><a href="#/comment-remover"><strong>Comment Remover</strong><span>Strip one doc comment block, or all of them.</span></a></li>
+	<li><a href="#/settings"><strong>Settings Reference</strong><span>Every setting, its type, and its default.</span></a></li>
+	<li><a href="#/colors"><strong>Colors</strong><span>Theme color IDs and <code>colorOverrides</code> keys.</span></a></li>
+	<li><a href="#/commands"><strong>Commands &amp; Keys</strong><span>Palette entries, F1 interception, suggested keybindings.</span></a></li>
+	<li><a href="#/editorconfig"><strong>EditorConfig</strong><span>Per-project reflow line width.</span></a></li>
+</ul>
+
+<h2>Two kinds of feature</h2>
+
+<p>Knowing which group a feature belongs to explains where it works.</p>
+
+<div class="ks-table-wrap">
+<table>
+	<thead><tr><th>Group</th><th>Features</th><th>Where it works</th></tr></thead>
+	<tbody>
+		<tr>
+			<td><strong>Doc comment</strong></td>
+			<td>CodeLens summary, documentation popup, auto-fold, opacity, reflow, comment remover</td>
+			<td>Only in languages with a known doc-comment style — see the table below.</td>
+		</tr>
+		<tr>
+			<td><strong>Comment text</strong></td>
+			<td>Code anchors, prefix highlighting, issue links, <code>LINK:</code> navigation</td>
+			<td>Every file you open. These read comment text with a language-agnostic scanner, so they work in JSON, YAML, shell scripts, and anything else.</td>
+		</tr>
+	</tbody>
+</table>
+</div>
+
+<h2>Supported languages</h2>
+
+<p>This table applies to the <strong>doc comment</strong> group only.</p>
+
+<div class="ks-table-wrap">
+<table>
+	<thead><tr><th>Language</th><th>Doc comment style</th><th>CodeLens &amp; popup</th><th>Reflow</th></tr></thead>
+	<tbody>
+		<tr><td>C#</td><td><code>///</code></td><td>✓</td><td>✓</td></tr>
+		<tr><td>VB</td><td><code>'''</code></td><td>✓</td><td>✓</td></tr>
+		<tr><td>F#</td><td><code>///</code></td><td>✓</td><td>✓</td></tr>
+		<tr><td>C / C++</td><td><code>///</code></td><td>✓</td><td>✓</td></tr>
+		<tr><td>Razor / cshtml</td><td><code>///</code></td><td>✓</td><td>✓</td></tr>
+		<tr><td>TypeScript / TSX</td><td><code>/** */</code></td><td>✓</td><td>—</td></tr>
+		<tr><td>JavaScript / JSX</td><td><code>/** */</code></td><td>✓</td><td>—</td></tr>
+		<tr><td>SQL</td><td><code>---</code></td><td>—</td><td>—</td></tr>
+		<tr><td>PowerShell</td><td><code>##</code>, <code>&lt;# #&gt;</code></td><td>—</td><td>—</td></tr>
+	</tbody>
+</table>
+</div>
+
+<div class="ks-note">
+	<strong>Why some rows say “—”.</strong>
+	JSDoc languages are not reflowed because rewrapping would corrupt <code>@tag</code> lines.
+	SQL and PowerShell are parsed as doc comments — <a href="#/comment-remover">Comment Remover</a> handles them —
+	but CodeLens is deliberately suppressed for both.
+</div>
+
+<div class="ks-note">
+	<strong>Anchors are not limited to this list.</strong>
+	Code anchors, prefix highlighting, issue links, and <code>LINK:</code> work in any file. Markdown gets
+	special handling: because the whole document is prose, every line is scanned rather than only comment lines.
+	See <a href="#/code-anchors/markdown-and-prose-files">Markdown and prose files</a>.
+</div>
+
+<h2>References</h2>
+
+<ul>
+	<li><a href="https://github.com/madskristensen/CommentsVS" target="_blank" rel="noopener">madskristensen/CommentsVS</a> — the Visual Studio 2022 extension this project ports and extends. See <a href="#/vs-differences">VS vs VS Code</a>.</li>
+	<li><a href="https://learn.microsoft.com/en-us/dotnet/csharp/language-reference/xmldoc/recommended-tags" target="_blank" rel="noopener">C# XML documentation tags</a> — the official tag reference.</li>
+	<li><a href="https://microsoft.github.io/vscode-codicons/dist/codicon.html" target="_blank" rel="noopener">VS Code Codicons</a> — icon names used in commands and views.</li>
+</ul>

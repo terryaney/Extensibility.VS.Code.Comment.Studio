@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { getLanguageCommentStyle } from '../parsing/languageConfig';
+import { getLanguageCommentStyle, isLanguageSupported } from '../parsing/languageConfig';
 import { findAllCommentBlocks } from '../parsing/commentParser';
 import { reflowCommentBlock, ReflowOptions } from './reflowEngine';
 import { getConfiguration } from '../configuration';
@@ -104,7 +104,7 @@ export class AutoReflowHandler implements vscode.Disposable {
       resetReflowCycles();
       this.lastDocUri = docUri;
     }
-    if (!config.enabledLanguages.includes(event.document.languageId)) return;
+    if (!isLanguageSupported(event.document.languageId)) return;
 
     const changeLine = event.contentChanges[0]?.range.start.line;
     if (changeLine === undefined) return;
@@ -138,7 +138,7 @@ export class AutoReflowHandler implements vscode.Disposable {
     if (!config.enableReflowOnCommentExit) return;
 
     const editor = event.textEditor;
-    if (!config.enabledLanguages.includes(editor.document.languageId)) return;
+    if (!isLanguageSupported(editor.document.languageId)) return;
 
     const docUri = editor.document.uri.toString();
     const tracker = this.docTrackers.get(docUri);

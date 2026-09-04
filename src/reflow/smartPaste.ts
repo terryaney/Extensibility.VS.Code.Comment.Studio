@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { getLanguageCommentStyle } from '../parsing/languageConfig';
+import { getLanguageCommentStyle, isLanguageSupported } from '../parsing/languageConfig';
 import { findAllCommentBlocks } from '../parsing/commentParser';
 import { reflowCommentBlock, ReflowOptions } from './reflowEngine';
 import { getConfiguration } from '../configuration';
@@ -56,7 +56,7 @@ export class SmartPasteHandler implements vscode.Disposable {
 
     const editor = vscode.window.activeTextEditor;
     if (!editor || event.document !== editor.document) return;
-    if (!config.enabledLanguages.includes(event.document.languageId)) return;
+    if (!isLanguageSupported(event.document.languageId)) return;
 
     // Guard: ignore our own programmatic edits to prevent infinite self-triggering.
     if (isSmartPasteEdit) {

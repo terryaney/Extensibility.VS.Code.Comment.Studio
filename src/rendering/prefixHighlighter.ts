@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { CommentStudioConfig } from '../types';
+import { findCommentOpener } from '../anchors/commentScanner';
 
 interface PrefixDecorationEntry {
   prefix: string;
@@ -131,31 +132,38 @@ interface CommentStartInfo {
 /**
  * Finds the start of a regular (non-doc) comment.
  * Returns marker position and content start position (after // or # or ').
- * Skips doc comments (///, /**, etc.).
+ * Skips doc comments (///, /**, ##, ''').
+ *
+ * Markers inside string and character literals are ignored, so `var s = "don't";`
+ * and `var url = "http://x";` are not treated as comments. Block comments and
+ * SQL `--` carry no prefix highlighting, so scanning continues past them.
  */
 function findRegularCommentStart(line: string): CommentStartInfo | null {
-  // Check for // comments (but not /// doc comments)
-  const doubleSlash = line.indexOf('//');
-  if (doubleSlash >= 0) {
-    // Skip /// doc comments
-    if (line[doubleSlash + 2] === '/') return null;
-    // Skip /** multi-line doc start
-    if (line[doubleSlash + 2] === '*') return null;
-    return { markerStart: doubleSlash, contentStart: doubleSlash + 2 };
-  }
+  let from = 0;
 
-  // Check for # comments (Python/PowerShell — but not ## doc comments)
-  const hash = line.indexOf('#');
-  if (hash >= 0) {
-    if (line[hash + 1] === '#') return null; // ## is doc comment
-    return { markerStart: hash, contentStart: hash + 1 };
-  }
+  while (from < line.length) {
+    const opener = findCommentOpener(line, from);
+    if (!opener) return null;
 
-  // Check for ' comments (VB — but not ''' doc comments)
-  const quote = line.indexOf("'");
-  if (quote >= 0) {
-    if (line[quote + 1] === "'" && line[quote + 2] === "'") return null; // ''' is doc comment
-    return { markerStart: quote, contentStart: quote + 1 };
+    const { index, marker } = opener;
+
+    if (marker === '//') {
+      if (line[index + 2] === '/') return null; // /// doc comment
+      if (line[index + 2] === '*') return null; // /** doc comment
+      return { markerStart: index, contentStart: index + 2 };
+    }
+
+    if (marker === '#') {
+      if (line[index + 1] === '#') return null; // ## doc comment
+      return { markerStart: index, contentStart: index + 1 };
+    }
+
+    if (marker === "'") {
+      if (line[index + 1] === "'" && line[index + 2] === "'") return null; // ''' doc comment
+      return { markerStart: index, contentStart: index + 1 };
+    }
+
+    from = index + marker.length;
   }
 
   return null;

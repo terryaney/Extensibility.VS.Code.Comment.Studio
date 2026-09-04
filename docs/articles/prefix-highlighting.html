@@ -1,0 +1,49 @@
+<h1>Prefix Highlighting</h1>
+
+<p class="ks-lede">Colors a comment based on the character it starts with, so alerts, questions and dead code stand apart at a glance. Modelled on <a href="https://marketplace.visualstudio.com/items?itemName=aaron-bond.better-comments" target="_blank" rel="noopener">Better Comments</a>.</p>
+
+<img class="ks-shot" src="https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/media/code-anchors-highlighting.png" alt="Comments colored by their prefix character">
+
+<h2>Prefixes</h2>
+
+<div class="ks-table-wrap">
+<table>
+	<thead><tr><th>Prefix</th><th>Dark</th><th>Light</th><th>Use</th></tr></thead>
+	<tbody>
+		<tr><td><code>// !</code></td><td><span class="ks-swatch" style="background:#FF2D00"></span><code>#FF2D00</code></td><td><span class="ks-swatch" style="background:#CC0000"></span><code>#CC0000</code></td><td>Alerts and warnings</td></tr>
+		<tr><td><code>// ?</code></td><td><span class="ks-swatch" style="background:#3498DB"></span><code>#3498DB</code></td><td><span class="ks-swatch" style="background:#2070B0"></span><code>#2070B0</code></td><td>Open questions</td></tr>
+		<tr><td><code>// *</code></td><td><span class="ks-swatch" style="background:#98C379"></span><code>#98C379</code></td><td><span class="ks-swatch" style="background:#008000"></span><code>#008000</code></td><td>Highlighted notes</td></tr>
+		<tr><td><code>// //</code></td><td><span class="ks-swatch" style="background:#808080"></span><code>#808080</code></td><td><span class="ks-swatch" style="background:#999999"></span><code>#999999</code></td><td>Deprecated — rendered struck through</td></tr>
+		<tr><td><code>// -</code></td><td><span class="ks-swatch" style="background:#505050"></span><code>#505050</code></td><td><span class="ks-swatch" style="background:#AAAAAA"></span><code>#AAAAAA</code></td><td>Disabled or parked items</td></tr>
+		<tr><td><code>// &gt;</code></td><td><span class="ks-swatch" style="background:#C586C0"></span><code>#C586C0</code></td><td><span class="ks-swatch" style="background:#800080"></span><code>#800080</code></td><td>Quotes — rendered italic</td></tr>
+	</tbody>
+</table>
+</div>
+
+<h2>Example</h2>
+
+<pre><code>// ! Do not call this before Initialize() runs
+// ? Should this retry, or fail fast?
+// * The cache key must include the tenant id
+// // legacyPath = ResolveOld(name);
+// - Parked until the 2.0 migration
+// &gt; "Premature optimization is the root of all evil."</code></pre>
+
+<h2>Which comments qualify</h2>
+
+<p>The prefix must be the first thing after the comment marker, followed by a space. Single-line markers are recognized generically, so this works with <code>//</code>, <code>#</code> (PowerShell, Python, YAML), <code>'</code> (VB), and others — in any file type, not just the <a href="#/overview/supported-languages">doc-comment languages</a>.</p>
+
+<div class="ks-note">
+	<strong>String literals are skipped.</strong>
+	Comment detection steps over string, template and character literals, so
+	<code>var s = "don't";</code>, <code>var url = "http://x";</code> and <code>char c = 'a';</code>
+	are read as code rather than as the start of a comment.
+	Block comments and SQL <code>--</code> are not prefix-highlighted.
+</div>
+
+<h2>Configuration</h2>
+
+<ul>
+	<li>Turn it off entirely with <code>enablePrefixHighlighting: false</code>.</li>
+	<li>Recolor any prefix through <code>colorOverrides</code> — see <a href="#/colors/prefix-highlighting">the color keys</a>.</li>
+</ul>

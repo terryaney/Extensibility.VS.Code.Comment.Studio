@@ -11,7 +11,6 @@ export function getConfiguration(): CommentStudioConfig {
 
   return {
     xmlCommentRendering: config.get<boolean>('xmlCommentRendering', true),
-    enabledLanguages: splitTrim(pp['enabledLanguages'] ?? 'csharp, vb, fsharp, cpp, c, typescript, javascript, typescriptreact, javascriptreact, razor, sql, powershell'),
     xmlCommentOpacity: config.get<number>('xmlCommentOpacity', 40),
 
     // Reflow
@@ -26,7 +25,7 @@ export function getConfiguration(): CommentStudioConfig {
     tagPrefixes: pp['tagPrefixes'] ?? '@, $',
     anchorColorizeMode: config.get<string>('anchorColorizeMode', 'default') === 'never' ? 'never' : 'default',
     scanOnLoad: config.get<boolean>('scanOnLoad', true),
-    fileExtensionsToScan: (pp['fileExtensions'] ?? 'cs,vb,fs,cpp,c,h,ts,tsx,js,jsx,razor,cshtml,sql,ps1,psm1').replace(/\s+/g, ''),
+    fileExtensionsToScan: (pp['fileExtensions'] ?? 'cs,vb,fs,cpp,c,h,ts,tsx,js,jsx,razor,cshtml,sql,ps1,psm1,md').replace(/\s+/g, ''),
     foldersToIgnore: (pp['ignoreFolders'] ?? 'node_modules,bin,obj,.git,dist,out,build,.vs,.vscode-test').replace(/\s+/g, ''),
 
     // Feature toggles

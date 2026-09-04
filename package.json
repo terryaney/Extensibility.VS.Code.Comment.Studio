@@ -2,7 +2,7 @@
   "name": "kat-comment-studio",
   "displayName": "KAT Comment Studio",
   "description": "XML documentation comment rendering, reflow, code anchors, and link navigation for VS Code",
-  "version": "1.0.11",
+  "version": "1.0.12",
   "publisher": "conduent-kat-team",
   "author": {
     "name": "Terry Aney",
@@ -57,7 +57,7 @@
         {
           "id": "kat-comment-studio.anchorsView",
           "name": "KAT Comment Studio",
-		  "icon": "$(code-oss)"
+          "icon": "$(code-oss)"
         }
       ],
       "kat-comment-studio-panel": [
@@ -65,7 +65,7 @@
           "type": "webview",
           "id": "kat-comment-studio.anchorsGrid",
           "name": "KAT Comment Studio - Code Anchors",
-		  "icon": "$(code-oss)"
+          "icon": "$(code-oss)"
         }
       ]
     },
@@ -240,7 +240,7 @@
           "type": "boolean",
           "default": true,
           "description": "Enable XML Comment Rendering (CodeLens summary, auto-fold, and apply Comment Opacity).",
-		  "order": 0
+          "order": 0
         },
         "kat-comment-studio.xmlCommentOpacity": {
           "type": "integer",
@@ -248,7 +248,7 @@
           "minimum": 0,
           "maximum": 100,
           "description": "When XML Comment Rendering is enabled, specify the opacity percentage (0-100) for dimmed original comments. 0 = fully invisible; 100 = no dimming.",
-		  "order": 2
+          "order": 2
         },
         "kat-comment-studio.codeLensSummaryTruncation": {
           "type": "number",
@@ -256,7 +256,7 @@
           "minimum": 0,
           "maximum": 500,
           "description": "Maximum number of characters for the CodeLens summary text before truncation. Set to 0 for no truncation.",
-		  "order": 1
+          "order": 1
         },
         "kat-comment-studio.autoExpandDelay": {
           "type": "number",
@@ -264,7 +264,7 @@
           "minimum": 0,
           "maximum": 10000,
           "description": "Delay in milliseconds before a folded XML comment block auto-expands after the cursor enters it.",
-		  "order": 3
+          "order": 3
         },
         "kat-comment-studio.autoCollapseDelay": {
           "type": "number",
@@ -272,7 +272,7 @@
           "minimum": 0,
           "maximum": 10000,
           "description": "Delay in milliseconds before an expanded XML comment block auto-collapses after the cursor leaves it. Also delays auto-reflow on comment exit by the same amount, so the block is not rewritten while it is still expanded.",
-		  "order": 3
+          "order": 3
         },
         "kat-comment-studio.reflowLineLength": {
           "type": "number",
@@ -280,34 +280,33 @@
           "minimum": 40,
           "maximum": 500,
           "description": "Maximum line width for comment reflow. Can be overridden by .editorconfig max_line_length.",
-		  "order": 3
+          "order": 3
         },
         "kat-comment-studio.enableReflowOnCommentExit": {
           "type": "boolean",
           "default": true,
           "description": "Automatically reflow a XML comment block after editing when the cursor leaves the block.",
-		  "order": 4
+          "order": 4
         },
         "kat-comment-studio.enableReflowOnPaste": {
           "type": "boolean",
           "default": true,
           "description": "Automatically reflow XML comment blocks when pasting text into the block.",
-		  "order": 5
+          "order": 5
         },
         "kat-comment-studio.interceptF1ForComments": {
           "type": "boolean",
           "default": true,
           "description": "When the cursor is inside XML comment block, or method that has XML comments, pressing F1 shows the KAT Comment Studio tooltip instead of the VS Code help menu. Disable to restore the default F1 behavior.",
-		  "order": 6
+          "order": 6
         },
         "kat-comment-studio.collapseXmlWhenRenderingOff": {
           "type": "boolean",
           "default": false,
           "description": "Automatically collapse XML comments when opening files when rendering is Off.  When rendering is toggled On, comments automatically collapse/expand based on cursor position.",
-		  "order": 7
+          "order": 7
         },
-
-		"kat-comment-studio.anchorColorizeMode": {
+        "kat-comment-studio.anchorColorizeMode": {
           "type": "string",
           "enum": [
             "never",
@@ -319,7 +318,7 @@
             "Colorize exact-uppercase tags (TODO), and any-case tags carrying a delimiter or attached metadata (todo:, Todo!, todo(@me))"
           ],
           "markdownDescription": "Controls inline colorization of anchor keywords in editor comments.\n\nA keyword is colorized when it is written in **exact uppercase** (`TODO`, delimiter optional), or when it carries a **delimiter** (`todo:`, `Todo!`) or a **metadata container attached with no space** (`todo(@me)`). This keeps prose such as `a half-written note - ...` from being highlighted.\n\n`ANCHOR` without `(name)` is never colorized regardless of this setting.",
-		  "order": 8
+          "order": 8
         },
         "kat-comment-studio.colorOverrides": {
           "type": "object",
@@ -328,46 +327,45 @@
             "type": "string"
           },
           "markdownDescription": "Override colors for anchor tags and UI elements. Map a key to a hex color string (e.g. `\"todo\": \"#FFA500\"`). Omitted keys fall back to theme defaults.\n\n**Rendered comment keys:** `renderedText`, `renderedHeading`, `renderedCode`, `renderedLink`\n\n**Anchor type keys:** `todo`, `hack`, `note`, `bug`, `fixme`, `undone`, `review`, `anchor`, `custom`\n\n**Prefix highlight keys:** `prefixAlert`, `prefixQuestion`, `prefixHighlight`, `prefixStrikethrough`, `prefixDisabled`, `prefixQuote`",
-		  "order": 9
+          "order": 9
         },
         "kat-comment-studio.enableIssueLinks": {
           "type": "boolean",
           "default": true,
-          "description": "Enable clickable issue links (#123 \u2192 GitHub/GitLab/etc.)",
-		  "order": 10
+          "description": "Enable clickable issue links (#123 → GitHub/GitLab/etc.)",
+          "order": 10
         },
         "kat-comment-studio.enablePrefixHighlighting": {
           "type": "boolean",
           "default": true,
           "description": "Enable 'Better Comments'-style prefix highlighting (! ? * // - >)",
-		  "order": 11
+          "order": 11
         },
         "kat-comment-studio.patternProcessing": {
           "type": "object",
           "default": {
             "customTags": "",
-            "enabledLanguages": "csharp, vb, fsharp, cpp, c, typescript, javascript, typescriptreact, javascriptreact, razor, sql, powershell",
-            "fileExtensions": "cs, vb, fs, cpp, c, h, ts, tsx, js, jsx, razor, cshtml, sql, ps1, psm1",
+            "fileExtensions": "cs, vb, fs, cpp, c, h, ts, tsx, js, jsx, razor, cshtml, sql, ps1, psm1, md",
             "ignoreFolders": "node_modules, bin, obj, .git, dist, out, build, .vs, .vscode-test",
             "tagPrefixes": "@, $"
           },
           "additionalProperties": {
             "type": "string"
           },
-          "markdownDescription": "Controls which files, folders, languages, and tags are processed. Values are comma-separated strings (like `files.associations`). Only override keys you want to change.\n\n| Key | Description |\n|---|---|\n| `customTags` | Custom anchor tags highlighted in Goldenrod and shown in Code Anchors tree |\n| `enabledLanguages` | VS Code language IDs for which rendering and anchors are active |\n| `fileExtensions` | File extensions included in anchor scan and LINK: validation |\n| `ignoreFolders` | Folder names excluded from anchor scan |\n| `tagPrefixes` | Prefix characters recognised before anchor tags — `@TODO` is treated as `TODO` |",
-		  "order": 12
+          "markdownDescription": "Controls which files, folders, and tags are processed. Values are comma-separated strings (like `files.associations`). Only override keys you want to change.\n\n| Key | Description |\n|---|---|\n| `customTags` | Custom anchor tags highlighted in Goldenrod and shown in Code Anchors tree |\n| `fileExtensions` | File extensions included in the workspace anchor scan and LINK: validation |\n| `ignoreFolders` | Folder names excluded from the anchor scan |\n| `tagPrefixes` | Prefix characters recognised before anchor tags — `@TODO` is treated as `TODO` |",
+          "order": 12
         },
         "kat-comment-studio.scanOnLoad": {
           "type": "boolean",
           "default": true,
           "description": "Automatically scan workspace for code anchors on activation",
-		  "order": 13
+          "order": 13
         },
         "kat-comment-studio.showAnchorCountBadges": {
           "type": "boolean",
           "default": true,
           "description": "Show a count badge on the sidebar icon and highlight the status bar yellow until the Code Anchors pane is viewed. Disable to suppress both the badge and the yellow highlight.",
-		  "order": 14
+          "order": 14
         }
       }
     },
@@ -576,7 +574,6 @@
     "vscode:prepublish": "npm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
-    "lint": "eslint src --ext ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "package": "powershell -NoProfile -ExecutionPolicy Bypass -File ./scripts/release.ps1"
@@ -584,10 +581,7 @@
   "devDependencies": {
     "@types/node": "^20.11.0",
     "@types/vscode": "^1.85.0",
-    "@typescript-eslint/eslint-plugin": "^7.0.0",
-    "@typescript-eslint/parser": "^7.0.0",
     "@vscode/vsce": "^3.7.1",
-    "eslint": "^8.56.0",
     "typescript": "^5.3.0",
     "vitest": "^2.0.0"
   },

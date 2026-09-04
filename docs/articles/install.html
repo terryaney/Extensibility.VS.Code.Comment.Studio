@@ -1,0 +1,32 @@
+<h1>Install</h1>
+
+<p class="ks-lede">KAT Comment Studio is not on the VS Code Marketplace. It ships as a VSIX committed to the repository, so installing it is a three-step manual step.</p>
+
+<h2>Install from VSIX</h2>
+
+<ol>
+	<li><a href="https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/dist/kat-comment-studio-1.0.12.vsix">Download the latest release</a>.</li>
+	<li>Press <code>Ctrl+Shift+P</code>, type <code>VSIX</code>, and choose <strong>Extensions: Install from VSIX…</strong></li>
+	<li>Browse to the downloaded <code>kat-comment-studio-1.0.12.vsix</code> and select it.</li>
+</ol>
+
+<img class="ks-shot" src="https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/media/install.png" alt="The Extensions: Install from VSIX command in the VS Code command palette">
+
+<p>You can also install from a terminal:</p>
+
+<pre><code>code --install-extension kat-comment-studio-1.0.12.vsix</code></pre>
+
+<h2>Updating</h2>
+
+<p>Installing a newer VSIX over an older one replaces it. There is no automatic update check — re-download when a new version is published.</p>
+
+<h2>After installing</h2>
+
+<p>Nothing needs configuring. Rendering, anchor scanning, prefix highlighting, and issue links are all on by default. If you want to change that, start with the <a href="#/settings">Settings Reference</a>.</p>
+
+<div class="ks-note">
+	<strong>First run.</strong>
+	The workspace is scanned for anchors on activation, and the status bar shows a highlighted
+	<strong>N Anchors</strong> badge until you open the Code Anchors panel for the first time. Both behaviors
+	are configurable — see <a href="#/settings">scanOnLoad</a> and <code>showAnchorCountBadges</code>.
+</div>

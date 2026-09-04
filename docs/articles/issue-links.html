@@ -1,0 +1,40 @@
+<h1>Issue Links</h1>
+
+<p class="ks-lede">Turns <code>#123</code> in a comment into a clickable link to that issue in your repository's tracker. The URL is derived from the git remote, so there is nothing to configure.</p>
+
+<pre><code>// TODO: Fix this — see #1234
+// Related to the bug reported in #567</code></pre>
+
+<p>An issue reference inside anchor metadata is linked too — <code>// TODO(@alice, #789): …</code>.</p>
+
+<h2>Supported hosts</h2>
+
+<div class="ks-table-wrap">
+<table>
+	<thead><tr><th>Host</th><th>Covers</th></tr></thead>
+	<tbody>
+		<tr><td>GitHub</td><td>github.com and GitHub Enterprise</td></tr>
+		<tr><td>GitLab</td><td>gitlab.com and self-hosted, including nested groups</td></tr>
+		<tr><td>Bitbucket</td><td>bitbucket.org</td></tr>
+		<tr><td>Azure DevOps</td><td>dev.azure.com, on-premises TFS, and legacy <code>*.visualstudio.com</code></td></tr>
+	</tbody>
+</table>
+</div>
+
+<p>The remote is read from your git configuration, in either SSH or HTTPS form. Outside a git repository no links are produced.</p>
+
+<h2>Where references are detected</h2>
+
+<p>Only inside comments. A <code>#123</code> in a string literal, a C preprocessor directive, or a C# <code>#region</code> is left alone.</p>
+
+<p>In <a href="#/code-anchors/markdown-and-prose-files">Markdown</a> the whole document is treated as prose, so <code>#123</code> links anywhere in the file.</p>
+
+<div class="ks-note">
+	<strong>A leading <code>#</code> is a comment marker, not a reference.</strong>
+	In PowerShell or Python, <code>#123 something</code> at the very start of a comment is the marker itself
+	and is not linked.
+</div>
+
+<h2>Turning it off</h2>
+
+<p>Set <code>enableIssueLinks</code> to <code>false</code>.</p>

@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { CommentStudioConfig, XmlDocCommentBlock } from '../types';
 import { getCachedCommentBlocks } from '../parsing/commentParser';
+import { isLanguageSupported } from '../parsing/languageConfig';
 import { createDecorationStyles, disposeDecorationStyles, DecorationStyles } from './decorationFactory';
 import { setRenderingMode } from '../configuration';
 import { foldAllDocComments, unfoldAllDocComments } from './commentFoldingProvider';
@@ -188,7 +189,7 @@ export class DecorationManager implements vscode.Disposable {
     }
 
     const languageId = editor.document.languageId;
-    if (!this.config.enabledLanguages.includes(languageId)) {
+    if (!isLanguageSupported(languageId)) {
       return;
     }
 
@@ -334,7 +335,7 @@ export class DecorationManager implements vscode.Disposable {
   private syncFoldStateFromVisibleRanges(editor: vscode.TextEditor): void {
     const docKey = editor.document.uri.toString();
     const languageId = editor.document.languageId;
-    if (!this.config.enabledLanguages.includes(languageId)) return;
+    if (!isLanguageSupported(languageId)) return;
 
     const lines = editor.document.getText().split(/\r?\n/);
     const blocks = getCachedCommentBlocks(docKey, editor.document.version, lines, languageId);

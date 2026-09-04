@@ -4,7 +4,13 @@ import * as fs from 'fs';
 
 export interface EditorConfigSettings {
   maxLineLength?: number;
+  /**
+   * Parsed from `custom_anchor_tags` but not consumed anywhere yet — anchor
+   * tags come from the `patternProcessing` setting. Wire this through the
+   * anchor services before documenting it as supported.
+   */
   customAnchorTags?: string[];
+  /** Parsed from `custom_anchor_tag_prefixes`; unused, as above. */
   customAnchorTagPrefixes?: string[];
 }
 
@@ -83,7 +89,12 @@ function parseEditorConfigFile(configPath: string, filePath: string): EditorConf
     const content = fs.readFileSync(configPath, 'utf-8');
     const lines = content.split(/\r?\n/);
     const fileName = path.basename(filePath);
-    const fileExt = path.extname(filePath);
+    // Patterns containing a slash are matched against the path relative to the
+    // .editorconfig, per the EditorConfig spec.
+    const relativePath = path
+      .relative(path.dirname(configPath), filePath)
+      .split(path.sep)
+      .join('/');
     let currentSectionApplies = false;
 
     for (const rawLine of lines) {
@@ -93,7 +104,7 @@ function parseEditorConfigFile(configPath: string, filePath: string): EditorConf
       // Section header
       if (line.startsWith('[') && line.endsWith(']')) {
         const pattern = line.slice(1, -1).trim();
-        currentSectionApplies = matchesEditorConfigPattern(pattern, fileName, fileExt);
+        currentSectionApplies = matchesEditorConfigPattern(pattern, relativePath, fileName);
         continue;
       }
 
@@ -129,19 +140,85 @@ function parseEditorConfigFile(configPath: string, filePath: string): EditorConf
   return result;
 }
 
-function matchesEditorConfigPattern(pattern: string, fileName: string, fileExt: string): boolean {
-  if (pattern === '*') return true;
-  if (pattern === `*${fileExt}`) return true;
-  if (pattern === `*.{${fileExt.slice(1)}}`) return true;
+const REGEX_SPECIALS = /[.*+?^${}()|[\]\\]/;
 
-  // Simple glob matching
+function escapeLiteral(ch: string): string {
+  return REGEX_SPECIALS.test(ch) ? `\\${ch}` : ch;
+}
+
+/**
+ * Translates an EditorConfig glob into a regular expression source string.
+ * Supports `**`, `*`, `?`, `{a,b}` alternation and `[seq]` / `[!seq]` classes.
+ * Numeric `{n..m}` ranges are not supported.
+ */
+function globToRegex(pattern: string): string {
+  let out = '';
+  let depth = 0;
+
+  for (let i = 0; i < pattern.length;) {
+    const ch = pattern[i];
+
+    if (ch === '\\') {
+      const next = pattern[i + 1];
+      out += next === undefined ? '\\\\' : escapeLiteral(next);
+      i += next === undefined ? 1 : 2;
+      continue;
+    }
+
+    if (ch === '*') {
+      if (pattern[i + 1] === '*') {
+        // `**/` also matches zero directories, so `**/*.cs` matches `a.cs`.
+        if (pattern[i + 2] === '/') { out += '(?:.*/)?'; i += 3; }
+        else { out += '.*'; i += 2; }
+      } else {
+        out += '[^/]*';
+        i += 1;
+      }
+      continue;
+    }
+
+    if (ch === '?') { out += '[^/]'; i += 1; continue; }
+    if (ch === '{') { out += '(?:'; depth++; i += 1; continue; }
+    if (ch === '}' && depth > 0) { out += ')'; depth--; i += 1; continue; }
+    if (ch === ',' && depth > 0) { out += '|'; i += 1; continue; }
+
+    if (ch === '[') {
+      let j = i + 1;
+      const negated = pattern[j] === '!';
+      if (negated) j++;
+      let body = '';
+      while (j < pattern.length && pattern[j] !== ']') {
+        body += pattern[j] === '\\' ? '\\\\' : pattern[j];
+        j++;
+      }
+      if (j < pattern.length && body) {
+        out += `[${negated ? '^' : ''}${body}]`;
+        i = j + 1;
+        continue;
+      }
+      out += '\\[';
+      i += 1;
+      continue;
+    }
+
+    out += escapeLiteral(ch);
+    i += 1;
+  }
+
+  // Unbalanced `{` would produce an invalid expression; reject the section.
+  return depth === 0 ? out : '(?!)';
+}
+
+function matchesEditorConfigPattern(pattern: string, relativePath: string, fileName: string): boolean {
+  if (pattern === '*') return true;
+
+  // A pattern with no separator matches the file name in any subdirectory;
+  // otherwise it is anchored to the .editorconfig directory.
+  const anchored = pattern.includes('/');
+  const normalized = anchored && pattern.startsWith('/') ? pattern.slice(1) : pattern;
+
   try {
-    const regexPattern = pattern
-      .replace(/\./g, '\\.')
-      .replace(/\*\*/g, '.*')
-      .replace(/\*/g, '[^/]*')
-      .replace(/\?/g, '.');
-    return new RegExp(`^${regexPattern}$`).test(fileName);
+    return new RegExp(`^${globToRegex(normalized)}$`).test(anchored ? relativePath : fileName);
   } catch {
     return false;
   }

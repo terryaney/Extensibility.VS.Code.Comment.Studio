@@ -1,0 +1,62 @@
+<h1>EditorConfig</h1>
+
+<p class="ks-lede">Reads <code>.editorconfig</code> so reflow line width can be set per project or per folder, in a file your whole team already shares.</p>
+
+<pre><code>[*.cs]
+max_line_length = 100</code></pre>
+
+<h2>Recognized keys</h2>
+
+<div class="ks-table-wrap">
+<table>
+	<thead><tr><th>Key</th><th>Effect</th></tr></thead>
+	<tbody>
+		<tr><td><code>max_line_length</code></td><td>Overrides <a href="#/settings/reflow"><code>reflowLineLength</code></a> for matching files. <code>off</code> is ignored.</td></tr>
+		<tr><td><code>custom_anchor_tags</code></td><td><strong>Parsed but not applied</strong> — see below</td></tr>
+		<tr><td><code>custom_anchor_tag_prefixes</code></td><td><strong>Parsed but not applied</strong> — see below</td></tr>
+	</tbody>
+</table>
+</div>
+
+<div class="ks-warn">
+	<strong>Anchor tags cannot be set from <code>.editorconfig</code> yet.</strong>
+	The two <code>custom_anchor_tag*</code> keys are read and understood, but nothing consumes them —
+	only <code>max_line_length</code> reaches the extension's behavior. Configure anchor tags through the
+	<code>customTags</code> and <code>tagPrefixes</code> keys of
+	<a href="#/settings/pattern-processing"><code>patternProcessing</code></a> instead.
+</div>
+
+<h2>Resolution order</h2>
+
+<p>The extension walks up from the file's directory collecting <code>.editorconfig</code> files, and the <strong>closest one wins</strong> for each key. A file containing <code>root = true</code> stops the walk.</p>
+
+<pre><code>src/
+  .editorconfig        max_line_length = 100        ← wins for files under src/
+.editorconfig          root = true
+                       max_line_length = 140</code></pre>
+
+<h2>Section matching</h2>
+
+<p>The <code>[...]</code> header decides which files the keys beneath it apply to. Settings only take effect for files the header matches, so getting the glob right matters.</p>
+
+<p>A glob containing <code>/</code> is matched against the file's path <strong>relative to the <code>.editorconfig</code></strong>; one without a separator matches by file name in any subdirectory. A leading <code>/</code> anchors the pattern to the config's own directory.</p>
+
+<div class="ks-table-wrap">
+<table>
+	<thead><tr><th>Pattern</th><th>Matches</th></tr></thead>
+	<tbody>
+		<tr><td><code>[*]</code></td><td>Every file</td></tr>
+		<tr><td><code>[*.cs]</code></td><td>Any <code>.cs</code> file, at any depth</td></tr>
+		<tr><td><code>[*.{cs,vb}]</code></td><td>Any <code>.cs</code> or <code>.vb</code> file</td></tr>
+		<tr><td><code>[src/**/*.cs]</code></td><td>Any <code>.cs</code> file under <code>src/</code>, including directly in it</td></tr>
+		<tr><td><code>[/build.cs]</code></td><td><code>build.cs</code> beside the config only, not in subfolders</td></tr>
+		<tr><td><code>[File[0-9].cs]</code></td><td><code>File0.cs</code> … <code>File9.cs</code></td></tr>
+	</tbody>
+</table>
+</div>
+
+<p>Supported wildcards are <code>**</code>, <code>*</code>, <code>?</code>, <code>{a,b}</code> alternation and <code>[seq]</code> / <code>[!seq]</code> character classes. Numeric <code>{n..m}</code> ranges are not supported. A section whose glob cannot be parsed is skipped rather than applied.</p>
+
+<h2>Live updates</h2>
+
+<p>A file watcher picks up <code>.editorconfig</code> changes immediately — no window reload.</p>

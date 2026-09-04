@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { BUILTIN_ANCHOR_TYPES, AnchorType, buildAnchorPattern } from './anchorService';
-import { scanCommentLinesMap } from './commentScanner';
+import { scanAnchorLinesMap, isProseLanguageId } from './commentScanner';
 import { CommentStudioConfig } from '../types';
 
 interface AnchorDecorationEntry {
@@ -100,7 +100,7 @@ export class AnchorDecorationManager implements vscode.Disposable {
     }
 
     const lines = editor.document.getText().split(/\r?\n/);
-    const commentMap = scanCommentLinesMap(lines);
+    const commentMap = scanAnchorLinesMap(lines, isProseLanguageId(editor.document.languageId));
     const prefixes = this.config?.tagPrefixes
       ? this.config.tagPrefixes.split(',').map(p => p.trim()).filter(p => p)
       : [];

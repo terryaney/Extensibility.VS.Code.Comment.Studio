@@ -10,7 +10,6 @@ export interface PrefixStyle {
 /** Extension configuration */
 export interface CommentStudioConfig {
   xmlCommentRendering: boolean;
-  enabledLanguages: string[];
   xmlCommentOpacity: number;
 
   // Reflow settings

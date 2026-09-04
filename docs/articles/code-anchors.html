@@ -1,0 +1,234 @@
+<h1>Code Anchors</h1>
+
+<p class="ks-lede">Tagged comments — <code>TODO</code>, <code>HACK</code>, <code>BUG</code> and your own — collected from the whole workspace into a tree and a sortable grid, with owners, issue references and due dates parsed out of the comment.</p>
+
+<img class="ks-shot" src="https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/media/code-anchors-highlighting.png" alt="Anchors highlighted inline with markers in the overview ruler">
+
+<h2>Built-in types</h2>
+
+<div class="ks-table-wrap">
+<table>
+	<thead><tr><th>Tag</th><th>Color</th><th>Icon</th><th>Meaning</th></tr></thead>
+	<tbody>
+		<tr><td><code>TODO</code></td><td><span class="ks-swatch" style="background:#FF8C00"></span><code>#FF8C00</code></td><td><img class="ks-icon" src="https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/media/codicon-checklist.png" alt=""></td><td>Work still to do</td></tr>
+		<tr><td><code>HACK</code></td><td><span class="ks-swatch" style="background:#DC143C"></span><code>#DC143C</code></td><td><img class="ks-icon" src="https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/media/codicon-alert.png" alt=""></td><td>Workaround that needs cleanup</td></tr>
+		<tr><td><code>NOTE</code></td><td><span class="ks-swatch" style="background:#4169E1"></span><code>#4169E1</code></td><td><img class="ks-icon" src="https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/media/codicon-note.png" alt=""></td><td>Information worth keeping</td></tr>
+		<tr><td><code>BUG</code></td><td><span class="ks-swatch" style="background:#FF0000"></span><code>#FF0000</code></td><td><img class="ks-icon" src="https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/media/codicon-bug.png" alt=""></td><td>Known defect</td></tr>
+		<tr><td><code>FIXME</code></td><td><span class="ks-swatch" style="background:#FF4500"></span><code>#FF4500</code></td><td><img class="ks-icon" src="https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/media/codicon-wrench.png" alt=""></td><td>Must be fixed</td></tr>
+		<tr><td><code>UNDONE</code></td><td><span class="ks-swatch" style="background:#808080"></span><code>#808080</code></td><td><img class="ks-icon" src="https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/media/codicon-circle-slash.png" alt=""></td><td>Reverted or incomplete</td></tr>
+		<tr><td><code>REVIEW</code></td><td><span class="ks-swatch" style="background:#9370DB"></span><code>#9370DB</code></td><td><img class="ks-icon" src="https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/media/codicon-eye.png" alt=""></td><td>Needs review</td></tr>
+		<tr><td><code>ANCHOR</code></td><td><span class="ks-swatch" style="background:#20B2AA"></span><code>#20B2AA</code></td><td><img class="ks-icon" src="https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/media/codicon-link.png" alt=""></td><td>Named navigation target for <a href="#/link-navigation"><code>LINK:</code></a></td></tr>
+	</tbody>
+</table>
+</div>
+
+<p>Colors shown are the dark-theme defaults; all of them are overridable — see <a href="#/colors">Colors</a>.</p>
+
+<h2>Matching rule</h2>
+
+<p>A word is treated as a tag when <strong>either</strong> of these is true:</p>
+
+<ul>
+	<li>It is written in <strong>exact uppercase</strong> — <code>TODO</code>, <code>HACK</code>, <code>NOTE</code>. A delimiter is optional, so <code>// TODO fix this</code> matches.</li>
+	<li>It carries a <strong>delimiter</strong> (<code>:</code> or <code>!</code>) or a <strong>metadata container attached with no space</strong> — <code>// todo: fix this</code>, <code>// Todo! fix this</code>, <code>// todo(@alice) fix this</code>.</li>
+</ul>
+
+<p>Matched tags are normalized to uppercase everywhere, so <code>todo:</code> is displayed as <code>TODO</code>.</p>
+
+<p>That two-part rule is what stops ordinary prose from lighting up. Neither word below is a tag — both are lowercase, mid-sentence, and carry no delimiter:</p>
+
+<pre><code>// Mid-review elections and a half-written note are not anchors.</code></pre>
+
+<p>All of these do match:</p>
+
+<pre><code>// TODO: Add input validation
+// TODO Add input validation      — uppercase, so the colon is optional
+// todo: also works               — normalized to TODO
+// HACK! Temporary workaround until v2
+// BUG: Off-by-one in edge case
+// FIXME: This crashes on null input
+// NOTE: This method is called from multiple threads
+// ANCHOR(MyAnchor): navigation target</code></pre>
+
+<div class="ks-note">
+	<strong>Word boundaries are enforced.</strong>
+	<code>NOTES</code> and <code>x@TODO</code> do not match — the tag must not be preceded or followed by a
+	word character.
+</div>
+
+<div class="ks-warn">
+	<strong><code>ANCHOR</code> always needs a name.</strong>
+	A bare <code>// ANCHOR:</code> is ignored entirely — it is not colorized and never appears in the tree or grid.
+	Write <code>// ANCHOR(MyName): …</code>.
+</div>
+
+<h2>Metadata</h2>
+
+<p>Metadata goes in a container immediately after the tag. Separate multiple values with commas.</p>
+
+<pre><code>// TODO(@alice): Implement the export feature
+// FIXME [#1234]: Known issue tracked in GitHub
+// TODO(@bob, #456): Refactor this — owned by bob, tracked in issue 456
+// TODO(2026-06-01): Remove this workaround after migration
+// TODO(@alice, #789, 2026-03-15): Assigned, tracked, and due-dated</code></pre>
+
+<div class="ks-table-wrap">
+<table>
+	<thead><tr><th>Metadata</th><th>Form</th><th>Shown as</th></tr></thead>
+	<tbody>
+		<tr><td>Owner</td><td><code>@name</code></td><td>Owner column</td></tr>
+		<tr><td>Issue reference</td><td><code>#123</code></td><td>Issue column; also a clickable <a href="#/issue-links">issue link</a></td></tr>
+		<tr><td>Due date</td><td><code>yyyy-MM-dd</code></td><td>Due Date column; highlighted when overdue</td></tr>
+		<tr><td>Anchor name</td><td>bare text, <code>ANCHOR</code> only</td><td>Target name for <code>LINK: #Name</code></td></tr>
+	</tbody>
+</table>
+</div>
+
+<div class="ks-note">
+	<strong><code>(…)</code> and <code>[…]</code> are interchangeable.</strong>
+	Any metadata kind works in either container. <code>TODO[@alice]</code> and <code>TODO(#123)</code> are both valid.
+</div>
+
+<h2>Custom tags</h2>
+
+<p>Add your own tags with the <code>customTags</code> key of <code>patternProcessing</code>. They are colored Goldenrod (<span class="ks-swatch" style="background:#DAA520"></span><code>#DAA520</code>) and appear in every view alongside the built-ins.</p>
+
+<pre><code>"kat-comment-studio.patternProcessing": {
+  "customTags": "PERF, SECURITY, DEBT, REFACTOR"
+}</code></pre>
+
+<h2>Tag prefixes</h2>
+
+<p>If you sigil your tags so they are easier to grep for, configure the prefix characters and they are treated as part of the tag — including when coloring it.</p>
+
+<pre><code>// @TODO: treated exactly like TODO
+// $HACK: works too</code></pre>
+
+<p>Set via the <code>tagPrefixes</code> key of <code>patternProcessing</code> (default <code>"@, $"</code>). Prefixes are stripped in the tree and grid, so <code>@TODO</code> is listed as <code>TODO</code>.</p>
+
+<div class="ks-note">
+	<strong>Not the same as an owner.</strong>
+	A prefix sits <em>before</em> the tag (<code>@TODO</code>); an owner sits <em>inside</em> the metadata
+	container (<code>TODO(@alice)</code>).
+</div>
+
+<h2>Where anchors are found</h2>
+
+<p>Two different mechanisms, with two different scopes:</p>
+
+<div class="ks-table-wrap">
+<table>
+	<thead><tr><th>Mechanism</th><th>Scope</th></tr></thead>
+	<tbody>
+		<tr>
+			<td><strong>Inline coloring</strong> in the editor</td>
+			<td>Every open file, regardless of language. Controlled by <code>anchorColorizeMode</code>.</td>
+		</tr>
+		<tr>
+			<td><strong>Workspace scan</strong> feeding the tree, grid and status bar</td>
+			<td>Files matching the <code>fileExtensions</code> key of <code>patternProcessing</code>, minus <code>ignoreFolders</code>.</td>
+		</tr>
+	</tbody>
+</table>
+</div>
+
+<p>So a tag in a file type outside <code>fileExtensions</code> still gets colored in the editor — it just is not collected into the views. Add the extension to <code>fileExtensions</code> to include it.</p>
+
+<h3>Markdown and prose files</h3>
+
+<p>In code, only text inside a comment is scanned. Markdown has no comment marker to look for — the whole document reads like a comment — so in <code>.md</code> and <code>.markdown</code> files <strong>every line</strong> is scanned instead.</p>
+
+<pre><code>TODO: plain prose lines match
+- BUG: list items match
+&lt;!-- FIXME: HTML comments match --&gt;</code></pre>
+
+<p><code>md</code> is in the default <code>fileExtensions</code>, so Markdown is scanned out of the box. <code>.vscode</code> is <em>not</em> ignored, so anchors in notes and plan files under it are picked up — add it to <code>ignoreFolders</code> if you would rather they stayed out of the list.</p>
+
+<h2>Inline decorations</h2>
+
+<p>Each tag is colored inline with its type color, and a matching marker is drawn in the scrollbar / overview ruler so you can see anchor density at a glance.</p>
+
+<p>Set <code>anchorColorizeMode</code> to <code>never</code> to turn all inline coloring off. The only other value is <code>default</code>.</p>
+
+<h2>Sidebar tree</h2>
+
+<p>The <strong>KAT Comment Studio</strong> activity bar view shows every anchor grouped by file.</p>
+
+<img class="ks-shot" src="https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/media/code-anchors-sidebar.png" alt="The Code Anchors sidebar tree grouped by file">
+
+<div class="ks-table-wrap">
+<table>
+	<thead><tr><th>Toolbar button</th><th>Action</th></tr></thead>
+	<tbody>
+		<tr><td><img class="ks-icon" src="https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/media/codicon-refresh.png" alt=""> Scan</td><td>Rescan the workspace</td></tr>
+		<tr><td><img class="ks-icon" src="https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/media/codicon-export.png" alt=""> Export</td><td>Export the visible anchors</td></tr>
+		<tr><td><img class="ks-icon" src="https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/media/codicon-surround-with.png" alt=""> Set Scope</td><td>Limit which files are listed</td></tr>
+		<tr><td><img class="ks-icon" src="https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/media/codicon-list-filter.png" alt=""> Filter Types</td><td>Show or hide individual anchor types</td></tr>
+	</tbody>
+</table>
+</div>
+
+<h3>Scopes</h3>
+
+<div class="ks-table-wrap">
+<table>
+	<thead><tr><th>Scope</th><th>Includes</th></tr></thead>
+	<tbody>
+		<tr><td>Workspace</td><td>Every scanned file</td></tr>
+		<tr><td>Current Folder</td><td>The active file's workspace folder. In a single-folder window that is the root; in a multi-root workspace it is disabled until an active workspace document exists.</td></tr>
+		<tr><td>Current Document</td><td>Only the active file</td></tr>
+		<tr><td>Open Documents</td><td>Every open file</td></tr>
+		<tr><td>Repo: <em>name</em></td><td>Files inside a discovered git repository</td></tr>
+		<tr><td>Project: <em>name</em></td><td>Files inside a discovered <code>.csproj</code></td></tr>
+	</tbody>
+</table>
+</div>
+
+<p>The tree and the grid share one scope, one search term, and one type filter.</p>
+
+<h2>Bottom panel grid</h2>
+
+<p>A sortable, filterable grid — <strong>KAT Comment Studio - Code Anchors</strong> — sits in the bottom panel beside Problems and Output.</p>
+
+<img class="ks-shot" src="https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/media/code-anchors-pane.png" alt="The Code Anchors grid in the bottom panel">
+
+<p>Columns: Type · Description · File · Line · Owner · Issue · Due Date.</p>
+
+<ul>
+	<li>Click a header to sort ascending or descending</li>
+	<li>Free-text search filters across description, file, owner, repo and project</li>
+	<li>The type filter uses explicit include/exclude checkboxes and survives refresh and rescan</li>
+	<li>Drag column edges to resize; widths persist across reloads and restarts</li>
+	<li>Click a row to jump to the anchor; right-click a row to copy a row summary, or a cell to copy that value</li>
+	<li>Overdue due dates are highlighted</li>
+</ul>
+
+<p>Open it with <code>Focus on KAT Comment Studio - Code Anchors View</code>, or by clicking the status bar badge.</p>
+
+<h2>Status bar badge</h2>
+
+<p>A badge in the status bar always shows <strong>N Anchors</strong> — the count after the current scope and type filter. It updates live as you scan, search or filter, and clicking it focuses the grid.</p>
+
+<p>Until you open the Code Anchors panel for the first time the badge is highlighted. Set <code>showAnchorCountBadges</code> to <code>false</code> to suppress both the highlight and the sidebar count badge.</p>
+
+<h2>Navigation</h2>
+
+<p><code>Go to Next Anchor</code> and <code>Go to Previous Anchor</code> move between anchors in the current file. Neither is bound by default — see <a href="#/commands/keyboard-shortcuts">suggested bindings</a>.</p>
+
+<h2>Export</h2>
+
+<p><code>KAT Comment Studio: Export Code Anchors</code> writes the currently visible anchors in CSV, Markdown or JSON.</p>
+
+<div class="ks-warn">
+	<strong>Export opens an editor, it does not write a file.</strong>
+	The result is placed in a new untitled editor with matching syntax highlighting. Save it yourself if you
+	want it on disk.
+</div>
+
+<p>CSV and Markdown share the column order <em>Type, File, Line, Owner, Issue, Due Date, Description</em>. JSON uses the same fields and additionally includes <code>anchorName</code>.</p>
+
+<h2>Scanning</h2>
+
+<p>With <code>scanOnLoad</code> at its default of <code>true</code>, the workspace is scanned when the extension activates. Results are cached and updated incrementally as you save files. Rescan at any time with <code>KAT Comment Studio: Scan Code Anchors</code>.</p>
+
+<p>Anchor tags are configured through <a href="#/settings/pattern-processing"><code>patternProcessing</code></a> in VS Code settings. The <code>custom_anchor_tags</code> key in <a href="#/editorconfig"><code>.editorconfig</code></a> is parsed but not yet applied.</p>

@@ -1,0 +1,185 @@
+<h1>Colors</h1>
+
+<p class="ks-lede">Every color has theme-aware defaults for dark, light and high-contrast themes. Change them either with the <code>colorOverrides</code> setting or with VS Code's own <code>workbench.colorCustomizations</code>.</p>
+
+<h2>Two ways to override</h2>
+
+<pre><code>// Extension setting — short keys, applies in every theme
+"kat-comment-studio.colorOverrides": {
+  "todo": "#FFA500",
+  "prefixAlert": "#FF0000"
+}
+
+// VS Code setting — full theme color IDs, can be scoped per theme
+"workbench.colorCustomizations": {
+  "katCommentStudio.anchorTodo": "#FFA500"
+}</code></pre>
+
+<p>Omit any key to keep its theme default.</p>
+
+<h2>Anchor types</h2>
+
+<div class="ks-table-wrap">
+<table>
+	<thead><tr><th>Theme color ID</th><th><code>colorOverrides</code> key</th><th>Dark default</th></tr></thead>
+	<tbody>
+		<tr><td><code>katCommentStudio.anchorTodo</code></td><td><code>todo</code></td><td><span class="ks-swatch" style="background:#FF8C00"></span><code>#FF8C00</code></td></tr>
+		<tr><td><code>katCommentStudio.anchorHack</code></td><td><code>hack</code></td><td><span class="ks-swatch" style="background:#DC143C"></span><code>#DC143C</code></td></tr>
+		<tr><td><code>katCommentStudio.anchorNote</code></td><td><code>note</code></td><td><span class="ks-swatch" style="background:#4169E1"></span><code>#4169E1</code></td></tr>
+		<tr><td><code>katCommentStudio.anchorBug</code></td><td><code>bug</code></td><td><span class="ks-swatch" style="background:#FF0000"></span><code>#FF0000</code></td></tr>
+		<tr><td><code>katCommentStudio.anchorFixme</code></td><td><code>fixme</code></td><td><span class="ks-swatch" style="background:#FF4500"></span><code>#FF4500</code></td></tr>
+		<tr><td><code>katCommentStudio.anchorUndone</code></td><td><code>undone</code></td><td><span class="ks-swatch" style="background:#808080"></span><code>#808080</code></td></tr>
+		<tr><td><code>katCommentStudio.anchorReview</code></td><td><code>review</code></td><td><span class="ks-swatch" style="background:#9370DB"></span><code>#9370DB</code></td></tr>
+		<tr><td><code>katCommentStudio.anchorAnchor</code></td><td><code>anchor</code></td><td><span class="ks-swatch" style="background:#20B2AA"></span><code>#20B2AA</code></td></tr>
+		<tr><td><code>katCommentStudio.anchorCustom</code></td><td><code>custom</code></td><td><span class="ks-swatch" style="background:#DAA520"></span><code>#DAA520</code></td></tr>
+	</tbody>
+</table>
+</div>
+
+<h2>Prefix highlighting</h2>
+
+<div class="ks-table-wrap">
+<table>
+	<thead><tr><th>Theme color ID</th><th><code>colorOverrides</code> key</th><th>Prefix</th><th>Dark default</th></tr></thead>
+	<tbody>
+		<tr><td><code>katCommentStudio.prefixAlert</code></td><td><code>prefixAlert</code></td><td><code>!</code></td><td><span class="ks-swatch" style="background:#FF2D00"></span><code>#FF2D00</code></td></tr>
+		<tr><td><code>katCommentStudio.prefixQuestion</code></td><td><code>prefixQuestion</code></td><td><code>?</code></td><td><span class="ks-swatch" style="background:#3498DB"></span><code>#3498DB</code></td></tr>
+		<tr><td><code>katCommentStudio.prefixHighlight</code></td><td><code>prefixHighlight</code></td><td><code>*</code></td><td><span class="ks-swatch" style="background:#98C379"></span><code>#98C379</code></td></tr>
+		<tr><td><code>katCommentStudio.prefixStrikethrough</code></td><td><code>prefixStrikethrough</code></td><td><code>//</code></td><td><span class="ks-swatch" style="background:#808080"></span><code>#808080</code></td></tr>
+		<tr><td><code>katCommentStudio.prefixDisabled</code></td><td><code>prefixDisabled</code></td><td><code>-</code></td><td><span class="ks-swatch" style="background:#505050"></span><code>#505050</code></td></tr>
+		<tr><td><code>katCommentStudio.prefixQuote</code></td><td><code>prefixQuote</code></td><td><code>&gt;</code></td><td><span class="ks-swatch" style="background:#C586C0"></span><code>#C586C0</code></td></tr>
+	</tbody>
+</table>
+</div>
+
+<h2>Rendered comment text</h2>
+
+<div class="ks-table-wrap">
+<table>
+	<thead><tr><th>Theme color ID</th><th><code>colorOverrides</code> key</th><th>Applies to</th><th>Dark default</th></tr></thead>
+	<tbody>
+		<tr><td><code>katCommentStudio.renderedText</code></td><td><code>renderedText</code></td><td>General comment text</td><td><span class="ks-swatch" style="background:#D4D4D4"></span><code>#D4D4D4</code></td></tr>
+		<tr><td><code>katCommentStudio.renderedHeading</code></td><td><code>renderedHeading</code></td><td>Section headings in the popup</td><td><span class="ks-swatch" style="background:#569CD6"></span><code>#569CD6</code></td></tr>
+		<tr><td><code>katCommentStudio.renderedCode</code></td><td><code>renderedCode</code></td><td>Inline code</td><td><span class="ks-swatch" style="background:#CE9178"></span><code>#CE9178</code></td></tr>
+		<tr><td><code>katCommentStudio.renderedLink</code></td><td><code>renderedLink</code></td><td>Links</td><td><span class="ks-swatch" style="background:#3794FF"></span><code>#3794FF</code></td></tr>
+	</tbody>
+</table>
+</div>
+
+<h2>Theme-only colors</h2>
+
+<p>These three have no <code>colorOverrides</code> key. Change them through <code>workbench.colorCustomizations</code>.</p>
+
+<div class="ks-table-wrap">
+<table>
+	<thead><tr><th>Theme color ID</th><th>Applies to</th><th>Dark default</th></tr></thead>
+	<tbody>
+		<tr><td><code>katCommentStudio.parameterName</code></td><td>Parameter names in the documentation popup</td><td><span class="ks-swatch" style="background:#7BD88F"></span><code>#7BD88F</code></td></tr>
+		<tr><td><code>katCommentStudio.typeName</code></td><td>Type names in the popup, and anchor metadata containers such as <code>TODO(@alice)</code></td><td><span class="ks-swatch" style="background:#5AD4E6"></span><code>#5AD4E6</code></td></tr>
+		<tr><td><code>katCommentStudio.anchorCountForeground</code></td><td>The anchor count in the status bar</td><td><code>panelTitle.activeForeground</code></td></tr>
+	</tbody>
+</table>
+</div>
+
+<h2>Making the original comment invisible</h2>
+
+<p>Setting the opacity to zero hides the raw XML lines completely:</p>
+
+<pre><code>"kat-comment-studio.xmlCommentOpacity": 0</code></pre>
+
+<p>One blank line gap still remains after folding. That is the limit of what the VS Code extension API allows.</p>
+
+<h2>Styling code blocks in the popup</h2>
+
+<p>The documentation popup renders fenced code blocks through VS Code's internal Monaco tokenizer (<code>monaco-tokenized-source</code>). That path is <strong>not</strong> controlled by <code>textCodeBlock.background</code> or <code>textPreformat.background</code> — it inherits <code>editorHoverWidget.background</code>.</p>
+
+<h3>Inline code ticks</h3>
+
+<p>These <em>are</em> controlled by <code>textCodeBlock.background</code>. To match your editor background, run <code>Developer: Generate Color Theme From Current Settings</code>, copy the <code>editor.background</code> value, and set:</p>
+
+<pre><code>"workbench.colorCustomizations": {
+  "textCodeBlock.background": "#222222"
+}</code></pre>
+
+<p>That hex value is theme-specific and static — update it if you switch themes.</p>
+
+<h3>Fenced code blocks</h3>
+
+<p>No workbench color token affects these. The only way to style them is custom CSS through the <a href="https://marketplace.visualstudio.com/items?itemName=be5invis.vscode-custom-css" target="_blank" rel="noopener">Custom CSS and JS Loader</a> extension.</p>
+
+<div class="ks-warn">
+	<strong>This is a hack, and it has upkeep.</strong>
+	Custom CSS patches the VS Code installation. You must re-run <code>Enable Custom CSS and JS</code> after every
+	VS Code update, dismiss a “corrupted installation” warning each time, and update the hex color whenever you
+	change themes.
+</div>
+
+<h4>Option A — scoped to KAT Comment Studio (recommended)</h4>
+
+<p>A CSS file, e.g. <code>C:\Users\YourName\vscode-custom.css</code>:</p>
+
+<pre><code>/* KAT Comment Studio — scoped fenced code block background */
+.monaco-tokenized-source.kat-comment-hover {
+    background-color: #222222 !important;   /* your editor.background */
+    border: #ffffff 1px solid !important;
+    padding: 5px !important;
+    box-sizing: border-box !important;
+}</code></pre>
+
+<p>And a JS file, e.g. <code>C:\Users\YourName\vscode-custom.js</code>. VS Code reuses one hover widget for every hover, so the script identifies KAT popups by a trailing five-space marker and tags them, growing the widget to fit the added padding:</p>
+
+<pre><code>const katObserver = new MutationObserver((mutations) =&gt; {
+    const relevant = mutations.some(m =&gt;
+        m.target.closest?.('.monaco-hover') ||
+        Array.from(m.addedNodes).some(n =&gt;
+            n.nodeType === 1 &&
+            (n.classList?.contains('.monaco-hover') || n.querySelector?.('.monaco-hover'))
+        )
+    );
+
+    if (!relevant) return;
+
+    document.querySelectorAll('.monaco-hover .monaco-tokenized-source').forEach(h =&gt; {
+        const isKat = h.querySelector('span:last-child')?.textContent?.slice(-5) === "     ";
+        if (isKat) {
+            const monacoHover = h.closest('.monaco-hover');
+            if (monacoHover) {
+                const updateStyle = (styleName, propertyName, current) =&gt; {
+                    if (current) {
+                        const newVal = parseFloat(current) + 12;
+                        monacoHover.style[propertyName] = newVal + 'px';
+                        monacoHover.querySelectorAll('[style*="' + styleName + ': ' + current + '"]').forEach(el =&gt; {
+                            el.style[propertyName] = newVal + 'px';
+                        });
+                    }
+                };
+                updateStyle('height', 'height', monacoHover.style.height);
+                updateStyle('max-height', 'maxHeight', monacoHover.style.maxHeight);
+                updateStyle('width', 'width', monacoHover.style.width);
+                updateStyle('max-width', 'maxWidth', monacoHover.style.maxWidth);
+            }
+            h.classList.add('kat-comment-hover');
+        } else {
+            h.classList.remove('kat-comment-hover');
+        }
+    });
+});
+
+katObserver.observe(document.body, { childList: true, subtree: true });</code></pre>
+
+<p>Register both files, then run <code>Enable Custom CSS and JS</code> and restart:</p>
+
+<pre><code>"vscode_custom_css.imports": [
+    "file:///C:/Users/YourName/vscode-custom.css",
+    "file:///C:/Users/YourName/vscode-custom.js"
+]</code></pre>
+
+<p>On macOS and Linux use <code>file:///home/yourname/…</code> paths.</p>
+
+<h4>Option B — all Monaco hovers</h4>
+
+<p>No JS needed, but it restyles every VS Code hover tooltip, not just this extension's:</p>
+
+<pre><code>.monaco-hover .monaco-tokenized-source {
+    background-color: #222222 !important;
+}</code></pre>

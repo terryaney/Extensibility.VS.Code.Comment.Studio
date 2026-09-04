@@ -1,0 +1,58 @@
+<h1>Commands &amp; Keys</h1>
+
+<p class="ks-lede">Every command lives under the <strong>KAT Comment Studio</strong> category in the command palette (<code>Ctrl+Shift+P</code>). Only <code>F1</code> is bound out of the box.</p>
+
+<h2>Commands</h2>
+
+<div class="ks-table-wrap">
+<table>
+	<thead><tr><th>Command</th><th>Does</th></tr></thead>
+	<tbody>
+		<tr><td><code>Toggle Comment Rendering</code></td><td>Turn <a href="#/rendering">rendering</a> on or off</td></tr>
+		<tr><td><code>Reflow Current Comment</code></td><td><a href="#/reflow">Reflow</a> the block containing the caret</td></tr>
+		<tr><td><code>Reflow Comments in File</code></td><td>Reflow every block in the document</td></tr>
+		<tr><td><code>Show Comment Tooltip</code></td><td>Show the rendered documentation popup. Enabled when the caret is in or just below a doc comment. Also on <code>F1</code>.</td></tr>
+		<tr><td><code>Scan Code Anchors</code></td><td>Rescan the workspace, with a progress notification</td></tr>
+		<tr><td><code>Export Code Anchors</code></td><td><a href="#/code-anchors/export">Export</a> visible anchors as CSV, Markdown or JSON</td></tr>
+		<tr><td><code>Set Anchor Scope</code></td><td>Choose Workspace / Folder / Document / Open Docs / Repo / Project</td></tr>
+		<tr><td><code>Filter Anchor Types</code></td><td>Show or hide individual anchor types</td></tr>
+		<tr><td><code>Go to Next Anchor</code></td><td>Jump to the next anchor in the file</td></tr>
+		<tr><td><code>Go to Previous Anchor</code></td><td>Jump to the previous anchor in the file</td></tr>
+		<tr><td><code>Remove Current XML Comment</code></td><td><a href="#/comment-remover">Remove</a> the doc comment block at the caret</td></tr>
+		<tr><td><code>Remove All XML Comments in File</code></td><td>Remove every doc comment block in the file</td></tr>
+	</tbody>
+</table>
+</div>
+
+<p>VS Code also generates these — search for them by name:</p>
+
+<ul>
+	<li><code>View: Toggle KAT Comment Studio</code> / <code>View: Show KAT Comment Studio</code> — show or hide the sidebar</li>
+	<li><code>Focus on KAT Comment Studio - Code Anchors View</code> — focus the grid panel</li>
+</ul>
+
+<h2>F1 interception</h2>
+
+<p>With <code>interceptF1ForComments</code> at its default of <code>true</code>, pressing <code>F1</code> runs <strong>Show Comment Tooltip</strong> when the caret is inside an XML doc comment block, or on the first non-blank code line directly below one — typically the method signature.</p>
+
+<p>Everywhere else <code>F1</code> still opens the normal VS Code help menu. Set <code>interceptF1ForComments</code> to <code>false</code> to disable the interception entirely.</p>
+
+<h2>Keyboard shortcuts</h2>
+
+<p>No shortcuts other than <code>F1</code> are registered. To bind one, open <strong>File → Preferences → Keyboard Shortcuts</strong> (<code>Ctrl+K Ctrl+S</code>) and search for <code>KAT Comment Studio</code>.</p>
+
+<p>Two worth binding:</p>
+
+<div class="ks-table-wrap">
+<table>
+	<thead><tr><th>Suggested key</th><th>Command ID</th></tr></thead>
+	<tbody>
+		<tr><td><code>Alt+PageDown</code></td><td><code>kat-comment-studio.nextAnchor</code></td></tr>
+		<tr><td><code>Alt+PageUp</code></td><td><code>kat-comment-studio.previousAnchor</code></td></tr>
+	</tbody>
+</table>
+</div>
+
+<h2>Menus</h2>
+
+<p>Rendering toggle, both reflow commands and both remover commands are also on the editor context menu, under a <strong>KAT Comment Studio</strong> submenu.</p>

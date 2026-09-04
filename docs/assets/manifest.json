@@ -1,0 +1,22 @@
+[
+	{ "group": "Start", "id": "overview", "title": "Overview", "blurb": "What the extension does, and which languages it supports." },
+	{ "group": "Start", "id": "install", "title": "Install", "blurb": "Download and install the VSIX." },
+
+	{ "group": "Comments", "id": "rendering", "title": "XML Doc Rendering", "blurb": "Fold XML doc blocks into a one-line CodeLens with a formatted popup." },
+	{ "group": "Comments", "id": "jsdoc", "title": "JSDoc / TSDoc", "blurb": "The same rendering for /** */ blocks in JS and TS." },
+	{ "group": "Comments", "id": "reflow", "title": "Comment Reflow", "blurb": "Wrap and normalize doc comments on exit, paste, or on demand." },
+	{ "group": "Comments", "id": "comment-remover", "title": "Comment Remover", "blurb": "Strip one doc comment block, or all of them." },
+
+	{ "group": "Annotations", "id": "code-anchors", "title": "Code Anchors", "blurb": "TODO, HACK, BUG and custom tags tracked across the workspace." },
+	{ "group": "Annotations", "id": "prefix-highlighting", "title": "Prefix Highlighting", "blurb": "Better Comments-style coloring for !, ?, *, //, - and > lines." },
+	{ "group": "Annotations", "id": "issue-links", "title": "Issue Links", "blurb": "Turn #123 into a link to your tracker." },
+	{ "group": "Annotations", "id": "link-navigation", "title": "LINK: Navigation", "blurb": "Cross-file references with hover, completion, and Ctrl+Click." },
+
+	{ "group": "Configuration", "id": "settings", "title": "Settings Reference", "blurb": "Every setting, its type, and its default." },
+	{ "group": "Configuration", "id": "colors", "title": "Colors", "blurb": "Theme color IDs and colorOverrides keys." },
+	{ "group": "Configuration", "id": "commands", "title": "Commands & Keys", "blurb": "Command palette entries, F1 interception, suggested keybindings." },
+	{ "group": "Configuration", "id": "editorconfig", "title": "EditorConfig", "blurb": "Per-project line width and anchor tags." },
+
+	{ "group": "Reference", "id": "vs-differences", "title": "VS vs VS Code", "blurb": "How this port differs from the original Visual Studio extension." },
+	{ "group": "Reference", "id": "contributing", "title": "Building the Extension", "blurb": "Prerequisites, scripts, debugging, packaging, project layout." }
+]

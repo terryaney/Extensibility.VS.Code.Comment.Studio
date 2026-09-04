@@ -5,9 +5,17 @@ import { getStrippedSummary } from './commentRenderer';
 
 /**
  * Provides CodeLens items above XML doc comment blocks.
- * Each block gets two CodeLens items on the same line:
- *   1. "Expand"/"Collapse" — toggles the fold
- *   2. "{summary text}" — plain-text tooltip on hover, click shows rich preview
+ *
+ * Each block gets a single CodeLens showing the stripped `<summary>` text,
+ * truncated to `codeLensMaxLength` when that is greater than zero. Clicking it
+ * runs `kat-comment-studio.showCommentTooltip`, which opens the rich
+ * documentation popup.
+ *
+ * SQL and PowerShell are parsed as doc comments elsewhere but are deliberately
+ * excluded here, so they never receive a CodeLens.
+ *
+ * Fold state is tracked per document (`foldState`) on behalf of the fold
+ * commands; this provider does not emit its own expand/collapse lens.
  */
 export class CommentCodeLensProvider implements vscode.CodeLensProvider {
   private _onDidChangeCodeLenses = new vscode.EventEmitter<void>();

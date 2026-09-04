@@ -1,0 +1,107 @@
+<h1>Settings Reference</h1>
+
+<p class="ks-lede">Every setting the extension contributes. All are prefixed <code>kat-comment-studio.</code> and can be set per user or per workspace.</p>
+
+<h2>Rendering</h2>
+
+<div class="ks-table-wrap">
+<table>
+	<thead><tr><th>Setting</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+	<tbody>
+		<tr><td><code>xmlCommentRendering</code></td><td>boolean</td><td><code>true</code></td><td>Enable <a href="#/rendering">XML comment rendering</a> — CodeLens summary, auto-fold, and comment opacity.</td></tr>
+		<tr><td><code>xmlCommentOpacity</code></td><td>integer</td><td><code>40</code></td><td>Opacity percentage (0–100) for the dimmed original comment. <code>0</code> is fully invisible, <code>100</code> is no dimming.</td></tr>
+		<tr><td><code>codeLensSummaryTruncation</code></td><td>number</td><td><code>205</code></td><td>Maximum characters in the CodeLens summary. <code>0</code> disables truncation. The popup always shows everything.</td></tr>
+		<tr><td><code>collapseXmlWhenRenderingOff</code></td><td>boolean</td><td><code>false</code></td><td>Fold XML comments when a file opens, while rendering is off.</td></tr>
+		<tr><td><code>interceptF1ForComments</code></td><td>boolean</td><td><code>true</code></td><td>Press <code>F1</code> in or below a doc comment to show the KAT tooltip instead of the VS Code help menu. See <a href="#/commands/f1-interception">F1 interception</a>.</td></tr>
+	</tbody>
+</table>
+</div>
+
+<h2>Reflow</h2>
+
+<div class="ks-table-wrap">
+<table>
+	<thead><tr><th>Setting</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+	<tbody>
+		<tr><td><code>reflowLineLength</code></td><td>number</td><td><code>120</code></td><td>Maximum line width for <a href="#/reflow">reflow</a>. Overridden by <code>max_line_length</code> in <a href="#/editorconfig"><code>.editorconfig</code></a>.</td></tr>
+		<tr><td><code>enableReflowOnCommentExit</code></td><td>boolean</td><td><code>true</code></td><td>Reflow a block when the caret leaves it after an edit.</td></tr>
+		<tr><td><code>enableReflowOnPaste</code></td><td>boolean</td><td><code>true</code></td><td>Reflow a block after pasting into it.</td></tr>
+		<tr><td><code>autoExpandDelay</code></td><td>number</td><td><code>500</code></td><td>Milliseconds before a folded comment expands once the caret enters it.</td></tr>
+		<tr><td><code>autoCollapseDelay</code></td><td>number</td><td><code>1000</code></td><td>Milliseconds before an expanded comment re-collapses once the caret leaves. Also delays the exit-reflow by the same amount.</td></tr>
+	</tbody>
+</table>
+</div>
+
+<h2>Anchors and comment text</h2>
+
+<div class="ks-table-wrap">
+<table>
+	<thead><tr><th>Setting</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+	<tbody>
+		<tr><td><code>anchorColorizeMode</code></td><td>string</td><td><code>"default"</code></td><td><code>never</code> turns inline <a href="#/code-anchors/inline-decorations">anchor coloring</a> off. <code>default</code> colors exact-uppercase tags plus any-case tags carrying a delimiter or attached metadata.</td></tr>
+		<tr><td><code>scanOnLoad</code></td><td>boolean</td><td><code>true</code></td><td>Scan the workspace for anchors on activation.</td></tr>
+		<tr><td><code>showAnchorCountBadges</code></td><td>boolean</td><td><code>true</code></td><td>Show the sidebar count badge, and highlight the status bar until the Code Anchors panel is opened.</td></tr>
+		<tr><td><code>enablePrefixHighlighting</code></td><td>boolean</td><td><code>true</code></td><td>Enable <a href="#/prefix-highlighting">prefix highlighting</a>.</td></tr>
+		<tr><td><code>enableIssueLinks</code></td><td>boolean</td><td><code>true</code></td><td>Enable clickable <a href="#/issue-links">issue links</a>.</td></tr>
+		<tr><td><code>patternProcessing</code></td><td>object</td><td><em>see below</em></td><td>Which files, folders and tags are processed.</td></tr>
+	</tbody>
+</table>
+</div>
+
+<h2>Colors</h2>
+
+<div class="ks-table-wrap">
+<table>
+	<thead><tr><th>Setting</th><th>Type</th><th>Default</th><th>Description</th></tr></thead>
+	<tbody>
+		<tr><td><code>colorOverrides</code></td><td>object</td><td><code>{}</code></td><td>Key/value color overrides. See <a href="#/colors">Colors</a> for the full key list.</td></tr>
+	</tbody>
+</table>
+</div>
+
+<h2>Pattern processing</h2>
+
+<p><code>patternProcessing</code> is an object with four keys. Override only the ones you want — the rest keep their defaults.</p>
+
+<pre><code>"kat-comment-studio.patternProcessing": {
+  "customTags": "PERF, SECURITY",
+  "fileExtensions": "cs, ts, vb"
+}</code></pre>
+
+<div class="ks-table-wrap">
+<table>
+	<thead><tr><th>Key</th><th>Default</th><th>Description</th></tr></thead>
+	<tbody>
+		<tr>
+			<td><code>customTags</code></td>
+			<td><em>empty</em></td>
+			<td>Extra <a href="#/code-anchors/custom-tags">anchor tags</a>, colored Goldenrod and listed alongside the built-ins.</td>
+		</tr>
+		<tr>
+			<td><code>fileExtensions</code></td>
+			<td><code>cs, vb, fs, cpp, c, h, ts, tsx, js, jsx, razor, cshtml, sql, ps1, psm1, md</code></td>
+			<td>Extensions included in the workspace anchor scan and in <code>LINK:</code> validation.</td>
+		</tr>
+		<tr>
+			<td><code>ignoreFolders</code></td>
+			<td><code>node_modules, bin, obj, .git, dist, out, build, .vs, .vscode-test</code></td>
+			<td>Folder names excluded from the scan.</td>
+		</tr>
+		<tr>
+			<td><code>tagPrefixes</code></td>
+			<td><code>@, $</code></td>
+			<td><a href="#/code-anchors/tag-prefixes">Prefix characters</a> recognized before a tag, so <code>@TODO</code> is treated as <code>TODO</code>.</td>
+		</tr>
+	</tbody>
+</table>
+</div>
+
+<div class="ks-note">
+	<strong><code>fileExtensions</code> does not gate inline coloring.</strong>
+	It controls the workspace scan and link validation. Anchor coloring, prefix highlighting, issue links and
+	<code>LINK:</code> run in every open file regardless.
+</div>
+
+<h2>What you cannot configure</h2>
+
+<p>The languages that receive CodeLens, documentation popups, folding and reflow are fixed — they are the ones with a known doc-comment style, listed in <a href="#/overview/supported-languages">Supported languages</a>. There is no setting to add one, because an unrecognized language has no comment style to parse and nothing would render.</p>

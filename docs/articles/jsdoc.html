@@ -1,0 +1,58 @@
+<h1>JSDoc / TSDoc</h1>
+
+<p class="ks-lede">TypeScript, JavaScript, TSX and JSX <code>/** */</code> blocks get the same CodeLens summary and documentation popup as <a href="#/rendering">XML doc comments</a>. Doxygen-style <code>\tag</code> syntax is recognized too.</p>
+
+<p>The CodeLens summary comes from the free text before the first <code>@tag</code>. Clicking it opens the popup.</p>
+
+<div class="ks-warn">
+	<strong>No reflow for JSDoc.</strong>
+	<a href="#/reflow">Comment reflow</a> is deliberately not applied to <code>/** */</code> blocks — rewrapping
+	would break <code>@tag</code> lines.
+</div>
+
+<h2>Tag mapping</h2>
+
+<div class="ks-table-wrap">
+<table>
+	<thead><tr><th>Tag</th><th>Popup section</th></tr></thead>
+	<tbody>
+		<tr><td><em>free text before any tag</em>, <code>@description</code>, <code>@summary</code></td><td>Summary</td></tr>
+		<tr><td><code>@param</code>, <code>@arg</code>, <code>@argument</code></td><td>Parameters — with type, if <code>{type}</code> is given</td></tr>
+		<tr><td><code>@returns</code>, <code>@return</code></td><td>Returns — with type and description</td></tr>
+		<tr><td><code>@throws</code>, <code>@throw</code>, <code>@exception</code></td><td>Exceptions — exception type as the heading</td></tr>
+		<tr><td><code>@example</code></td><td>Example — fenced code block</td></tr>
+		<tr><td><code>@remarks</code>, <code>@note</code></td><td>Remarks</td></tr>
+		<tr><td><code>@see</code>, <code>@seealso</code></td><td>See Also</td></tr>
+		<tr><td><code>@deprecated</code></td><td>Deprecated, under Other</td></tr>
+		<tr><td><code>@typeparam</code>, <code>@template</code></td><td>Type Parameters</td></tr>
+		<tr><td><code>@type</code></td><td>Type annotation prepended to Summary</td></tr>
+		<tr><td><code>@brief</code></td><td>Summary — Doxygen; used only when there is no free-text description</td></tr>
+		<tr><td><em>anything else</em></td><td>Other, with <code>@tagname</code> as the heading</td></tr>
+	</tbody>
+</table>
+</div>
+
+<h2>Parameter forms</h2>
+
+<pre><code>@param {string} name              plain
+@param {string} [name]            optional
+@param {string} [name=default]    optional with default
+@param {...number} rest           rest parameter
+@param {Object} options
+@param {string} options.sub       dotted name</code></pre>
+
+<p>The <code>{type}</code> brace expression handles nested generics such as <code>Object.&lt;string, Array&lt;T&gt;&gt;</code>.</p>
+
+<h2>Example</h2>
+
+<pre><code>/**
+ * Resolves a user by primary key.
+ *
+ * @param {string} id   The user identifier.
+ * @param {Object} [options]
+ * @param {boolean} [options.includeDeleted=false]
+ * @returns {Promise&lt;User|null&gt;} The user, or null when not found.
+ * @throws {ArgumentError} When id is empty.
+ * @example
+ * const user = await getUser('42');
+ */</code></pre>

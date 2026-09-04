@@ -1,0 +1,55 @@
+<h1>Comment Remover</h1>
+
+<p class="ks-lede">Deletes documentation comment blocks — one at the caret, or every block in the file. Useful when you inherit a file full of auto-generated stub comments.</p>
+
+<h2>Commands</h2>
+
+<div class="ks-table-wrap">
+<table>
+	<thead><tr><th>Command</th><th>What it removes</th><th>When it is enabled</th></tr></thead>
+	<tbody>
+		<tr>
+			<td><code>Remove Current XML Comment</code></td>
+			<td>The doc comment block containing the caret.</td>
+			<td>Only when the caret is inside a doc comment.</td>
+		</tr>
+		<tr>
+			<td><code>Remove All XML Comments in File</code></td>
+			<td>Every doc comment block in the active file.</td>
+			<td>Always.</td>
+		</tr>
+	</tbody>
+</table>
+</div>
+
+<p>Both are on the editor context menu under <strong>KAT Comment Studio</strong>, and in the command palette.</p>
+
+<h2>What counts as a doc comment</h2>
+
+<p>Despite the command names, this is not XML-only. Any block written in the current language's documentation style is removed:</p>
+
+<div class="ks-table-wrap">
+<table>
+	<thead><tr><th>Style</th><th>Languages</th></tr></thead>
+	<tbody>
+		<tr><td><code>///</code></td><td>C#, F#, C/C++, Razor</td></tr>
+		<tr><td><code>'''</code></td><td>VB</td></tr>
+		<tr><td><code>/** */</code></td><td>TypeScript, JavaScript, TSX, JSX</td></tr>
+		<tr><td><code>##</code>, <code>&lt;# #&gt;</code></td><td>PowerShell</td></tr>
+		<tr><td><code>---</code></td><td>SQL</td></tr>
+		<tr><td><code>(** *)</code></td><td>F# block form</td></tr>
+	</tbody>
+</table>
+</div>
+
+<div class="ks-note">
+	<strong>Ordinary comments are safe.</strong>
+	A plain <code>//</code>, <code>#</code> or <code>'</code> comment is recognized but never deleted by these
+	commands — only documentation blocks are.
+</div>
+
+<div class="ks-warn">
+	<strong>Removal is a single edit.</strong>
+	Both commands apply as one editor edit, so <code>Ctrl+Z</code> restores everything they removed in one step.
+	There is no confirmation prompt.
+</div>

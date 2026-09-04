@@ -1,4 +1,4 @@
-import { scanCommentLinesMap } from './commentScanner';
+import { scanAnchorLinesMap, isProseFilePath } from './commentScanner';
 
 export interface AnchorType {
   tag: string;
@@ -185,7 +185,9 @@ export function findAnchorsInLine(
 
 /**
  * Finds all anchors in a file's content.
- * Only lines that are within a comment (single-line or block) are searched.
+ *
+ * In code files only lines within a comment are searched. In prose files
+ * (Markdown) every line is searched — see `scanAnchorLinesMap`.
  */
 export function findAnchorsInText(
   text: string,
@@ -196,7 +198,7 @@ export function findAnchorsInText(
   const allTags = tags || [...BUILTIN_ANCHOR_TYPES.keys()];
   const regex = buildAnchorRegex(allTags, tagPrefixes);
   const lines = text.split(/\r?\n/);
-  const commentMap = scanCommentLinesMap(lines);
+  const commentMap = scanAnchorLinesMap(lines, isProseFilePath(filePath));
   const matches: AnchorMatch[] = [];
 
   for (let i = 0; i < lines.length; i++) {

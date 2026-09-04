@@ -1,0 +1,105 @@
+<h1>LINK: Navigation</h1>
+
+<p class="ks-lede">Write <code>LINK: path/to/file.cs</code> in a comment and it becomes a real reference — hover for a preview, <code>Ctrl+Click</code> to jump, and a warning squiggle when the target stops existing.</p>
+
+<img class="ks-shot" src="https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/media/code-anchors-links.png" alt="A LINK: reference with its hover preview">
+
+<h2>Path prefixes</h2>
+
+<div class="ks-table-wrap">
+<table>
+	<thead><tr><th>Prefix</th><th>Resolves from</th><th>Example</th></tr></thead>
+	<tbody>
+		<tr><td><code>@/</code></td><td>Nearest <code>.csproj</code> directory</td><td><code>@/Services/UserService.cs</code></td></tr>
+		<tr><td><code>/</code></td><td>First workspace folder root</td><td><code>/Core/Domain/src/Models/User.cs</code></td></tr>
+		<tr><td><code>./</code></td><td>Current file's directory</td><td><code>./Helpers/StringHelper.cs</code></td></tr>
+		<tr><td><code>../</code></td><td>Current file's parent directory</td><td><code>../Common/BaseEntity.cs</code></td></tr>
+		<tr><td><code>X:/</code>, <code>X:\</code></td><td>Absolute Windows path</td><td><code>C:/BTR/Camelot/Core/src/User.cs</code></td></tr>
+		<tr><td><em>none</em></td><td>Current file's directory</td><td><code>Models/User.cs</code></td></tr>
+	</tbody>
+</table>
+</div>
+
+<h2>Supported forms</h2>
+
+<pre><code>// LINK: MyFile.cs                              bare, relative to this file's directory
+// LINK: ./relative/path/to/file.cs             explicit relative
+// LINK: ../sibling/folder/file.ts              parent-relative
+// LINK: @/Services/UserService.cs              project-relative (nearest .csproj)
+// LINK: /Core/Domain/src/Models/User.cs        workspace-root-relative (first folder)
+// LINK: C:/BTR/Camelot/Core/src/User.cs        absolute
+// LINK: MyFile.cs:42                           jump to line 42
+// LINK: MyFile.cs:10-20                        select lines 10-20
+// LINK: MyFile.cs#AnchorName                   jump to a named ANCHOR in that file
+// LINK: #LocalAnchorInThisFile                 jump to an ANCHOR in this file
+// LINK: path with spaces/file.cs:5             spaces are allowed</code></pre>
+
+<p><code>#AnchorName</code> targets an <a href="#/code-anchors/metadata"><code>ANCHOR</code> anchor</a> — <code>// ANCHOR(AnchorName): …</code>.</p>
+
+<h2>Editor behavior</h2>
+
+<div class="ks-table-wrap">
+<table>
+	<thead><tr><th>Action</th><th>Result</th></tr></thead>
+	<tbody>
+		<tr><td>Hover</td><td>Shows the resolved absolute path and whether the target exists</td></tr>
+		<tr><td>Type <code>LINK: </code></td><td>Path completions appear automatically. Picking a directory re-triggers suggestions so you can drill down without retyping. Named <code>ANCHOR</code> tags across the workspace are offered for <code>LINK: #</code>.</td></tr>
+		<tr><td><code>Ctrl+Click</code> / <code>F12</code></td><td>Navigates to the target, at the requested line or anchor</td></tr>
+		<tr><td>Broken target</td><td>Warning squiggle; it clears as soon as the link resolves again</td></tr>
+	</tbody>
+</table>
+</div>
+
+<h2>How the workspace shape affects resolution</h2>
+
+<ul>
+	<li><code>/</code> always resolves from the <strong>first</strong> workspace folder.</li>
+	<li><code>@/</code> resolves from the nearest <code>.csproj</code> directory above the file containing the link, falling back to the first workspace folder when there is no <code>.csproj</code>.</li>
+</ul>
+
+<h3>Multi-root workspace</h3>
+
+<p><code>@/</code> resolves per file — each source file uses its own nearest <code>.csproj</code>. <code>/</code> always uses the first folder listed in the <code>.code-workspace</code>.</p>
+
+<pre><code>// MyApp.code-workspace
+{
+  "folders": [
+    { "path": "C:/BTR/Camelot/Core" },
+    { "path": "C:/BTR/Camelot/UI" }
+  ]
+}
+
+// File: C:/BTR/Camelot/Core/src/Domain/User.cs
+//       (inside C:/BTR/Camelot/Core/src/Core.csproj)
+
+// LINK: @/Services/UserService.cs
+//   -> C:/BTR/Camelot/Core/src/Services/UserService.cs   (from Core.csproj)
+// LINK: /Services/UserService.cs
+//   -> C:/BTR/Camelot/Core/Services/UserService.cs       (from workspace folder 0)</code></pre>
+
+<h3>A folder containing a .sln</h3>
+
+<p>There is no <code>.sln</code> parsing. VS Code treats the folder as the workspace root, and as long as source files sit inside a <code>.csproj</code>, <code>@/</code> still resolves correctly.</p>
+
+<pre><code>// Opened: C:/BTR/Camelot/MyApp/          (folder containing MyApp.sln)
+// File is under C:/BTR/Camelot/MyApp/src/Core/Core.csproj
+
+// LINK: @/Services/UserService.cs
+//   -> C:/BTR/Camelot/MyApp/src/Core/Services/UserService.cs
+// LINK: /Core/Domain/User.cs
+//   -> C:/BTR/Camelot/MyApp/Core/Domain/User.cs</code></pre>
+
+<h3>A subfolder with no .csproj ancestor</h3>
+
+<pre><code>// Opened: C:/BTR/Camelot/Core/Domain/    (no .csproj in the hierarchy)
+
+// LINK: @/Models/User.cs  -> C:/BTR/Camelot/Core/Domain/Models/User.cs
+// LINK: /Models/User.cs   -> same</code></pre>
+
+<p>Without a <code>.csproj</code> ancestor, <code>@/</code> behaves exactly like <code>/</code>.</p>
+
+<div class="ks-note">
+	<strong>Link validation follows the scan settings.</strong>
+	Targets are validated against the same <code>fileExtensions</code> list used by the
+	<a href="#/code-anchors/where-anchors-are-found">anchor scan</a>.
+</div>

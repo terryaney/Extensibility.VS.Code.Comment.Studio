@@ -43,6 +43,7 @@ import {
   resolveScopeRootPath,
 } from './anchors/anchorViewState';
 import { disposeDebugChannel } from './diagnostics/debugLog';
+import { getSupportedLanguageIds } from './parsing/languageConfig';
 import { XmlDocCommentBlock } from './types';
 
 let decorationManager: DecorationManager | undefined;
@@ -59,7 +60,21 @@ function katLog(message: string): void {
   katOutput?.appendLine(message);
 }
 
-const SUPPORTED_LANGUAGES = ['csharp', 'vb', 'fsharp', 'cpp', 'c', 'typescript', 'javascript', 'typescriptreact', 'javascriptreact', 'razor', 'sql', 'powershell'];
+/**
+ * Languages that have a doc-comment style in `languageConfig.ts`. Only these can
+ * get CodeLens, the documentation popup, folding, and reflow — the rest of the
+ * pipeline needs a comment style to parse against. `languageConfig.ts` is the
+ * single source of truth; do not duplicate this list.
+ */
+const DOC_COMMENT_LANGUAGES = getSupportedLanguageIds();
+
+/**
+ * Comment-text features (`LINK:` navigation, issue links) are pure regex over
+ * comment lines and need no language support, so they are offered everywhere —
+ * matching inline anchor colorization and prefix highlighting, which already
+ * decorate every open editor.
+ */
+const ALL_FILES: vscode.DocumentSelector = { scheme: 'file' };
 
 export function activate(context: vscode.ExtensionContext): void {
   katOutput = vscode.window.createOutputChannel('KAT Comment Studio');
@@ -78,31 +93,31 @@ export function activate(context: vscode.ExtensionContext): void {
   codeLensProvider.setCodeLensMaxLength(config.codeLensSummaryTruncation);
 
   context.subscriptions.push(
-    vscode.languages.registerCodeLensProvider(SUPPORTED_LANGUAGES, codeLensProvider),
+    vscode.languages.registerCodeLensProvider(DOC_COMMENT_LANGUAGES, codeLensProvider),
   );
 
   // Register comment hover provider (CodeLens-triggered rich tooltips)
   commentHoverProvider = new CommentHoverProvider();
   commentHoverProvider.setEnabled(isRenderingOn);
   context.subscriptions.push(
-    vscode.languages.registerHoverProvider(SUPPORTED_LANGUAGES, commentHoverProvider),
+    vscode.languages.registerHoverProvider(DOC_COMMENT_LANGUAGES, commentHoverProvider),
   );
 
   // Register navigation providers (conditionally based on settings)
   if (config.enableIssueLinks) {
     context.subscriptions.push(
-      vscode.languages.registerDocumentLinkProvider(SUPPORTED_LANGUAGES, new IssueLinkProvider()),
+      vscode.languages.registerDocumentLinkProvider(ALL_FILES, new IssueLinkProvider()),
     );
   }
   context.subscriptions.push(
-    vscode.languages.registerDocumentLinkProvider(SUPPORTED_LANGUAGES, new LinkAnchorLinkProvider()),
-    vscode.languages.registerHoverProvider(SUPPORTED_LANGUAGES, new LinkAnchorHoverProvider()),
-    vscode.languages.registerDefinitionProvider(SUPPORTED_LANGUAGES, new LinkDefinitionProvider()),
+    vscode.languages.registerDocumentLinkProvider(ALL_FILES, new LinkAnchorLinkProvider()),
+    vscode.languages.registerHoverProvider(ALL_FILES, new LinkAnchorHoverProvider()),
+    vscode.languages.registerDefinitionProvider(ALL_FILES, new LinkDefinitionProvider()),
   );
 
   // Register folding provider for doc comment blocks
   context.subscriptions.push(
-    vscode.languages.registerFoldingRangeProvider(SUPPORTED_LANGUAGES, new CommentFoldingProvider()),
+    vscode.languages.registerFoldingRangeProvider(DOC_COMMENT_LANGUAGES, new CommentFoldingProvider()),
   );
 
   // Anchor inline decorations (colorize TODO, HACK, etc.)
@@ -393,7 +408,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // Register reflow code action provider
   context.subscriptions.push(
-    vscode.languages.registerCodeActionsProvider(SUPPORTED_LANGUAGES, new ReflowCodeActionProvider(), {
+    vscode.languages.registerCodeActionsProvider(DOC_COMMENT_LANGUAGES, new ReflowCodeActionProvider(), {
       providedCodeActionKinds: ReflowCodeActionProvider.providedCodeActionKinds,
     }),
   );
@@ -425,7 +440,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   // Register LINK: completion provider (needs anchor cache)
   context.subscriptions.push(
-    vscode.languages.registerCompletionItemProvider(SUPPORTED_LANGUAGES, new LinkCompletionProvider(anchorCache), ':', '#', '/'),
+    vscode.languages.registerCompletionItemProvider(ALL_FILES, new LinkCompletionProvider(anchorCache), ':', '#', '/'),
   );
 
   const anchorTreeProvider = new AnchorTreeProvider();

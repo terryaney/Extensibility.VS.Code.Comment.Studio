@@ -13,7 +13,6 @@ export function reflowAllComments(document: vscode.TextDocument): vscode.TextEdi
   if (!commentStyle) return [];
 
   const config = getConfiguration();
-  if (!config.enabledLanguages.includes(document.languageId)) return [];
 
   const lines = document.getText().split(/\r?\n/);
   const blocks = findAllCommentBlocks(lines, commentStyle);
@@ -51,7 +50,6 @@ export function reflowCurrentComment(document: vscode.TextDocument, cursorLine: 
   if (!commentStyle) return [];
 
   const config = getConfiguration();
-  if (!config.enabledLanguages.includes(document.languageId)) return [];
 
   const lines = document.getText().split(/\r?\n/);
   const blocks = findAllCommentBlocks(lines, commentStyle);

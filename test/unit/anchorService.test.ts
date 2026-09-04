@@ -395,4 +395,46 @@ line 2
       expect(matches).toHaveLength(0);
     });
   });
+
+  describe('markdown (prose) files', () => {
+    it('should find an anchor on a plain line with no comment marker', () => {
+      const results = findAnchorsInText('TODO: write the docs', 'notes.md');
+      expect(results).toHaveLength(1);
+      expect(results[0].tag).toBe('TODO');
+      expect(results[0].description).toBe('write the docs');
+    });
+
+    it('should find an anchor inside an HTML comment', () => {
+      const results = findAnchorsInText('<!-- FIXME: broken link -->', 'notes.md');
+      expect(results).toHaveLength(1);
+      expect(results[0].tag).toBe('FIXME');
+    });
+
+    it('should find an anchor in a list item', () => {
+      const results = findAnchorsInText('- BUG: crashes on empty input', 'notes.md');
+      expect(results).toHaveLength(1);
+      expect(results[0].tag).toBe('BUG');
+    });
+
+    it('should not treat an apostrophe as a comment start', () => {
+      const results = findAnchorsInText("It's worth a NOTE: read this", 'notes.md');
+      expect(results).toHaveLength(1);
+      expect(results[0].tag).toBe('NOTE');
+    });
+
+    it('should report the column relative to the whole line', () => {
+      const results = findAnchorsInText('- BUG: crashes', 'notes.md');
+      expect(results[0].column).toBe(2);
+    });
+
+    it('should still require a comment in a code file', () => {
+      const results = findAnchorsInText('TODO: write the docs', 'test.cs');
+      expect(results).toHaveLength(0);
+    });
+
+    it('should treat .markdown the same as .md', () => {
+      const results = findAnchorsInText('TODO: still prose', 'notes.markdown');
+      expect(results).toHaveLength(1);
+    });
+  });
 });

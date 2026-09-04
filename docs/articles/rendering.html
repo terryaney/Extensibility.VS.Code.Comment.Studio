@@ -1,0 +1,74 @@
+<h1>XML Doc Rendering</h1>
+
+<p class="ks-lede">Collapses an XML documentation block down to a single readable CodeLens line, so a well-documented file stays skimmable. Click the summary to see the full comment formatted as a popup.</p>
+
+<p>A raw XML doc comment costs a lot of vertical space and is hard to read — inconsistent blank lines, an element break mid-sentence, one very long line, and an unrendered code block:</p>
+
+<img class="ks-shot" src="https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/media/xml.comments.before.png" alt="A raw, unformatted XML doc comment block">
+
+<p>With rendering on, the whole block folds to one line:</p>
+
+<img class="ks-shot" src="https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/media/xml.comments.after.rendered.png" alt="The same block collapsed to a single CodeLens summary">
+
+<h2>What rendering does</h2>
+
+<ol>
+	<li>The block collapses. At <code>xmlCommentOpacity: 0</code> it is fully transparent — only the fold chevron, the <code>…</code> decoration, and a single line height remain, so you can still click into it and edit.</li>
+	<li>It auto-unfolds when the caret enters, and re-folds shortly after the caret leaves. Both delays are configurable — see <a href="#/reflow/auto-expand-and-auto-collapse-timing">timing</a>.</li>
+	<li>A <strong>CodeLens</strong> shows the <code>&lt;summary&gt;</code> text above the member. Long summaries truncate at <code>codeLensSummaryTruncation</code> (default 205 characters; <code>0</code> disables truncation). When the summary has multiple <code>&lt;para&gt;</code> elements, only the first is shown.</li>
+	<li>Clicking the CodeLens opens the documentation popup.</li>
+</ol>
+
+<h2>Documentation popup</h2>
+
+<p>Click the summary text in a CodeLens, or press <strong>F1</strong> with the caret in or directly below the comment (see <a href="#/commands/f1-interception">F1 interception</a>).</p>
+
+<img class="ks-shot" src="https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/media/xml.comments.after.popup.png" alt="The formatted documentation popup">
+
+<p>The popup always shows the full content — <code>codeLensSummaryTruncation</code> only affects the CodeLens line. Sections rendered:</p>
+
+<div class="ks-table-wrap">
+<table>
+	<thead><tr><th>Section</th><th>Rendering</th></tr></thead>
+	<tbody>
+		<tr><td>Summary</td><td>Styled text</td></tr>
+		<tr><td>Parameters</td><td>Name and description</td></tr>
+		<tr><td>Returns</td><td>Inline with the description</td></tr>
+		<tr><td>Remarks</td><td>Label on its own line, content indented below</td></tr>
+		<tr><td>Value</td><td>Property value description</td></tr>
+		<tr><td>Example</td><td>Fenced code block</td></tr>
+		<tr><td>Exceptions</td><td>List of exception types and descriptions</td></tr>
+		<tr><td>See Also</td><td>Clickable links</td></tr>
+		<tr><td>Anchor tags</td><td><code>TODO:</code>, <code>NOTE:</code>, <code>HACK:</code> and friends, colored by <a href="#/colors/anchor-types">anchor type</a></td></tr>
+	</tbody>
+</table>
+</div>
+
+<p>Inline formatting is rendered too: <code>code</code>, bold, italic, strikethrough, and hyperlinks.</p>
+
+<h3>Supported XML tags</h3>
+
+<p><code>&lt;summary&gt;</code>, <code>&lt;param&gt;</code>, <code>&lt;typeparam&gt;</code>, <code>&lt;returns&gt;</code>, <code>&lt;value&gt;</code>, <code>&lt;remarks&gt;</code>, <code>&lt;example&gt;</code>, <code>&lt;exception&gt;</code>, <code>&lt;see&gt;</code>, <code>&lt;seealso&gt;</code>, <code>&lt;inheritdoc&gt;</code>, <code>&lt;paramref&gt;</code>, <code>&lt;typeparamref&gt;</code>, <code>&lt;c&gt;</code>, <code>&lt;code&gt;</code>, <code>&lt;list&gt;</code></p>
+
+<h2>Turning rendering on and off</h2>
+
+<div class="ks-table-wrap">
+<table>
+	<thead><tr><th>Where</th><th>How</th></tr></thead>
+	<tbody>
+		<tr><td>Command palette</td><td><code>KAT Comment Studio: Toggle Comment Rendering</code></td></tr>
+		<tr><td>Editor context menu</td><td><strong>KAT Comment Studio</strong> submenu</td></tr>
+		<tr><td>Status bar</td><td><img class="ks-icon" src="https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/media/codicon-comment-draft.png" alt=""> <code>OFF</code> / <img class="ks-icon" src="https://github.com/terryaney/Extensibility.VS.Code.Comment.Studio/raw/main/media/codicon-comment.png" alt=""> <code>ON</code> — click to toggle</td></tr>
+	</tbody>
+</table>
+</div>
+
+<p>The persistent default is the <code>xmlCommentRendering</code> setting.</p>
+
+<h2>Collapse when rendering is off</h2>
+
+<p>Set <code>collapseXmlWhenRenderingOff</code> to <code>true</code> to fold every XML doc block as a file opens. It only applies while rendering is <strong>off</strong> — when rendering is on, blocks are folded anyway.</p>
+
+<h2>Related settings</h2>
+
+<p><code>xmlCommentRendering</code>, <code>xmlCommentOpacity</code>, <code>codeLensSummaryTruncation</code>, <code>collapseXmlWhenRenderingOff</code>, <code>interceptF1ForComments</code> — all documented in the <a href="#/settings">Settings Reference</a>.</p>
